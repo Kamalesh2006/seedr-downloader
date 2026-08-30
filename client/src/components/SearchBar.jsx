@@ -13,7 +13,7 @@ export default function SearchBar({
   prefilledMagnet = null,
   prefilledName = null
 }) {
-  const [mode, setMode] = useState('search');
+  const [mode, setMode] = useState('magnet');
   const [query, setQuery] = useState('');
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
@@ -81,19 +81,6 @@ export default function SearchBar({
           <button
             type="button"
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              mode === 'search' 
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
-            }`}
-            onClick={() => setMode('search')}
-          >
-            <Search className="w-4 h-4" />
-            Search Torrents
-          </button>
-
-          <button
-            type="button"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               mode === 'magnet' 
                 ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -102,6 +89,19 @@ export default function SearchBar({
           >
             <LinkIcon className="w-4 h-4" />
             Paste Magnet
+          </button>
+
+          <button
+            type="button"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              mode === 'search' 
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+            }`}
+            onClick={() => setMode('search')}
+          >
+            <Search className="w-4 h-4" />
+            Search Torrents
           </button>
         </div>
 

@@ -112,12 +112,23 @@ class SeedrService {
         size: f.size || 0
       }));
 
-      const files = (data.files || []).map(f => ({
-        ...f,
-        id: f.id || f.folder_file_id,
-        name: f.name || f.path || f.fullname || 'File',
-        size: f.size || 0
-      }));
+      const files = (data.files || []).map(f => {
+        const isVideo = !!f.is_video || !!(f.name && f.name.match(/\.(mp4|mkv|avi|webm|mov|m4v|flv)$/i));
+        const isAudio = !!f.is_audio || !!(f.name && f.name.match(/\.(mp3|wav|flac|aac|m4a|ogg)$/i));
+        const hlsUrl = f.presentation_urls?.video?.hls || null;
+
+        return {
+          ...f,
+          id: f.id || f.folder_file_id,
+          name: f.name || f.path || f.fullname || 'File',
+          size: f.size || 0,
+          isVideo,
+          isAudio,
+          hlsUrl,
+          thumb: f.thumb || null,
+          presentation_urls: f.presentation_urls || null
+        };
+      });
 
       const torrents = (data.torrents || []).map(t => ({
         ...t,
