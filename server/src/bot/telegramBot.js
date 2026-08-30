@@ -1,6 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const searchService = require('../services/searchService');
 const seedrService = require('../services/seedrService');
+const downloadQueue = require('../services/downloadQueueService');
 const config = require('../../config.json');
 
 // In-memory cache for action data (to circumvent Telegram's 64-byte callback_data limit)
@@ -128,8 +129,8 @@ class SeedrTelegramBot {
       reply_markup: {
         keyboard: [
           [{ text: '🔍 Search Torrents' }, { text: '📁 Seedr Files' }],
-          [{ text: '⚡ Active Transfers' }, { text: '💾 Storage Quota' }],
-          [{ text: '❓ Help' }]
+          [{ text: '⚡ Active Transfers' }, { text: '📋 Queue' }],
+          [{ text: '💾 Storage Quota' }, { text: '❓ Help' }]
         ],
         resize_keyboard: true,
         persistent: true
@@ -227,6 +228,12 @@ class SeedrTelegramBot {
       await this.displayActiveTransfers(msg.chat.id);
     });
 
+    // /queue command
+    this.bot.onText(/^\/queue/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      await this.displayQueue(msg.chat.id);
+    });
+
     // /quota command
     this.bot.onText(/^\/quota/, async (msg) => {
       if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
@@ -251,6 +258,9 @@ class SeedrTelegramBot {
       }
       if (text === '⚡ Active Transfers') {
         return this.displayActiveTransfers(msg.chat.id);
+      }
+      if (text === '📋 Queue') {
+        return this.displayQueue(msg.chat.id);
       }
       if (text === '💾 Storage Quota') {
         return this.displayStorageQuota(msg.chat.id);
@@ -305,6 +315,47 @@ class SeedrTelegramBot {
         if (data === 'cmd_quota') {
           await this.bot.answerCallbackQuery(query.id);
           return this.displayStorageQuota(chatId, messageId);
+        }
+
+        // Navigation: Queue
+        if (data === 'cmd_queue') {
+          await this.bot.answerCallbackQuery(query.id);
+          return this.displayQueue(chatId, messageId);
+        }
+
+        // Queue: Add to queue
+        if (data.startsWith('queue_add:')) {
+          const cacheId = data.replace('queue_add:', '');
+          const cached = getActionData(cacheId);
+          if (!cached || !cached.magnet) {
+            return this.bot.answerCallbackQuery(query.id, { text: '⚠️ Request expired.', show_alert: true });
+          }
+          downloadQueue.addToQueue({ magnet: cached.magnet, name: cached.title });
+          await this.bot.answerCallbackQuery(query.id, { text: '✅ Added to schedule queue!' });
+          return this.bot.editMessageText(
+            `✅ <b>Scheduled in Download Queue!</b>\n\n` +
+            `🎬 <b>Torrent:</b> <code>${escapeHtml(cached.title)}</code>\n` +
+            `📋 <b>Position in Queue:</b> #${downloadQueue.queue.length}\n\n` +
+            `<i>The auto-scheduler will monitor your Seedr storage and automatically start downloading this torrent as soon as sufficient space is available.</i>`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '📋 View Schedule Queue', callback_data: 'cmd_queue' }],
+                  [{ text: '📁 View Seedr Files', callback_data: 'nav_folder:root' }]
+                ]
+              }
+            }
+          );
+        }
+
+        // Queue: Clear queue
+        if (data === 'queue_clear') {
+          downloadQueue.clearQueue();
+          await this.bot.answerCallbackQuery(query.id, { text: 'Queue cleared' });
+          return this.displayQueue(chatId, messageId);
         }
 
         // Add to Seedr action from search results: add_res:<cacheId>
@@ -477,6 +528,35 @@ class SeedrTelegramBot {
     try {
       const result = await seedrService.addMagnet(magnet);
 
+      const isSpaceError = 
+        result?.reason_phrase === 'not_enough_space_added_to_wishlist' ||
+        result?.reason_phrase === 'not_enough_space' ||
+        result?.result === 'not_enough_space';
+
+      if (isSpaceError) {
+        const qCacheId = storeActionData({ magnet, title });
+        return this.bot.editMessageText(
+          `⚠️ <b>Not Enough Seedr Storage Space</b>\n\n` +
+          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n\n` +
+          `Your Seedr account does not have enough free space to download this file right now.\n\n` +
+          `💡 <b>Options:</b>\n` +
+          `• Tap <b>"⏳ Schedule in Queue"</b> below to automatically download this as soon as space is freed!\n` +
+          `• Or use <code>/files</code> to view and delete completed files.`,
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '⏳ Schedule in Download Queue', callback_data: `queue_add:${qCacheId}` }],
+                [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
+                [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
+              ]
+            }
+          }
+        );
+      }
+
       if (result.result === false || (result.result !== true && result.result !== 'success' && !result.id)) {
         const errMsg = result.error || result.message || 'Seedr rejected magnet link.';
         return this.bot.editMessageText(`❌ <b>Failed to add to Seedr:</b> ${escapeHtml(errMsg)}`, {
@@ -513,7 +593,35 @@ class SeedrTelegramBot {
       }
     } catch (error) {
       console.error('Bot add magnet error:', error);
-      const errMsg = error.error || error.message || 'Failed to add magnet link.';
+      const rawErr = error?.response?.data || error;
+      const reason = rawErr?.reason_phrase || rawErr?.error || rawErr?.message || '';
+      const isSpace = typeof reason === 'string' && (reason.includes('space') || reason.includes('wishlist'));
+
+      if (isSpace) {
+        const qCacheId = storeActionData({ magnet, title });
+        return this.bot.editMessageText(
+          `⚠️ <b>Not Enough Seedr Storage Space</b>\n\n` +
+          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n\n` +
+          `Your Seedr account does not have enough free space to download this right now.\n\n` +
+          `💡 <b>Options:</b>\n` +
+          `• Tap <b>"⏳ Schedule in Queue"</b> below to automatically download this as soon as space is freed!\n` +
+          `• Or use <code>/files</code> to delete completed files from your Seedr cloud.`,
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '⏳ Schedule in Download Queue', callback_data: `queue_add:${qCacheId}` }],
+                [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
+                [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
+              ]
+            }
+          }
+        );
+      }
+
+      const errMsg = rawErr?.reason_phrase || rawErr?.error || rawErr?.message || error?.message || 'Failed to add magnet link.';
       await this.bot.editMessageText(`❌ <b>Error:</b> ${escapeHtml(errMsg)}`, {
         chat_id: chatId,
         message_id: statusMsg.message_id,
@@ -954,12 +1062,18 @@ class SeedrTelegramBot {
       ];
 
       if (messageId) {
-        await this.bot.editMessageText(text, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: inlineKeyboard }
-        });
+        try {
+          await this.bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (err) {
+          if (!err.message || !err.message.includes('message is not modified')) {
+            throw err;
+          }
+        }
       } else {
         await this.bot.sendMessage(chatId, text, {
           parse_mode: 'HTML',
@@ -970,7 +1084,75 @@ class SeedrTelegramBot {
       console.error('Storage quota error:', error);
       const errMsg = `❌ Failed to fetch storage quota: ${escapeHtml(error.message || '')}`;
       if (messageId) {
-        await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+        try {
+          await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+        } catch (e) {}
+      } else {
+        await this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
+      }
+    }
+  }
+
+  // 11. Display Download Queue / Schedule
+  async displayQueue(chatId, messageId = null) {
+    try {
+      const queueStatus = downloadQueue.getQueueStatus();
+      const queueList = queueStatus.queue || [];
+
+      let text = `📋 <b>Upcoming Download Schedule / Queue:</b>\n\n`;
+
+      if (queueList.length === 0) {
+        text += `<i>No torrents currently scheduled in queue.</i>\n\n` +
+                `When your Seedr storage is full, you can add torrents to this queue to automatically download in order as soon as storage is freed!`;
+      } else {
+        text += `<b>Scheduled Torrents (${queueList.length} items):</b>\n\n`;
+        queueList.forEach((item, idx) => {
+          const itemSize = item.size ? ` (${item.size})` : '';
+          text += `<b>#${idx + 1}.</b> <code>${escapeHtml(item.name)}</code>${itemSize}\n`;
+        });
+        text += `\n⚡ <i>Auto-Scheduler will download these in FIFO order as space becomes available.</i>`;
+      }
+
+      const inlineKeyboard = [];
+
+      if (queueList.length > 0) {
+        inlineKeyboard.push([
+          { text: '🗑️ Clear Queue', callback_data: 'queue_clear' },
+          { text: '🔄 Refresh Queue', callback_data: 'cmd_queue' }
+        ]);
+      } else {
+        inlineKeyboard.push([
+          { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' },
+          { text: '📁 Seedr Files', callback_data: 'nav_folder:root' }
+        ]);
+      }
+
+      if (messageId) {
+        try {
+          await this.bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (err) {
+          if (!err.message || !err.message.includes('message is not modified')) {
+            throw err;
+          }
+        }
+      } else {
+        await this.bot.sendMessage(chatId, text, {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        });
+      }
+    } catch (error) {
+      console.error('Display queue error:', error);
+      const errMsg = `❌ Failed to fetch queue: ${escapeHtml(error.message || '')}`;
+      if (messageId) {
+        try {
+          await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+        } catch (e) {}
       } else {
         await this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
       }
