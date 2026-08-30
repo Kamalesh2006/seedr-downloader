@@ -1,7 +1,9 @@
-import React from 'react';
-import { CloudDownload, Users, Download, ArrowDown, ArrowUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { CloudDownload, Users, Download, ArrowDown, ArrowUp, ListOrdered, Check } from 'lucide-react';
 
-export default function SearchResults({ results, onDownload }) {
+export default function SearchResults({ results, onDownload, onAddToQueue }) {
+  const [queuedIds, setQueuedIds] = useState(new Set());
+
   if (!results || results.length === 0) return null;
 
   const getSizeColor = (sizeStr) => {
@@ -22,6 +24,23 @@ export default function SearchResults({ results, onDownload }) {
     return 'text-rose-400 font-semibold';
   };
 
+  const handleQueue = async (result, idx) => {
+    if (!onAddToQueue) return;
+    try {
+      await onAddToQueue(result.magnet, result.title, result.size);
+      setQueuedIds(prev => new Set(prev).add(idx));
+      setTimeout(() => {
+        setQueuedIds(prev => {
+          const next = new Set(prev);
+          next.delete(idx);
+          return next;
+        });
+      }, 3000);
+    } catch (e) {
+      console.error('Failed to queue', e);
+    }
+  };
+
   return (
     <div className="bg-gray-900 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-800">
       <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/70 flex items-center justify-between">
@@ -38,56 +57,74 @@ export default function SearchResults({ results, onDownload }) {
               <th className="px-6 py-3.5 font-semibold w-32">Size</th>
               <th className="px-6 py-3.5 font-semibold w-24">Seeders</th>
               <th className="px-6 py-3.5 font-semibold w-24">Leechers</th>
-              <th className="px-6 py-3.5 font-semibold w-32 text-right">Action</th>
+              <th className="px-6 py-3.5 font-semibold w-48 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/60">
-            {results.map((result, idx) => (
-              <tr key={idx} className="hover:bg-gray-800/40 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="text-gray-100 font-medium text-sm line-clamp-2 group-hover:text-emerald-300 transition-colors" title={result.title}>
-                    {result.title}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                      {result.provider}
-                    </span>
-                    {result.time && (
-                      <span className="text-[11px] text-gray-500">
-                        {result.time}
+            {results.map((result, idx) => {
+              const isQueued = queuedIds.has(idx);
+
+              return (
+                <tr key={idx} className="hover:bg-gray-800/40 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="text-gray-100 font-medium text-sm line-clamp-2 group-hover:text-emerald-300 transition-colors" title={result.title}>
+                      {result.title}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        {result.provider}
                       </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={getSizeColor(result.size)}>
-                    {result.size}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <ArrowUp className="w-3 h-3" />
-                    {result.seeds || 0}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                    <ArrowDown className="w-3 h-3" />
-                    {result.leeches || 0}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <button
-                    onClick={() => onDownload(result.magnet, result.title, result.size)}
-                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98]"
-                    title="Send to Seedr"
-                  >
-                    <CloudDownload className="w-4 h-4" />
-                    <span>Seedr</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      {result.time && (
+                        <span className="text-[11px] text-gray-500">
+                          {result.time}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className={getSizeColor(result.size)}>
+                      {result.size}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <ArrowUp className="w-3 h-3" />
+                      {result.seeds || 0}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                      <ArrowDown className="w-3 h-3" />
+                      {result.leeches || 0}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <div className="inline-flex items-center gap-2">
+                      {onAddToQueue && (
+                        <button
+                          onClick={() => handleQueue(result, idx)}
+                          disabled={isQueued}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          title="Schedule in queue for later"
+                        >
+                          {isQueued ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <ListOrdered className="w-3.5 h-3.5" />}
+                          <span>{isQueued ? 'Queued' : '+ Queue'}</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => onDownload(result.magnet, result.title, result.size)}
+                        className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98]"
+                        title="Send to Seedr immediately"
+                      >
+                        <CloudDownload className="w-4 h-4" />
+                        <span>Seedr</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

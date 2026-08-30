@@ -5,6 +5,8 @@ import { getMagnetDisplayName } from '../utils/magnet';
 
 export default function useSeedr() {
   const [activeTransfers, setActiveTransfers] = useState([]);
+  const [cloudTorrents, setCloudTorrents] = useState([]);
+  const [cloudTasks, setCloudTasks] = useState([]);
   const [completedFiles, setCompletedFiles] = useState([]);
   const [storage, setStorage] = useState({ spaceUsed: 0, spaceMax: 0 });
   const [folderContents, setFolderContents] = useState({});
@@ -12,6 +14,7 @@ export default function useSeedr() {
   const [error, setError] = useState(null);
   
   const pollingRef = useRef({});
+  const pollTimerRef = useRef(null);
 
   const {
     recentMagnets,
@@ -27,6 +30,9 @@ export default function useSeedr() {
       const { data: folderData } = await api.get('/seedr/folders');
       const folders = folderData.folders || [];
       const files = folderData.files || [];
+      const torrents = folderData.torrents || [];
+      const tasks = folderData.tasks || [];
+      
       const flatFiles = [];
       
       for (const f of folders) {
@@ -38,12 +44,45 @@ export default function useSeedr() {
       }
 
       setCompletedFiles(flatFiles);
+      setCloudTorrents(torrents);
+      setCloudTasks(tasks);
+
+      // Merge cloud torrents and local transfers into unified activeTransfers list
+      const combinedTransfers = [
+        ...torrents.map(t => ({
+          id: t.id,
+          name: t.name || 'Cloud Torrent',
+          size: t.size || 0,
+          progress: t.progress || 0,
+          status: t.status || (t.stopped ? 'Stopped' : 'downloading'),
+          type: 'torrent',
+          seeders: t.seeders,
+          downloadRate: t.download_rate
+        })),
+        ...tasks.map(tsk => ({
+          id: tsk.id,
+          name: tsk.name || 'Cloud Task',
+          size: tsk.size || 0,
+          progress: 0,
+          status: 'Processing',
+          type: 'task'
+        }))
+      ];
+      setActiveTransfers(combinedTransfers);
       
       if (folderData.space_used !== undefined && folderData.space_max !== undefined) {
         setStorage({
           spaceUsed: folderData.space_used || 0,
           spaceMax: folderData.space_max || 0
         });
+      }
+
+      // Auto-schedule next poll if there are active torrents or tasks in Seedr
+      if (torrents.length > 0 || tasks.length > 0) {
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = setTimeout(() => {
+          refreshFiles();
+        }, 3000);
       }
     } catch (err) {
       console.error('Failed to refresh Seedr files', err);
@@ -94,146 +133,16 @@ export default function useSeedr() {
     }
   }, []);
 
-  const findDownloadLinksForTitle = useCallback(async (title) => {
-    try {
-      const { data: rootData } = await api.get('/seedr/folders');
-      const folders = rootData.folders || [];
-      const files = rootData.files || [];
-      
-      // Look in files first
-      const fileMatch = files.find(f => f.name.toLowerCase() === title.toLowerCase());
-      if (fileMatch) {
-        const { data: dl } = await api.get(`/seedr/download/${fileMatch.id}`);
-        return [{ name: fileMatch.name, url: dl.url }];
-      }
-      
-      // Look in folders
-      const folderMatch = folders.find(f => f.name.toLowerCase() === title.toLowerCase());
-      if (folderMatch) {
-        const { data: folderData } = await api.get(`/seedr/folder/${folderMatch.id}`);
-        const folderFiles = folderData.files || [];
-        const results = [];
-        for (const file of folderFiles) {
-          try {
-            const { data: dl } = await api.get(`/seedr/download/${file.id}`);
-            results.push({ name: file.name, url: dl.url });
-          } catch (e) {
-            console.error('Failed to get download URL for file in folder:', file.name, e);
-          }
-        }
-        return results;
-      }
-    } catch (e) {
-      console.error('Error finding download links for title:', title, e);
-    }
-    return [];
-  }, []);
-
-  const pollManualTransfer = useCallback(async (transferId, title) => {
-    if (pollingRef.current[transferId]) return;
-    pollingRef.current[transferId] = true;
-
-    const checkStatus = async () => {
-      try {
-        const { data } = await api.get(`/seedr/status/${transferId}`);
-        const { status, progress } = data;
-        
-        updateManualMagnet(transferId, {
-          progress: progress || 0,
-          status: status || 'downloading'
-        });
-
-        if (progress >= 100 || status === 'finished') {
-          pollingRef.current[transferId] = false;
-          updateManualMagnet(transferId, {
-            progress: 100,
-            status: 'finished'
-          });
-          
-          setTimeout(async () => {
-            const urls = await findDownloadLinksForTitle(title);
-            updateManualMagnet(transferId, { files: urls || [] });
-            refreshFiles();
-          }, 3000);
-          
-          return;
-        }
-
-        setTimeout(checkStatus, 3000);
-      } catch (err) {
-        console.error('Error polling manual transfer, fallback to matching root folder/files', err);
-        pollingRef.current[transferId] = false;
-        
-        // Fallback: If Seedr deleted the transfer because it completed, check root list
-        setTimeout(async () => {
-          const urls = await findDownloadLinksForTitle(title);
-          if (urls && urls.length > 0) {
-            updateManualMagnet(transferId, {
-              progress: 100,
-              status: 'finished',
-              files: urls
-            });
-          } else {
-            updateManualMagnet(transferId, {
-              status: 'failed'
-            });
-          }
-          refreshFiles();
-        }, 3000);
-      }
-    };
-    checkStatus();
-  }, [updateManualMagnet, findDownloadLinksForTitle, refreshFiles]);
-
-  const pollTransfer = useCallback(async (transferId, name) => {
-    if (pollingRef.current[transferId]) return;
-    pollingRef.current[transferId] = true;
-
-    setActiveTransfers(prev => {
-      const existing = prev.find(t => t.id === transferId);
-      if (existing) return prev;
-      return [...prev, { id: transferId, name: name || 'Torrent Transfer', progress: 0, status: 'Queued' }];
-    });
-
-    const checkStatus = async () => {
-      try {
-        const { data } = await api.get(`/seedr/status/${transferId}`);
-        const { status, progress } = data;
-        
-        setActiveTransfers(prev => 
-          prev.map(t => t.id === transferId ? { ...t, progress: progress || 0, status: status || t.status } : t)
-        );
-
-        if (progress >= 100 || status === 'finished') {
-          setActiveTransfers(prev => prev.filter(t => t.id !== transferId));
-          pollingRef.current[transferId] = false;
-          refreshFiles();
-          return;
-        }
-
-        setTimeout(checkStatus, 3000);
-      } catch (err) {
-        console.error('Error polling transfer', err);
-        pollingRef.current[transferId] = false;
-        setActiveTransfers(prev => prev.filter(t => t.id !== transferId));
-      }
-    };
-    checkStatus();
-  }, [refreshFiles]);
-
   const addMagnet = async (magnet, name) => {
     try {
       const parsedName = name || getMagnetDisplayName(magnet);
       const { data } = await api.post('/seedr/add', { magnet });
       if (data.id) {
         const finalTitle = data.title || parsedName;
-        // Track manual magnet
         addManualMagnet(data.id, finalTitle, magnet);
-        // Start polling
-        pollManualTransfer(data.id, finalTitle);
-        // Also show in standard active transfers panel
-        pollTransfer(data.id, finalTitle);
       }
+      // Immediately refresh files and torrents
+      refreshFiles();
       return data;
     } catch (err) {
       console.error('Failed to add magnet', err);
@@ -279,26 +188,38 @@ export default function useSeedr() {
     }
   };
 
-  // Re-poll incomplete manual magnets on mount/update
-  useEffect(() => {
-    recentMagnets.forEach(m => {
-      if (m.progress < 100 && m.status !== 'finished' && m.status !== 'failed') {
-        if (!pollingRef.current[m.id]) {
-          pollManualTransfer(m.id, m.title);
-        }
-      }
-    });
-  }, [recentMagnets, pollManualTransfer]);
+  const deleteTorrent = async (torrentId) => {
+    try {
+      await api.delete(`/seedr/torrent/${torrentId}`);
+      refreshFiles();
+    } catch (err) {
+      console.error('Failed to delete torrent', err);
+      throw err;
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    try {
+      await api.delete(`/seedr/task/${taskId}`);
+      refreshFiles();
+    } catch (err) {
+      console.error('Failed to delete task', err);
+      throw err;
+    }
+  };
 
   useEffect(() => {
     refreshFiles();
     return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       pollingRef.current = {};
     };
   }, [refreshFiles]);
 
   return {
     activeTransfers,
+    cloudTorrents,
+    cloudTasks,
     completedFiles,
     storage,
     folderContents,
@@ -306,12 +227,13 @@ export default function useSeedr() {
     error,
     recentMagnets,
     addMagnet,
-    pollTransfer,
     refreshFiles,
     fetchFolderContents,
     getDownloadUrl,
     deleteFile,
     deleteFolder,
+    deleteTorrent,
+    deleteTask,
     removeManualMagnet
   };
 }

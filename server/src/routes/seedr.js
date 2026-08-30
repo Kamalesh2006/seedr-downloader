@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const seedrService = require('../services/seedrService');
+const torrentWatchdog = require('../services/torrentWatchdogService');
+const downloadQueue = require('../services/downloadQueueService');
 
 router.post('/add', async (req, res) => {
   try {
@@ -59,6 +61,8 @@ router.delete('/file/:fileId', async (req, res) => {
     const { fileId } = req.params;
     const result = await seedrService.deleteFile(fileId);
     res.json(result);
+    // Storage space freed: trigger queue check
+    setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete file', details: error });
   }
@@ -69,9 +73,38 @@ router.delete('/folder/:folderId', async (req, res) => {
     const { folderId } = req.params;
     const result = await seedrService.deleteFolder(folderId);
     res.json(result);
+    // Storage space freed: trigger queue check
+    setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete folder', details: error });
   }
+});
+
+router.delete('/torrent/:torrentId', async (req, res) => {
+  try {
+    const { torrentId } = req.params;
+    const result = await seedrService.deleteTorrent(torrentId);
+    res.json(result);
+    // Torrent slot freed: trigger queue check
+    setTimeout(() => downloadQueue.processNext(), 2000);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete torrent', details: error });
+  }
+});
+
+router.delete('/task/:taskId', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const result = await seedrService.deleteTask(taskId);
+    res.json(result);
+    setTimeout(() => downloadQueue.processNext(), 2000);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete task', details: error });
+  }
+});
+
+router.get('/watchdog', (req, res) => {
+  res.json(torrentWatchdog.getStatus());
 });
 
 module.exports = router;

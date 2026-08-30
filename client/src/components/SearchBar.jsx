@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X, ListOrdered, Plus } from 'lucide-react';
 import { extractMagnetName, isValidMagnet } from '../utils/magnet';
 
 export default function SearchBar({ 
   onSearch, 
   onAddMagnet, 
+  onAddToQueue,
   loading,
   recentCount = 0,
+  queueCount = 0,
   onOpenRecent,
   prefilledMagnet = null,
   prefilledName = null
@@ -17,7 +19,7 @@ export default function SearchBar({
   const [customName, setCustomName] = useState('');
   const [detectedName, setDetectedName] = useState('');
 
-  // Handle prefilled magnet link (e.g. when selected from Recent list)
+  // Handle prefilled magnet link
   useEffect(() => {
     if (prefilledMagnet) {
       setMode('magnet');
@@ -53,6 +55,16 @@ export default function SearchBar({
       setCustomName('');
       setDetectedName('');
     }
+  };
+
+  const handleScheduleInQueue = (e) => {
+    e.preventDefault();
+    if (!magnet.trim() || !onAddToQueue) return;
+    const finalName = customName.trim() || detectedName || 'Scheduled Magnet';
+    onAddToQueue(magnet.trim(), finalName);
+    setMagnet('');
+    setCustomName('');
+    setDetectedName('');
   };
 
   const handleClear = () => {
@@ -93,19 +105,22 @@ export default function SearchBar({
           </button>
         </div>
 
-        {/* Show Recent Button */}
-        <button
-          type="button"
-          onClick={onOpenRecent}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-700/60 hover:border-emerald-500/40 transition-all group"
-          title="View recent magnet links"
-        >
-          <History className="w-4 h-4 text-emerald-400 group-hover:rotate-[-20deg] transition-transform" />
-          <span>Recent Links</span>
-          <span className="ml-0.5 px-2 py-0.5 rounded-full text-[11px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-            {recentCount}
-          </span>
-        </button>
+        {/* Action Badges */}
+        <div className="flex items-center gap-2">
+          {/* Show Recent Button */}
+          <button
+            type="button"
+            onClick={onOpenRecent}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-700/60 hover:border-emerald-500/40 transition-all group"
+            title="View recent magnet links"
+          >
+            <History className="w-4 h-4 text-emerald-400 group-hover:rotate-[-20deg] transition-transform" />
+            <span>Recent Links</span>
+            <span className="ml-0.5 px-2 py-0.5 rounded-full text-[11px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              {recentCount}
+            </span>
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="relative">
@@ -179,22 +194,36 @@ export default function SearchBar({
                   />
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1.5">
-                  You can edit the name above if you want to rename it before adding to Seedr.
+                  You can edit the name above if you want to rename it before adding or scheduling.
                 </p>
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <div className="text-xs text-gray-500 hidden sm:block">
                 Supports all standard BitTorrent magnet URIs
               </div>
-              <button
-                type="submit"
-                disabled={loading || !magnet.trim()}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-7 py-3 rounded-xl font-semibold transition-all self-end flex items-center justify-center min-w-[150px] disabled:opacity-50 shadow-lg shadow-emerald-950/40 hover:scale-[1.01] active:scale-[0.99]"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Add to Seedr'}
-              </button>
+              
+              <div className="flex items-center gap-2.5 ml-auto">
+                <button
+                  type="button"
+                  onClick={handleScheduleInQueue}
+                  disabled={loading || !magnet.trim()}
+                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:border-indigo-500 transition-all disabled:opacity-50 shadow-sm"
+                  title="Add to upcoming queue (auto-downloads when storage frees)"
+                >
+                  <ListOrdered className="w-4 h-4 text-indigo-400" />
+                  <span>Schedule in Queue</span>
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loading || !magnet.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-50 shadow-lg shadow-emerald-950/40 hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
+                </button>
+              </div>
             </div>
           </div>
         )}

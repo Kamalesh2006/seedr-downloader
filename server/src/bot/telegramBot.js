@@ -566,7 +566,18 @@ class SeedrTelegramBot {
     try {
       const isRoot = folderId === 'root' || !folderId;
       const targetId = isRoot ? null : folderId;
-      const data = await seedrService.listFolder(targetId);
+      
+      let data;
+      try {
+        data = await seedrService.listFolder(targetId);
+      } catch (folderErr) {
+        // If a subfolder was deleted or not found, fall back to root folder automatically
+        if (!isRoot) {
+          console.log(`Folder ${targetId} not found, falling back to root.`);
+          return this.displayFolder(chatId, 'root', messageId);
+        }
+        throw folderErr;
+      }
 
       const folders = data.folders || [];
       const files = data.files || [];
@@ -629,12 +640,18 @@ class SeedrTelegramBot {
       ]);
 
       if (messageId) {
-        await this.bot.editMessageText(headerText, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: inlineKeyboard }
-        });
+        try {
+          await this.bot.editMessageText(headerText, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (err) {
+          if (!err.message || !err.message.includes('message is not modified')) {
+            throw err;
+          }
+        }
       } else {
         await this.bot.sendMessage(chatId, headerText, {
           parse_mode: 'HTML',
@@ -643,59 +660,108 @@ class SeedrTelegramBot {
       }
     } catch (error) {
       console.error('Display folder error:', error);
-      const errMsg = `❌ Failed to list folder contents: ${escapeHtml(error.message || 'Unknown error')}`;
+      const rawErr = error?.response?.data || error;
+      const errText = rawErr?.reason_phrase || rawErr?.error || rawErr?.message || error?.message || 'Error communicating with Seedr';
+      const errMsg = `❌ Failed to list folder contents: ${escapeHtml(errText)}`;
       if (messageId) {
-        await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+        try {
+          await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+        } catch (e) {}
       } else {
         await this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
       }
     }
   }
 
-  // 5. Display File Details with Download / Delete buttons
+  // 5. Display File Details with Direct Download Link (Copyable)
   async displayFileDetails(chatId, fileId, parentFolderId = 'root', messageId = null) {
     try {
       const isRoot = parentFolderId === 'root';
-      const folderData = await seedrService.listFolder(isRoot ? null : parentFolderId);
+      let folderData;
+      try {
+        folderData = await seedrService.listFolder(isRoot ? null : parentFolderId);
+      } catch (e) {
+        // If parent folder was deleted, check root
+        folderData = await seedrService.listFolder(null);
+      }
+
       const files = folderData.files || [];
       const file = files.find((f) => String(f.id) === String(fileId));
+
+      if (!file && !isRoot) {
+        // Maybe file is in root
+        const rootData = await seedrService.listFolder(null);
+        const rootFile = (rootData.files || []).find((f) => String(f.id) === String(fileId));
+        if (rootFile) {
+          parentFolderId = 'root';
+        }
+      }
 
       const fileName = file ? file.name : `File #${fileId}`;
       const fileSize = file && file.size ? formatBytes(file.size) : 'Unknown';
 
-      const text = 
-        `📄 <b>File Details:</b>\n\n` +
-        `🎬 <b>Name:</b> <code>${escapeHtml(fileName)}</code>\n` +
-        `📦 <b>Size:</b> ${fileSize}\n` +
-        `🆔 <b>File ID:</b> <code>${fileId}</code>\n\n` +
-        `<i>Choose an action:</i>`;
+      // Automatically fetch direct download URL for instant 1-tap copying
+      let downloadUrl = null;
+      try {
+        const dlResult = await seedrService.getDownloadUrl(fileId);
+        downloadUrl = dlResult.url;
+      } catch (e) {
+        console.error('Failed to get direct download URL in file details', e);
+      }
 
-      const inlineKeyboard = [
-        [
-          { text: '📥 Get Direct Download Link', callback_data: `get_dl:${fileId}:${parentFolderId}` }
-        ],
-        [
-          { text: '🗑️ Delete File', callback_data: `del_prompt:file:${fileId}:${parentFolderId}` },
-          { text: '⬅️ Back to Folder', callback_data: `nav_folder:${parentFolderId}` }
-        ]
-      ];
+      let text = 
+        `🎬 <b>${escapeHtml(fileName)}</b>\n\n` +
+        `📦 <b>Size:</b> ${fileSize}\n` +
+        `🆔 <b>File ID:</b> <code>${fileId}</code>\n\n`;
+
+      if (downloadUrl) {
+        text += 
+          `📋 <b>Direct Download Link:</b> <i>(Tap code box below to copy)</i>\n` +
+          `<code>${escapeHtml(downloadUrl)}</code>\n\n` +
+          `💡 <i>Tap the link above to copy, then paste into 1DM / IDM / Browser / VLC to download!</i>`;
+      } else {
+        text += `⚠️ <i>Unable to generate direct link at the moment.</i>`;
+      }
+
+      const inlineKeyboard = [];
+
+      if (downloadUrl) {
+        inlineKeyboard.push([
+          { text: '🌐 Open / Download in Browser', url: downloadUrl }
+        ]);
+      }
+
+      inlineKeyboard.push([
+        { text: '🗑️ Delete File', callback_data: `del_prompt:file:${fileId}:${parentFolderId}` },
+        { text: '⬅️ Back to Folder', callback_data: `nav_folder:${parentFolderId}` }
+      ]);
 
       if (messageId) {
-        await this.bot.editMessageText(text, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: inlineKeyboard }
-        });
+        try {
+          await this.bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (err) {
+          if (!err.message || !err.message.includes('message is not modified')) {
+            throw err;
+          }
+        }
       } else {
         await this.bot.sendMessage(chatId, text, {
           parse_mode: 'HTML',
+          disable_web_page_preview: true,
           reply_markup: { inline_keyboard: inlineKeyboard }
         });
       }
     } catch (error) {
       console.error('Display file error:', error);
-      await this.bot.sendMessage(chatId, `❌ Failed to retrieve file details: ${escapeHtml(error.message || '')}`, {
+      const rawErr = error?.response?.data || error;
+      const errText = rawErr?.reason_phrase || rawErr?.error || rawErr?.message || error?.message || 'Failed to retrieve file';
+      await this.bot.sendMessage(chatId, `❌ Failed to retrieve file details: ${escapeHtml(errText)}`, {
         parse_mode: 'HTML'
       });
     }
@@ -713,12 +779,13 @@ class SeedrTelegramBot {
 
       const text = 
         `🚀 <b>High-Speed Direct Download Link Ready:</b>\n\n` +
-        `🔗 <b>URL:</b> <a href="${escapeHtml(downloadUrl)}">Click here to Download / Stream</a>\n\n` +
-        `<i>You can stream with VLC or download with your browser / download manager.</i>`;
+        `📋 <b>Link:</b> <i>(Tap below to copy)</i>\n` +
+        `<code>${escapeHtml(downloadUrl)}</code>\n\n` +
+        `💡 <i>Paste into 1DM / IDM / Browser / VLC to start download.</i>`;
 
       const inlineKeyboard = [
         [
-          { text: '📥 Open / Download URL', url: downloadUrl }
+          { text: '🌐 Open in Browser', url: downloadUrl }
         ],
         [
           { text: '⬅️ Back to File', callback_data: `view_file:${fileId}:${parentFolderId}` },
@@ -727,16 +794,23 @@ class SeedrTelegramBot {
       ];
 
       if (messageId) {
-        await this.bot.editMessageText(text, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: 'HTML',
-          disable_web_page_preview: false,
-          reply_markup: { inline_keyboard: inlineKeyboard }
-        });
+        try {
+          await this.bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (err) {
+          if (!err.message || !err.message.includes('message is not modified')) {
+            throw err;
+          }
+        }
       } else {
         await this.bot.sendMessage(chatId, text, {
           parse_mode: 'HTML',
+          disable_web_page_preview: true,
           reply_markup: { inline_keyboard: inlineKeyboard }
         });
       }

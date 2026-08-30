@@ -4,15 +4,18 @@ import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
 import CompletedFiles from './components/CompletedFiles';
+import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import TelegramModal from './components/TelegramModal';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
+import useQueue from './hooks/useQueue';
 
 function App() {
   const { search, results, loading: searchLoading, error: searchError } = useSearch();
   const { 
     activeTransfers, 
+    cloudTorrents,
     completedFiles, 
     storage,
     folderContents,
@@ -24,8 +27,20 @@ function App() {
     getDownloadUrl, 
     deleteFile, 
     deleteFolder,
+    deleteTorrent,
+    deleteTask,
     removeManualMagnet
   } = useSeedr();
+
+  const {
+    queue,
+    isAutoEnabled,
+    addToQueue,
+    removeFromQueue,
+    moveItem,
+    clearQueue,
+    toggleAutoQueue
+  } = useQueue();
   
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
@@ -44,12 +59,30 @@ function App() {
     try {
       await addMagnet(magnet, name);
       showToast('Added to Seedr. Polling progress...', 'success');
-      // If manual magnet was pasted, open the converter status modal
       if (!name) {
         setIsMagnetsOpen(true);
       }
     } catch (err) {
       showToast('Failed to add to Seedr', 'error');
+    }
+  };
+
+  const handleAddToQueue = async (magnet, name = '', size = null) => {
+    try {
+      await addToQueue(magnet, name, size);
+      showToast(`Added "${name || 'Torrent'}" to upcoming schedule!`, 'success');
+    } catch (err) {
+      showToast('Failed to schedule in queue', 'error');
+    }
+  };
+
+  const handleSendFromQueueNow = async (magnet, name, queueId) => {
+    try {
+      await addMagnet(magnet, name);
+      await removeFromQueue(queueId);
+      showToast(`Sent "${name}" to Seedr immediately!`, 'success');
+    } catch (err) {
+      showToast('Failed to send to Seedr', 'error');
     }
   };
 
@@ -67,12 +100,20 @@ function App() {
     try {
       if (type === 'folder') {
         await deleteFolder(id);
+        showToast('Folder deleted from Seedr (Checking queue...)');
+      } else if (type === 'torrent') {
+        await deleteTorrent(id);
+        showToast('Active torrent cancelled & removed from Seedr (Checking queue...)');
+      } else if (type === 'task') {
+        await deleteTask(id);
+        showToast('Task removed from Seedr');
       } else {
         await deleteFile(id, parentFolderId);
+        showToast('File deleted from Seedr (Checking queue...)');
       }
-      showToast(`${type} deleted`);
     } catch (err) {
       showToast(`Failed to delete ${type}`, 'error');
+      throw err;
     }
   };
 
@@ -90,7 +131,7 @@ function App() {
               <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
                 Seedr Downloader
               </h1>
-              <p className="text-sm text-gray-500">Search & Download Torrents instantly</p>
+              <p className="text-sm text-gray-500">Search, Schedule & Download Torrents instantly</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -117,11 +158,15 @@ function App() {
           </div>
         </header>
 
-        {/* Search */}
+        {/* Search & Magnet Bar */}
         <SearchBar 
           onSearch={handleSearch} 
           onAddMagnet={handleAddMagnet} 
+          onAddToQueue={handleAddToQueue}
           loading={searchLoading} 
+          queueCount={queue.length}
+          recentCount={recentMagnets.length}
+          onOpenRecent={() => setIsMagnetsOpen(true)}
         />
 
         {searchError && (
@@ -134,14 +179,30 @@ function App() {
         <SearchResults 
           results={results} 
           onDownload={handleAddMagnet} 
+          onAddToQueue={handleAddToQueue}
         />
 
-        {/* Active Downloads */}
-        <ActiveDownloads transfers={activeTransfers} />
+        {/* Active Cloud Downloads in Seedr */}
+        <ActiveDownloads 
+          transfers={activeTransfers} 
+          onCancel={(id, type) => handleDelete(id, type || 'torrent')}
+        />
+
+        {/* Upcoming Download Schedule / Queue Manager */}
+        <QueueManager 
+          queue={queue}
+          isAutoEnabled={isAutoEnabled}
+          onMoveItem={moveItem}
+          onRemoveItem={removeFromQueue}
+          onClearQueue={clearQueue}
+          onToggleAuto={toggleAutoQueue}
+          onSendNow={handleSendFromQueueNow}
+        />
 
         {/* Completed Files & Seedr Storage Manager */}
         <CompletedFiles 
           files={completedFiles} 
+          activeTorrents={cloudTorrents}
           storage={storage}
           folderContents={folderContents}
           loading={seedrLoading}
@@ -149,6 +210,7 @@ function App() {
           onFetchFolder={fetchFolderContents}
           onDownload={handleDownloadFile} 
           onDelete={handleDelete} 
+          getDownloadUrl={getDownloadUrl}
         />
 
       </div>

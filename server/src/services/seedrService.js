@@ -119,10 +119,30 @@ class SeedrService {
         size: f.size || 0
       }));
 
+      const torrents = (data.torrents || []).map(t => ({
+        ...t,
+        id: t.id,
+        name: t.name || t.path || t.title || 'Torrent Transfer',
+        size: t.size || 0,
+        progress: typeof t.progress === 'number' ? t.progress : 0,
+        status: t.stopped ? 'Stopped' : (t.progress >= 100 ? 'Completed' : 'Downloading'),
+        type: 'torrent'
+      }));
+
+      const tasks = (data.tasks || []).map(t => ({
+        ...t,
+        id: t.id,
+        name: t.name || t.title || 'Processing Task',
+        size: t.size || 0,
+        type: 'task'
+      }));
+
       return {
         ...data,
         folders,
         files,
+        torrents,
+        tasks,
         space_used: data.space_used !== undefined ? data.space_used : data.size || 0,
         space_max: data.space_max !== undefined ? data.space_max : 4831838208
       };
@@ -169,6 +189,24 @@ class SeedrService {
   async deleteFolder(folderId) {
     try {
       const response = await this.makeRequest('delete', `${this.baseUrl}/folder/${folderId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  }
+
+  async deleteTorrent(torrentId) {
+    try {
+      const response = await this.makeRequest('delete', `${this.baseUrl}/torrent/${torrentId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  }
+
+  async deleteTask(taskId) {
+    try {
+      const response = await this.makeRequest('delete', `${this.baseUrl}/task/${taskId}`);
       return response.data;
     } catch (error) {
       throw error.response ? error.response.data : error;
