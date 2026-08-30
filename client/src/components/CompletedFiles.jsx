@@ -109,7 +109,7 @@ export default function CompletedFiles({
 
   // Calculate storage usage percentage
   const used = storage.spaceUsed || 0;
-  const max = storage.spaceMax || (2 * 1024 * 1024 * 1024); // default 2GB if not provided
+  const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024); // 4.5GB quota
   const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
 
   const getStorageColor = (pct) => {

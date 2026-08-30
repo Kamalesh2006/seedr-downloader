@@ -32,6 +32,13 @@ export function extractMagnetName(magnetUri) {
 }
 
 /**
+ * Alias for extractMagnetName
+ */
+export function getMagnetDisplayName(magnetUri) {
+  return extractMagnetName(magnetUri);
+}
+
+/**
  * Extracts the BTIH info hash from a magnet URI
  * @param {string} magnetUri - The magnet URI string
  * @returns {string|null} The hash or null

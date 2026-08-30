@@ -54,7 +54,14 @@ class SearchService {
             TorrentSearchApi.enableProvider(provider.name);
             TorrentSearchApi.overrideConfig(provider.name, { baseUrl: url });
 
-            const results = await TorrentSearchApi.search(query, 'All', config.maxResults);
+            // Enforce a 6-second timeout using Promise.race
+            const searchPromise = TorrentSearchApi.search(query, 'All', config.maxResults);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 6000)
+            );
+            
+            const results = await Promise.race([searchPromise, timeoutPromise]);
+            
             if (results && results.length > 0) {
               console.log(`Success on ${provider.name} with mirror ${url}. Found ${results.length} results.`);
               providerResults = results;
@@ -62,7 +69,7 @@ class SearchService {
               break; // Mirror succeeded, stop trying mirrors for this provider
             }
           } catch (error) {
-            console.error(`Mirror failed: ${url} for ${provider.name}. Error: ${error.message}`);
+            console.error(`Mirror failed or timed out: ${url} for ${provider.name}. Error: ${error.message}`);
           }
         }
 

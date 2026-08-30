@@ -7,3 +7,4 @@ build/
 .vercel/
 .vercel
 .env*
+recent_magnets_data.json

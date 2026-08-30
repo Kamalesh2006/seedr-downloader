@@ -4,6 +4,7 @@ A personal web app to search for torrents, send magnet links to your [Seedr.cc](
 
 ## Features
 
+- 🤖 **Telegram Bot Integration** — Search torrents, browse Seedr files, get direct download URLs & send magnets on the go
 - 🔍 **Search torrents** across multiple providers (1337x, ThePirateBay, YTS)
 - 🧲 **Paste magnet links** directly with real-time **File Name auto-detection**
 - 🕒 **Recent magnet history** — stores up to 10 recent links with file names, 1-click re-add, and copy
@@ -17,21 +18,42 @@ A personal web app to search for torrents, send magnet links to your [Seedr.cc](
 
 - [Node.js](https://nodejs.org/) v18 or later
 - A [Seedr.cc](https://seedr.cc) account (premium recommended for API access)
+- *(Optional)* A Telegram Bot Token from [@BotFather](https://t.me/BotFather) for Telegram integration
 
 ## Quick Start
 
 ### 1. Configure credentials
 
-Edit `server/.env` with your Seedr account credentials:
+Edit `server/.env` with your Seedr account credentials and optional Telegram bot configuration:
 
 ```env
 SEEDR_EMAIL=your_email@example.com
 SEEDR_PASSWORD=your_password
 MAX_FILE_SIZE_GB=4.5
 PORT=3001
+
+# Telegram Bot Integration (Optional)
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
+TELEGRAM_BOT_USERNAME=your_seedr_bot
+# Optional: restrict bot access to your Telegram user ID or username
+TELEGRAM_ALLOWED_USERS=your_telegram_username
 ```
 
-### 2. Start the backend
+### 2. Telegram Bot Commands
+
+When the bot is running, you can interact with it using these commands or the persistent quick keyboard:
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Launch the bot, display welcome menu and quick action buttons |
+| `/search <query>` | Search torrents across enabled providers with 1-click `➕ Add to Seedr` |
+| `magnet:?xt=...` | Paste any magnet link directly in chat to automatically add to Seedr |
+| `/files` or `/myfiles` | Browse Seedr cloud storage folders, view files & generate direct download URLs |
+| `/transfers` | Monitor active downloading torrents and progress |
+| `/quota` | Check Seedr storage quota and available space |
+| `/help` | Display command guide and pro tips |
+
+### 3. Start the backend
 
 ```bash
 cd server
@@ -41,7 +63,7 @@ node src/index.js
 
 The API server starts on `http://localhost:3001`.
 
-### 3. Start the frontend
+### 4. Start the frontend
 
 ```bash
 cd client

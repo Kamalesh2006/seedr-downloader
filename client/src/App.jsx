@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { CloudRain } from 'lucide-react';
+import { CloudRain, Send } from 'lucide-react';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
 import CompletedFiles from './components/CompletedFiles';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
+import TelegramModal from './components/TelegramModal';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 
@@ -13,6 +14,11 @@ function App() {
   const { 
     activeTransfers, 
     completedFiles, 
+    storage,
+    folderContents,
+    loading: seedrLoading,
+    refreshFiles,
+    fetchFolderContents,
     recentMagnets,
     addMagnet, 
     getDownloadUrl, 
@@ -23,6 +29,7 @@ function App() {
   
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
+  const [isTelegramOpen, setIsTelegramOpen] = useState(false);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -56,12 +63,12 @@ function App() {
     }
   };
 
-  const handleDelete = async (id, type) => {
+  const handleDelete = async (id, type, parentFolderId = null) => {
     try {
       if (type === 'folder') {
         await deleteFolder(id);
       } else {
-        await deleteFile(id);
+        await deleteFile(id, parentFolderId);
       }
       showToast(`${type} deleted`);
     } catch (err) {
@@ -86,18 +93,28 @@ function App() {
               <p className="text-sm text-gray-500">Search & Download Torrents instantly</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsMagnetsOpen(true)}
-            className="relative bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 group shadow-md"
-          >
-            <span>Pasted Magnets</span>
-            {recentMagnets.some(m => m.status !== 'finished' && m.status !== 'failed') && (
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsTelegramOpen(true)}
+              className="bg-gray-900 hover:bg-gray-800 border border-sky-900/50 hover:border-sky-700/60 text-sky-400 hover:text-sky-300 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-md group"
+              title="Telegram Bot Integration"
+            >
+              <Send className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">Telegram Bot</span>
+            </button>
+            <button
+              onClick={() => setIsMagnetsOpen(true)}
+              className="relative bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 group shadow-md"
+            >
+              <span>Pasted Magnets</span>
+              {recentMagnets.some(m => m.status !== 'finished' && m.status !== 'failed') && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+            </button>
+          </div>
         </header>
 
         {/* Search */}
@@ -122,14 +139,25 @@ function App() {
         {/* Active Downloads */}
         <ActiveDownloads transfers={activeTransfers} />
 
-        {/* Completed Files */}
+        {/* Completed Files & Seedr Storage Manager */}
         <CompletedFiles 
           files={completedFiles} 
+          storage={storage}
+          folderContents={folderContents}
+          loading={seedrLoading}
+          onRefresh={refreshFiles}
+          onFetchFolder={fetchFolderContents}
           onDownload={handleDownloadFile} 
           onDelete={handleDelete} 
         />
 
       </div>
+
+      {/* Telegram Bot Modal */}
+      <TelegramModal 
+        isOpen={isTelegramOpen}
+        onClose={() => setIsTelegramOpen(false)}
+      />
 
       {/* Recent / Manual Magnets Converter Modal */}
       <RecentMagnetsModal 
