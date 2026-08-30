@@ -133,10 +133,10 @@ export default function useSeedr() {
     }
   }, []);
 
-  const addMagnet = async (magnet, name) => {
+  const addMagnet = async (magnet, name = '', size = null) => {
     try {
       const parsedName = name || getMagnetDisplayName(magnet);
-      const { data } = await api.post('/seedr/add', { magnet });
+      const { data } = await api.post('/seedr/add', { magnet, name: parsedName, size });
       if (data.id) {
         const finalTitle = data.title || parsedName;
         addManualMagnet(data.id, finalTitle, magnet);

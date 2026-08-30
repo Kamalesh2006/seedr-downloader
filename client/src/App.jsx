@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CloudRain, Send } from 'lucide-react';
+import { CloudRain, Send, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
@@ -10,6 +10,7 @@ import TelegramModal from './components/TelegramModal';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
+import { isOversizedForSeedr, parseSizeInGB } from './utils/magnet';
 
 function App() {
   const { search, results, loading: searchLoading, error: searchError } = useSearch();
@@ -35,6 +36,7 @@ function App() {
   const {
     queue,
     isAutoEnabled,
+    fetchQueue,
     addToQueue,
     removeFromQueue,
     moveItem,
@@ -48,37 +50,66 @@ function App() {
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), 4500);
   };
 
   const handleSearch = (query) => {
     search(query);
   };
 
-  const handleAddMagnet = async (magnet, name = '') => {
+  const handleAddMagnet = async (magnet, name = '', size = null) => {
+    // 1. Validate file size > 4.5 GB limit
+    if (size && isOversizedForSeedr(size)) {
+      showToast(`⚠️ Cannot download "${name || 'Torrent'}" (${size}): File size exceeds Seedr's 4.5 GB total storage limit.`, 'error');
+      return;
+    }
+
     try {
-      await addMagnet(magnet, name);
-      showToast('Added to Seedr. Polling progress...', 'success');
-      if (!name) {
-        setIsMagnetsOpen(true);
+      const res = await addMagnet(magnet, name, size);
+      if (res && res.autoQueued) {
+        showToast(`Existing files in Seedr detected. "${name || 'Torrent'}" automatically scheduled in Upcoming Queue!`, 'info');
+        fetchQueue();
+      } else {
+        showToast('Added to Seedr. Polling progress...', 'success');
+        if (!name) {
+          setIsMagnetsOpen(true);
+        }
       }
     } catch (err) {
-      showToast('Failed to add to Seedr', 'error');
+      const errDetail = err.response?.data?.error || err.message || '';
+      if (err.response?.data?.isOversized || errDetail.includes('4.5 GB') || errDetail.includes('file_too_big')) {
+        showToast(`⚠️ "${name || 'Torrent'}" exceeds Seedr's 4.5 GB storage limit and cannot be added.`, 'error');
+      } else {
+        showToast(errDetail || 'Failed to add to Seedr', 'error');
+      }
     }
   };
 
   const handleAddToQueue = async (magnet, name = '', size = null) => {
+    // 1. Validate file size > 4.5 GB limit
+    if (size && isOversizedForSeedr(size)) {
+      showToast(`⚠️ Cannot schedule "${name || 'Torrent'}" (${size}): File size exceeds Seedr's 4.5 GB storage limit.`, 'error');
+      return;
+    }
+
     try {
       await addToQueue(magnet, name, size);
       showToast(`Added "${name || 'Torrent'}" to upcoming schedule!`, 'success');
     } catch (err) {
-      showToast('Failed to schedule in queue', 'error');
+      const errDetail = err.response?.data?.error || err.message || '';
+      showToast(errDetail || 'Failed to schedule in queue', 'error');
     }
   };
 
-  const handleSendFromQueueNow = async (magnet, name, queueId) => {
+  const handleSendFromQueueNow = async (magnet, name, queueId, size = null) => {
+    if (size && isOversizedForSeedr(size)) {
+      showToast(`⚠️ Cannot send "${name}" (${size}): Exceeds Seedr 4.5 GB limit. Removing from queue...`, 'error');
+      await removeFromQueue(queueId);
+      return;
+    }
+
     try {
-      await addMagnet(magnet, name);
+      const res = await addMagnet(magnet, name, size);
       await removeFromQueue(queueId);
       showToast(`Sent "${name}" to Seedr immediately!`, 'success');
     } catch (err) {
@@ -100,7 +131,7 @@ function App() {
     try {
       if (type === 'folder') {
         await deleteFolder(id);
-        showToast('Folder deleted from Seedr (Checking queue...)');
+        showToast('Folder deleted from Seedr (Checking queue for next download...)');
       } else if (type === 'torrent') {
         await deleteTorrent(id);
         showToast('Active torrent cancelled & removed from Seedr (Checking queue...)');
@@ -109,11 +140,38 @@ function App() {
         showToast('Task removed from Seedr');
       } else {
         await deleteFile(id, parentFolderId);
-        showToast('File deleted from Seedr (Checking queue...)');
+        showToast('File deleted from Seedr (Checking queue for next download...)');
       }
+      fetchQueue();
     } catch (err) {
       showToast(`Failed to delete ${type}`, 'error');
       throw err;
+    }
+  };
+
+  const getToastStyles = (type) => {
+    switch (type) {
+      case 'error':
+        return 'bg-red-950 border border-red-800 text-red-200 shadow-red-950/50';
+      case 'info':
+        return 'bg-indigo-950 border border-indigo-800 text-indigo-200 shadow-indigo-950/50';
+      case 'warning':
+        return 'bg-amber-950 border border-amber-800 text-amber-200 shadow-amber-950/50';
+      default:
+        return 'bg-emerald-950 border border-emerald-800 text-emerald-200 shadow-emerald-950/50';
+    }
+  };
+
+  const getToastIcon = (type) => {
+    switch (type) {
+      case 'error':
+        return <XCircle className="w-5 h-5 text-red-400 shrink-0" />;
+      case 'info':
+        return <Info className="w-5 h-5 text-indigo-400 shrink-0" />;
+      case 'warning':
+        return <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
+      default:
+        return <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />;
     }
   };
 
@@ -131,7 +189,7 @@ function App() {
               <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
                 Seedr Downloader
               </h1>
-              <p className="text-sm text-gray-500">Search, Schedule & Download Torrents instantly</p>
+              <p className="text-sm text-gray-500">Search, Schedule & Download Torrents instantly (Max 4.5 GB)</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -231,11 +289,10 @@ function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4">
-          <div className={`px-6 py-3 rounded-lg shadow-xl font-medium ${
-            toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
-          }`}>
-            {toast.message}
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 max-w-md">
+          <div className={`px-5 py-3.5 rounded-xl shadow-2xl font-medium flex items-center gap-3 text-xs sm:text-sm ${getToastStyles(toast.type)}`}>
+            {getToastIcon(toast.type)}
+            <span className="flex-1">{toast.message}</span>
           </div>
         </div>
       )}

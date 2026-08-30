@@ -60,6 +60,38 @@ export function isValidMagnet(str) {
 }
 
 /**
+ * Parse human readable size string or byte number into size in Gigabytes (GB)
+ * @param {string|number} sizeStr
+ * @returns {number} Size in GB
+ */
+export function parseSizeInGB(sizeStr) {
+  if (!sizeStr) return 0;
+  if (typeof sizeStr === 'number') {
+    return sizeStr / (1024 * 1024 * 1024);
+  }
+  const match = String(sizeStr).match(/([\d.]+)\s*(GB|MB|KB|B)/i);
+  if (!match) return 0;
+  const val = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  if (unit === 'GB') return val;
+  if (unit === 'MB') return val / 1024;
+  if (unit === 'KB') return val / (1024 * 1024);
+  if (unit === 'B') return val / (1024 * 1024 * 1024);
+  return val;
+}
+
+/**
+ * Check if a file size exceeds Seedr maximum capacity limit (4.5 GB)
+ * @param {string|number} sizeStr
+ * @param {number} limitGB
+ * @returns {boolean}
+ */
+export function isOversizedForSeedr(sizeStr, limitGB = 4.5) {
+  const gb = parseSizeInGB(sizeStr);
+  return gb > limitGB;
+}
+
+/**
  * Format bytes into human-readable string (B, KB, MB, GB, TB)
  * @param {number} bytes - Byte count
  * @param {number} decimals - Number of decimal places

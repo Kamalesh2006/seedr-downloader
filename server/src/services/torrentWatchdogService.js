@@ -7,6 +7,8 @@ class TorrentWatchdogService {
     this.stalledTimeoutMs = (config.stalledTimeoutMinutes || 2) * 60 * 1000;
     // 1 hour maximum download timeout
     this.maxDownloadTimeoutMs = (config.maxDownloadTimeoutHours || 1) * 60 * 60 * 1000;
+    // Maximum account capacity (4.5 GB)
+    this.maxAccountSizeBytes = 4.5 * 1024 * 1024 * 1024;
     // Check interval (10 seconds)
     this.checkIntervalMs = 10000;
     
@@ -21,7 +23,7 @@ class TorrentWatchdogService {
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
-    console.log(`🛡️  Torrent Watchdog started: Auto-deleting stalled torrents (2m no progress) & max download time (1h).`);
+    console.log(`🛡️  Torrent Watchdog started: Auto-deleting stalled torrents (2m no progress), max download time (1h), and oversized torrents (> 4.5GB).`);
 
     // Run first check after 3 seconds, then periodically
     setTimeout(() => this.checkTorrents(), 3000);
@@ -56,6 +58,13 @@ class TorrentWatchdogService {
         const name = torrent.name || 'Torrent Transfer';
         const progress = typeof torrent.progress === 'number' ? torrent.progress : 0;
         const size = torrent.size || 0;
+
+        // Rule 0: Oversized torrent (> 4.5 GB) - Auto remove immediately
+        if (size > this.maxAccountSizeBytes) {
+          console.warn(`[Watchdog] ⚠️ Auto-deleting oversized torrent "${name}" (${(size / (1024*1024*1024)).toFixed(2)} GB > 4.5 GB limit).`);
+          await this.autoDeleteTorrent(id, name, size, `File size (${(size / (1024*1024*1024)).toFixed(2)} GB) exceeds Seedr 4.5 GB account limit`);
+          continue;
+        }
 
         let tracked = this.trackedTorrents.get(id);
 
@@ -117,7 +126,7 @@ class TorrentWatchdogService {
       };
 
       this.cleanedHistory = [record, ...this.cleanedHistory].slice(0, 20);
-      console.log(`[Watchdog] ✅ Successfully cleaned up torrent "${name}" from Seedr storage.`);
+      console.log(`[Watchdog] ✅ Successfully cleaned up torrent "${name}" from Seedr storage (${reason}).`);
 
       // Notify download queue to immediately process the next scheduled item
       try {
