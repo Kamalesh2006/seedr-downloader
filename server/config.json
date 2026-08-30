@@ -1,0 +1,7 @@
+{
+  "searchProviders": ["1337x", "ThePirateBay", "Yts"],
+  "maxFileSizeGB": 4.5,
+  "maxResults": 20,
+  "seedrPollIntervalMs": 3000,
+  "seedrBaseUrl": "https://www.seedr.cc/rest"
+}
