@@ -372,19 +372,6 @@ function App() {
                     />
                   </div>
                 </div>
-
-                <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Want more than 4.5 GB?</span>
-                  <a
-                    href="https://www.seedr.cc/premium"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold rounded-xl text-xs shadow-md"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 fill-current" />
-                    <span>Get More Storage</span>
-                  </a>
-                </div>
               </div>
 
               <CompletedFiles 

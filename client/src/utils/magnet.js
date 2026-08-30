@@ -109,27 +109,39 @@ export function formatBytes(bytes, decimals = 2) {
 }
 
 /**
- * Formats a timestamp into a relative time string (e.g. "5m ago", "2h ago")
+ * Formats a timestamp into a relative time string (e.g. "Today", "Yesterday", "3d ago", "May 12")
  * @param {number|string|Date} timestamp - The timestamp to format
  * @returns {string}
  */
 export function formatRelativeTime(timestamp) {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now - date) / 1000);
+  if (!timestamp) return 'Today';
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return 'Today';
+    const now = new Date();
+    
+    // Check same calendar day
+    const isToday = date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+    if (isToday) return 'Today';
 
-  if (diffInSeconds < 30) return 'Just now';
-  if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
-  
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours}h ago`;
-  
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays}d ago`;
-  
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    // Check yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear();
+    if (isYesterday) return 'Yesterday';
+
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    const diffInDays = Math.floor(diffInSeconds / (3600 * 24));
+    
+    if (diffInDays < 7 && diffInDays > 0) return `${diffInDays}d ago`;
+    
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return 'Today';
+  }
 }
+

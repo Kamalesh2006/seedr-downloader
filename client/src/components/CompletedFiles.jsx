@@ -7,8 +7,8 @@ import {
   RefreshCw, 
   ChevronRight, 
   ChevronDown, 
-  HardDrive, 
   Film, 
+  Clapperboard,
   Music, 
   Archive, 
   FileText, 
@@ -20,13 +20,14 @@ import {
   Check, 
   Eye, 
   Activity,
-  Cloud
+  MoreVertical
 } from 'lucide-react';
-import { formatBytes } from '../utils/magnet';
+import { formatBytes, formatRelativeTime } from '../utils/magnet';
 import MediaPreviewModal from './MediaPreviewModal';
+import FileActionSheet from './FileActionSheet';
 
 function getFileIcon(fileName) {
-  if (!fileName) return <File className="w-5 h-5 text-gray-400" />;
+  if (!fileName) return <File className="w-5 h-5 text-slate-400" />;
   const ext = fileName.split('.').pop()?.toLowerCase();
 
   switch (ext) {
@@ -36,7 +37,9 @@ function getFileIcon(fileName) {
     case 'mov':
     case 'webm':
     case 'flv':
-      return <Film className="w-5 h-5 text-indigo-400" />;
+    case 'm4v':
+    case 'ts':
+      return <Clapperboard className="w-5 h-5 text-sky-400" />;
     case 'mp3':
     case 'flac':
     case 'wav':
@@ -69,7 +72,7 @@ function getFileIcon(fileName) {
     case 'nfo':
       return <FileText className="w-5 h-5 text-blue-400" />;
     default:
-      return <File className="w-5 h-5 text-gray-400" />;
+      return <File className="w-5 h-5 text-slate-400" />;
   }
 }
 
@@ -82,7 +85,7 @@ export default function CompletedFiles({
   onRefresh,
   onFetchFolder,
   onDownload, 
-  onDelete,
+  onDelete, 
   getDownloadUrl 
 }) {
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -92,6 +95,9 @@ export default function CompletedFiles({
   // Media Preview Modal state
   const [previewFile, setPreviewFile] = useState(null);
   const [copiedFileId, setCopiedFileId] = useState(null);
+
+  // Mobile Action Sheet state
+  const [selectedMobileFile, setSelectedMobileFile] = useState(null);
 
   const toggleFolder = (folderId) => {
     setExpandedFolders(prev => {
@@ -117,7 +123,7 @@ export default function CompletedFiles({
   };
 
   const handleCopyLink = async (e, fileId) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     if (!getDownloadUrl) return;
     try {
       const url = await getDownloadUrl(fileId);
@@ -135,340 +141,326 @@ export default function CompletedFiles({
     setPreviewFile(item);
   };
 
-  // Calculate storage usage percentage
-  const used = storage.spaceUsed || 0;
-  const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024); // 4.5GB quota
-  const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
+  const handleItemClick = (item) => {
+    if (item.type === 'folder') {
+      toggleFolder(item.id);
+    } else {
+      // If mobile, open preview or action sheet
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        setSelectedMobileFile(item);
+      } else {
+        handleOpenPreview(item);
+      }
+    }
+  };
 
   const totalItemsCount = files.length + activeTorrents.length;
 
   return (
-    <div className="bg-[#0E1626] rounded-2xl shadow-xl border border-slate-800/80 overflow-hidden mb-8">
-      {/* Header & Storage Capacity Bar */}
-      <div className="px-6 py-5 border-b border-slate-800/80 bg-[#0E1626]">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-              <Cloud className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-gray-100 flex items-center gap-2">
-                Files in Seedr Cloud
-                <span className="text-xs font-normal text-gray-400">
-                  ({totalItemsCount} items)
-                </span>
-              </h3>
-              <p className="text-xs text-gray-400">Click any file to view / stream, copy download link, or download directly</p>
-            </div>
-          </div>
+    <div className="mb-8">
+      {/* Section Header */}
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+            Files in Seedr Cloud
+          </h3>
+        </div>
 
+        {onRefresh && (
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-700/80 transition-all disabled:opacity-50"
-            title="Refresh Seedr storage"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 border border-[#1E293B] transition-all disabled:opacity-50"
+            title="Refresh files"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
-            <span>{loading ? 'Syncing...' : 'Refresh'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#00DF81]' : ''}`} />
+            <span className="hidden sm:inline">{loading ? 'Syncing...' : 'Refresh'}</span>
           </button>
-        </div>
-
-        {/* Storage Usage Metric */}
-        <div className="bg-[#070D18]/90 rounded-xl p-3.5 border border-slate-800/80">
-          <div className="flex justify-between items-center text-xs mb-2">
-            <span className="text-gray-400 font-medium">Seedr Storage Used</span>
-            <span className="text-gray-200 font-semibold font-mono">
-              {formatBytes(used)} / {formatBytes(max)} ({usedPercentage}%)
-            </span>
-          </div>
-          <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800/60">
-            <div 
-              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-500"
-              style={{ width: `${Math.max(usedPercentage, 2)}%` }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Files, Active Torrents, and Folders List */}
-      {totalItemsCount === 0 ? (
-        <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center">
-          <div className="p-4 bg-slate-800/40 rounded-2xl mb-3 border border-slate-800">
-            <Folder className="w-10 h-10 text-gray-600" />
+      {/* Files List Container */}
+      <div className="bg-[#111927] rounded-2xl border border-[#1E293B] overflow-hidden shadow-lg shadow-black/20">
+        {totalItemsCount === 0 ? (
+          <div className="p-10 sm:p-12 text-center text-slate-500 flex flex-col items-center justify-center">
+            <div className="p-4 bg-[#141D2E] rounded-2xl mb-3 border border-[#1E293B]">
+              <Folder className="w-8 h-8 sm:w-10 sm:h-10 text-slate-600" />
+            </div>
+            <h4 className="text-sm sm:text-base font-semibold text-slate-300">Your Seedr cloud is empty</h4>
+            <p className="text-xs text-slate-500 max-w-sm mt-1">
+              Search for a torrent or paste a magnet link above to download files to your Seedr account.
+            </p>
           </div>
-          <h4 className="text-base font-semibold text-gray-300">Your Seedr storage is empty</h4>
-          <p className="text-xs text-gray-500 max-w-sm mt-1">
-            Search for a torrent or paste a magnet link above to download files to your Seedr account.
-          </p>
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-800/60">
-          {/* Active Downloading Cloud Torrents in Seedr */}
-          {activeTorrents.map(torrent => (
-            <div key={`torrent-${torrent.id}`} className="p-4 bg-amber-500/5 hover:bg-amber-500/10 transition-colors flex items-center justify-between gap-3 border-l-4 border-amber-500">
-              <div className="flex items-center gap-3.5 overflow-hidden flex-1">
-                <div className="p-2.5 bg-amber-500/10 rounded-xl shrink-0 border border-amber-500/20 text-amber-400">
-                  <Activity className="w-5 h-5 animate-pulse" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-gray-100 font-semibold text-sm truncate flex items-center gap-2" title={torrent.name}>
-                    <span>{torrent.name}</span>
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Downloading {torrent.progress || 0}%
-                    </span>
+        ) : (
+          <div className="divide-y divide-[#1E293B]/70">
+            {/* Active Downloading Cloud Torrents in Seedr */}
+            {activeTorrents.map(torrent => (
+              <div 
+                key={`torrent-${torrent.id}`} 
+                className="p-3.5 sm:p-4 bg-amber-500/5 hover:bg-amber-500/10 transition-colors flex items-center justify-between gap-3 border-l-4 border-amber-500"
+              >
+                <div className="flex items-center gap-3 overflow-hidden flex-1">
+                  <div className="p-2.5 bg-amber-500/10 rounded-xl shrink-0 border border-amber-500/20 text-amber-400">
+                    <Activity className="w-5 h-5 animate-pulse" />
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-3">
-                    <span>{formatBytes(torrent.size)}</span>
-                    <span className="text-amber-400/80">Active in Seedr cloud</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-slate-100 font-semibold text-xs sm:text-sm truncate" title={torrent.name}>
+                      {torrent.name}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                      <span className="font-mono">{formatBytes(torrent.size)}</span>
+                      <span>•</span>
+                      <span className="text-amber-400 font-medium">Downloading {torrent.progress || 0}%</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-1.5 pl-2 shrink-0">
                 <button
                   onClick={() => setDeleteTarget({ id: torrent.id, name: torrent.name, type: 'torrent' })}
-                  className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-                  title="Cancel & remove downloading torrent"
+                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors shrink-0"
+                  title="Cancel & delete torrent"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Completed Folders and Files */}
-          {files.map(item => {
-            const isFolder = item.type === 'folder';
-            const isExpanded = expandedFolders[item.id];
-            const folderData = folderContents[item.id] || {};
-            const isFolderLoading = folderData.loading;
-            const isCopied = copiedFileId === item.id;
+            {/* Folders and Files */}
+            {files.map(item => {
+              const isFolder = item.type === 'folder';
+              const isExpanded = expandedFolders[item.id];
+              const folderData = folderContents[item.id] || {};
+              const isFolderLoading = folderData.loading;
+              const isCopied = copiedFileId === item.id;
+              const relativeTimeStr = formatRelativeTime(item.created || item.last_update);
 
-            return (
-              <div key={`${item.type}-${item.id}`} className="transition-colors group/row">
-                {/* Main Item Row */}
-                <div 
-                  className="p-4 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition-colors cursor-pointer select-none"
-                  onClick={isFolder ? () => toggleFolder(item.id) : () => handleOpenPreview(item)}
-                >
-                  <div className="flex items-center gap-3.5 overflow-hidden flex-1">
-                    {/* Expand Chevron (for folders) */}
-                    {isFolder ? (
-                      <div className="text-gray-400 hover:text-gray-200 transition-transform">
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-emerald-400" />
+              return (
+                <div key={`${item.type}-${item.id}`} className="group/row transition-colors">
+                  {/* Main File/Folder Item Row */}
+                  <div 
+                    onClick={() => handleItemClick(item)}
+                    className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-[#152033] transition-colors cursor-pointer select-none"
+                  >
+                    <div className="flex items-center gap-3 sm:gap-3.5 overflow-hidden flex-1">
+                      {/* Icon Container */}
+                      <div className="p-2.5 sm:p-3 bg-[#151F32] rounded-xl sm:rounded-2xl shrink-0 border border-[#1E293B] flex items-center justify-center">
+                        {isFolder ? (
+                          <Folder className="w-5 h-5 sm:w-6 sm:h-6 text-[#00DF81]" />
                         ) : (
-                          <ChevronRight className="w-4 h-4" />
+                          getFileIcon(item.name)
                         )}
                       </div>
-                    ) : (
-                      <div className="w-4 h-4 shrink-0 flex items-center justify-center opacity-0 group-hover/row:opacity-100 text-emerald-400 transition-opacity">
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                      </div>
-                    )}
 
-                    {/* Icon */}
-                    <div className="p-2.5 bg-slate-800/80 rounded-xl shrink-0 border border-slate-700/60">
-                      {isFolder ? (
-                        <Folder className="w-5 h-5 text-emerald-400 fill-emerald-400/20" />
-                      ) : (
-                        getFileIcon(item.name)
+                      {/* File Info */}
+                      <div className="min-w-0 flex-1">
+                        <div 
+                          className="text-slate-100 font-semibold text-xs sm:text-sm truncate group-hover/row:text-[#00DF81] transition-colors"
+                          title={item.name}
+                        >
+                          {item.name}
+                        </div>
+                        <div className="text-[11px] sm:text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                          <span className="font-mono">{formatBytes(item.size)}</span>
+                          <span>•</span>
+                          <span>{relativeTimeStr}</span>
+                          {isFolder && (
+                            <span className="text-[#00DF81] ml-1 font-medium hidden sm:inline">
+                              • {isExpanded ? 'Collapse' : 'Explore'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Controls */}
+                    <div 
+                      className="flex items-center gap-1 sm:gap-2 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Mobile 3-dots Menu Button */}
+                      <button
+                        onClick={() => setSelectedMobileFile(item)}
+                        className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                        title="Actions"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      {/* Desktop Actions */}
+                      <div className="hidden md:flex items-center gap-1.5">
+                        {!isFolder && (
+                          <>
+                            <button
+                              onClick={() => handleOpenPreview(item)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-[#00DF81] bg-[#162238] hover:bg-[#00DF81]/10 rounded-xl border border-[#1E293B] hover:border-[#00DF81]/40 transition-colors"
+                              title="View / Stream"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#00DF81]" />
+                              <span>View</span>
+                            </button>
+
+                            <button
+                              onClick={(e) => handleCopyLink(e, item.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-[#162238] hover:bg-slate-700 rounded-xl border border-[#1E293B] transition-colors"
+                              title="Copy direct download link"
+                            >
+                              {isCopied ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-[#00DF81]" />
+                                  <span className="text-[#00DF81]">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => onDownload(item.id)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#071911] bg-[#00DF81] hover:bg-[#05D686] rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                              title="Direct download"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Download</span>
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => setDeleteTarget({ id: item.id, name: item.name, type: item.type })}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                          title={`Delete ${item.type} from Seedr`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Folder Chevron */}
+                      {isFolder && (
+                        <div 
+                          className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+                          onClick={() => toggleFolder(item.id)}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-[#00DF81]" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </div>
                       )}
                     </div>
-
-                    {/* Item Details */}
-                    <div className="min-w-0 flex-1">
-                      <div 
-                        className="text-gray-100 font-semibold text-sm truncate flex items-center gap-2 group-hover/row:text-emerald-300 transition-colors"
-                        title={item.name}
-                      >
-                        <span>{item.name}</span>
-                        {isFolder && (
-                          <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            Folder
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-3">
-                        <span className="font-mono">{formatBytes(item.size)}</span>
-                        {item.created && (
-                          <span>• {new Date(item.created).toLocaleDateString()}</span>
-                        )}
-                        {isFolder ? (
-                          <span className="text-gray-400 hover:text-emerald-400 transition-colors">
-                            • {isExpanded ? 'Click to collapse' : 'Click to explore files'}
-                          </span>
-                        ) : (
-                          <span className="text-emerald-400/90 font-medium">
-                            • Click to view / stream
-                          </span>
-                        )}
-                      </div>
-                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div 
-                    className="flex items-center gap-1.5 pl-2 shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {!isFolder && (
-                      <>
-                        <button
-                          onClick={() => handleOpenPreview(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-300 hover:text-emerald-300 bg-slate-800/80 hover:bg-emerald-500/10 rounded-xl border border-slate-700 hover:border-emerald-500/40 transition-colors"
-                          title="View / Stream file"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="hidden sm:inline">View</span>
-                        </button>
+                  {/* Subfolder Contents */}
+                  {isFolder && isExpanded && (
+                    <div className="bg-[#090F1C] pl-6 sm:pl-10 pr-3 sm:pr-4 py-2 border-t border-b border-[#1E293B]/60 animate-in fade-in duration-200">
+                      {isFolderLoading ? (
+                        <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#00DF81]" />
+                          <span>Loading folder contents...</span>
+                        </div>
+                      ) : folderData.files && folderData.files.length > 0 ? (
+                        <div className="divide-y divide-[#1E293B]/40">
+                          {folderData.files.map(nestedFile => {
+                            const isNestedCopied = copiedFileId === nestedFile.id;
+                            const nestedTime = formatRelativeTime(nestedFile.created || nestedFile.last_update);
 
-                        <button
-                          onClick={(e) => handleCopyLink(e, item.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl border border-slate-700 transition-colors"
-                          title="Copy direct download link"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span className="text-emerald-400">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Copy Link</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => onDownload(item.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] font-bold"
-                          title="Download file"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Download</span>
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      onClick={() => setDeleteTarget({ id: item.id, name: item.name, type: item.type })}
-                      className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
-                      title={`Delete ${item.type} from Seedr`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Subfolder Contents (when expanded) */}
-                {isFolder && isExpanded && (
-                  <div className="bg-[#070D18]/80 pl-10 pr-4 py-2 border-t border-b border-slate-800/60">
-                    {isFolderLoading ? (
-                      <div className="flex items-center gap-2 py-4 text-xs text-gray-400">
-                        <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                        <span>Loading folder contents...</span>
-                      </div>
-                    ) : folderData.files && folderData.files.length > 0 ? (
-                      <div className="divide-y divide-slate-800/40">
-                        {folderData.files.map(nestedFile => {
-                          const isNestedCopied = copiedFileId === nestedFile.id;
-
-                          return (
-                            <div 
-                              key={nestedFile.id}
-                              className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 px-2 rounded-xl transition-colors cursor-pointer select-none group/nested"
-                              onClick={() => handleOpenPreview(nestedFile)}
-                            >
-                              <div className="flex items-center gap-3 overflow-hidden flex-1">
-                                <div className="p-1.5 bg-slate-800 rounded-lg shrink-0">
-                                  {getFileIcon(nestedFile.name)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-gray-200 text-xs font-medium truncate group-hover/nested:text-emerald-300 transition-colors" title={nestedFile.name}>
-                                    {nestedFile.name}
-                                  </div>
-                                  <div className="text-[11px] text-gray-400 flex items-center gap-2">
-                                    <span className="font-mono">{formatBytes(nestedFile.size)}</span>
-                                    <span>•</span>
-                                    <span className="text-emerald-400 font-normal">Click to stream / view</span>
-                                  </div>
-                                </div>
-                              </div>
-
+                            return (
                               <div 
-                                className="flex items-center gap-1.5 shrink-0"
-                                onClick={(e) => e.stopPropagation()}
+                                key={nestedFile.id}
+                                className="py-2.5 flex items-center justify-between gap-3 hover:bg-[#141D2E] px-2 rounded-xl transition-colors cursor-pointer select-none group/nested"
+                                onClick={() => handleItemClick(nestedFile)}
                               >
-                                <button
-                                  onClick={() => handleOpenPreview(nestedFile)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-emerald-300 bg-slate-800 hover:bg-emerald-500/10 rounded-lg transition-colors border border-slate-700/60"
-                                  title="View / Stream file"
-                                >
-                                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span className="hidden sm:inline text-[11px]">View</span>
-                                </button>
+                                <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+                                  <div className="p-1.5 bg-[#162032] rounded-lg shrink-0 border border-[#1E293B]">
+                                    {getFileIcon(nestedFile.name)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-slate-200 text-xs font-medium truncate group-hover/nested:text-[#00DF81] transition-colors" title={nestedFile.name}>
+                                      {nestedFile.name}
+                                    </div>
+                                    <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                      <span className="font-mono">{formatBytes(nestedFile.size)}</span>
+                                      <span>•</span>
+                                      <span>{nestedTime}</span>
+                                    </div>
+                                  </div>
+                                </div>
 
-                                <button
-                                  onClick={(e) => handleCopyLink(e, nestedFile.id)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700/60"
-                                  title="Copy direct download link"
+                                <div 
+                                  className="flex items-center gap-1 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  {isNestedCopied ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      <span className="text-emerald-400 text-[11px]">Copied</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline text-[11px]">Copy Link</span>
-                                    </>
-                                  )}
-                                </button>
+                                  {/* Mobile 3 dots */}
+                                  <button
+                                    onClick={() => setSelectedMobileFile(nestedFile)}
+                                    className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+                                  >
+                                    <MoreVertical className="w-3.5 h-3.5" />
+                                  </button>
 
-                                <button
-                                  onClick={() => onDownload(nestedFile.id)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-gray-950 bg-emerald-500 hover:bg-emerald-400 rounded-lg shadow-sm transition-all"
-                                  title="Download this file"
-                                >
-                                  <Download className="w-3 h-3" />
-                                  <span className="hidden sm:inline text-[11px]">Download</span>
-                                </button>
+                                  {/* Desktop inline */}
+                                  <div className="hidden md:flex items-center gap-1">
+                                    <button
+                                      onClick={() => handleOpenPreview(nestedFile)}
+                                      className="p-1.5 text-slate-300 hover:text-[#00DF81] bg-[#182438] rounded-lg transition-colors border border-[#1E293B]"
+                                      title="Stream / View"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-[#00DF81]" />
+                                    </button>
 
-                                <button
-                                  onClick={() => setDeleteTarget({ 
-                                    id: nestedFile.id, 
-                                    name: nestedFile.name, 
-                                    type: 'file', 
-                                    parentFolderId: item.id 
-                                  })}
-                                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                  title="Delete this file"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                    <button
+                                      onClick={(e) => handleCopyLink(e, nestedFile.id)}
+                                      className="p-1.5 text-slate-300 hover:text-white bg-[#182438] rounded-lg transition-colors border border-[#1E293B]"
+                                      title="Copy direct download link"
+                                    >
+                                      {isNestedCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                                    </button>
+
+                                    <button
+                                      onClick={() => onDownload(nestedFile.id)}
+                                      className="px-2.5 py-1 text-xs font-bold text-[#071911] bg-[#00DF81] hover:bg-[#05D686] rounded-lg shadow-sm"
+                                      title="Download file"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                    </button>
+
+                                    <button
+                                      onClick={() => setDeleteTarget({ 
+                                        id: nestedFile.id, 
+                                        name: nestedFile.name, 
+                                        type: 'file', 
+                                        parentFolderId: item.id 
+                                      })}
+                                      className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
+                                      title="Delete file"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-3 text-xs text-gray-500 italic">
-                        This folder contains no downloadable files.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="py-2 text-xs text-slate-500 italic">
+                          This folder is empty.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {/* In-App Media Viewer & Stream Modal */}
+      {/* In-App Media Viewer Modal */}
       <MediaPreviewModal 
         isOpen={!!previewFile}
         file={previewFile}
@@ -476,11 +468,23 @@ export default function CompletedFiles({
         getDownloadUrl={getDownloadUrl}
       />
 
+      {/* Mobile Touch Action Sheet */}
+      <FileActionSheet 
+        isOpen={!!selectedMobileFile}
+        file={selectedMobileFile}
+        onClose={() => setSelectedMobileFile(null)}
+        onStream={handleOpenPreview}
+        onDownload={onDownload}
+        onCopyLink={handleCopyLink}
+        isCopied={copiedFileId === selectedMobileFile?.id}
+        onDelete={(file) => setDeleteTarget({ id: file.id, name: file.name, type: file.type || 'file' })}
+      />
+
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div 
-            className="bg-[#0E1626] border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            className="bg-[#111927] border border-[#1E293B] w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-4">
@@ -488,24 +492,24 @@ export default function CompletedFiles({
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-gray-100">
+                <h3 className="text-base font-bold text-slate-100">
                   Delete {deleteTarget.type === 'folder' ? 'Folder' : deleteTarget.type === 'torrent' ? 'Downloading Torrent' : 'File'}?
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Are you sure you want to delete <span className="text-gray-200 font-semibold truncate block mt-0.5">"{deleteTarget.name}"</span>
+                <p className="text-xs text-slate-400 mt-1">
+                  Are you sure you want to delete <span className="text-slate-200 font-semibold truncate block mt-0.5">"{deleteTarget.name}"</span>
                 </p>
                 <p className="text-xs text-red-400/80 mt-2 font-medium">
-                  This action will permanently remove it from your Seedr cloud storage and free up space.
+                  This action will permanently delete it and free up Seedr storage space.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-[#1E293B]">
               <button
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-200 hover:bg-slate-800 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>

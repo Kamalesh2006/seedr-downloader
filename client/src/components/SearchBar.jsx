@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
-import { extractMagnetName, isValidMagnet } from '../utils/magnet';
+import { 
+  Search, 
+  Link as LinkIcon, 
+  Loader2, 
+  History, 
+  FileText, 
+  CheckCircle2, 
+  Sparkles, 
+  X, 
+  ListOrdered,
+  Plus
+} from 'lucide-react';
+import { extractMagnetName, isValidMagnet, isOversizedForSeedr } from '../utils/magnet';
 
 export default function SearchBar({ 
   onSearch, 
   onAddMagnet, 
+  onAddToQueue,
   loading,
   recentCount = 0,
   queueCount = 0,
@@ -12,7 +24,7 @@ export default function SearchBar({
   prefilledMagnet = null,
   prefilledName = null
 }) {
-  const [mode, setMode] = useState('search');
+  const [mode, setMode] = useState('search'); // 'search' | 'magnet'
   const [query, setQuery] = useState('');
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
@@ -43,10 +55,27 @@ export default function SearchBar({
     }
   }, [magnet]);
 
+  // Auto-detect if user pastes magnet in search input
+  const handleQueryChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    if (val.trim().toLowerCase().startsWith('magnet:?')) {
+      setMode('magnet');
+      setMagnet(val);
+      setQuery('');
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (mode === 'search' && query.trim()) {
-      onSearch(query.trim());
+      if (query.trim().toLowerCase().startsWith('magnet:?')) {
+        setMode('magnet');
+        setMagnet(query.trim());
+        setQuery('');
+      } else {
+        onSearch(query.trim());
+      }
     } else if (mode === 'magnet' && magnet.trim()) {
       const finalName = customName.trim() || detectedName || 'Magnet Download';
       onAddMagnet(magnet.trim(), finalName);
@@ -56,151 +85,156 @@ export default function SearchBar({
     }
   };
 
-  const handleClear = () => {
+  const handleScheduleInQueue = (e) => {
+    e.preventDefault();
+    if (!magnet.trim() || !onAddToQueue) return;
+    const finalName = customName.trim() || detectedName || 'Scheduled Magnet';
+    onAddToQueue(magnet.trim(), finalName);
     setMagnet('');
     setCustomName('');
     setDetectedName('');
   };
 
+  const handleClear = () => {
+    setMagnet('');
+    setQuery('');
+    setCustomName('');
+    setDetectedName('');
+  };
+
   return (
-    <div className="bg-[#0E1626] p-6 rounded-2xl shadow-xl mb-8 border border-slate-800/80">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        {/* Mode Switcher Tabs */}
-        <div className="flex items-center bg-[#070D18] p-1 rounded-xl border border-slate-800/80">
-          <button
-            type="button"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
-              mode === 'search' 
-                ? 'bg-emerald-500 text-gray-950 shadow-md shadow-emerald-500/20' 
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-            onClick={() => setMode('search')}
-          >
-            <Search className="w-4 h-4" />
-            Search Torrents
-          </button>
+    <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-lg shadow-black/20 mb-6">
+      {/* Top Mode Switcher Tabs */}
+      <div className="grid grid-cols-2 gap-2 bg-[#090F1C] p-1 rounded-xl border border-[#1E293B] mb-4 select-none">
+        <button
+          type="button"
+          onClick={() => setMode('search')}
+          className={`w-full py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            mode === 'search'
+              ? 'bg-[#00DF81] text-[#071911] font-bold shadow-md shadow-emerald-500/25'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>Search Torrents</span>
+        </button>
 
-          <button
-            type="button"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
-              mode === 'magnet' 
-                ? 'bg-emerald-500 text-gray-950 shadow-md shadow-emerald-500/20' 
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-            onClick={() => setMode('magnet')}
-          >
-            <LinkIcon className="w-4 h-4" />
-            Paste Magnet
-          </button>
-        </div>
-
-        {/* Action Badges */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenRecent}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-700/80 transition-all group"
-            title="View recent magnet links"
-          >
-            <History className="w-4 h-4 text-emerald-400 group-hover:rotate-[-20deg] transition-transform" />
-            <span>Recent Links</span>
-            <span className="ml-0.5 px-2 py-0.5 rounded-full text-[11px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-              {recentCount}
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setMode('magnet')}
+          className={`w-full py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            mode === 'magnet'
+              ? 'bg-[#00DF81] text-[#071911] font-bold shadow-md shadow-emerald-500/25'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>Paste Magnet</span>
+        </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="relative">
+      {/* Input Box */}
+      <form onSubmit={handleSubmit} className="space-y-3">
         {mode === 'search' ? (
-          <div className="flex gap-2.5">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <div className="flex gap-2">
+            <div className="relative flex-1 bg-[#090F1C] border border-[#1E293B] rounded-xl flex items-center focus-within:border-[#00DF81] focus-within:ring-1 focus-within:ring-[#00DF81]/30 transition-all overflow-hidden">
+              <Search className="w-5 h-5 text-slate-400 ml-3.5 shrink-0" />
               <input
                 type="text"
-                placeholder="Search for movies, TV series, software, books..."
-                className="w-full bg-[#070D18] text-gray-100 pl-11 pr-4 py-3.5 rounded-xl border border-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all placeholder:text-gray-500 text-sm md:text-base"
+                placeholder="Search or paste link..."
+                className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-sm sm:text-base px-3 py-3 sm:py-3.5 focus:outline-none"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={handleQueryChange}
                 disabled={loading}
               />
-            </div>
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold px-7 py-3.5 rounded-xl transition-all flex items-center justify-center min-w-[120px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="relative">
-              <LinkIcon className="absolute left-3.5 top-3.5 text-gray-400 w-5 h-5" />
-              <textarea
-                placeholder="Paste magnet link (magnet:?xt=urn:btih:...)..."
-                className="w-full bg-[#070D18] text-gray-100 pl-11 pr-10 py-3.5 rounded-xl border border-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all min-h-[95px] resize-y text-sm font-mono placeholder:font-sans placeholder:text-gray-500"
-                value={magnet}
-                onChange={(e) => setMagnet(e.target.value)}
-                disabled={loading}
-              />
-              {magnet && (
+              {query && (
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-200 p-1 hover:bg-slate-800 rounded-lg transition-colors"
-                  title="Clear input"
+                  className="p-1.5 text-slate-400 hover:text-slate-200 mr-2 rounded-lg hover:bg-slate-800 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
-            {/* Extracted File Name Preview & Editor */}
+            <button
+              type="submit"
+              disabled={loading || !query.trim()}
+              className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center min-w-[80px] sm:min-w-[100px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95 text-sm"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative bg-[#090F1C] border border-[#1E293B] rounded-xl focus-within:border-[#00DF81] focus-within:ring-1 focus-within:ring-[#00DF81]/30 transition-all p-3">
+              <div className="flex items-start gap-2.5">
+                <LinkIcon className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
+                <textarea
+                  placeholder="Paste magnet link (magnet:?xt=urn:btih:...)..."
+                  className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-xs sm:text-sm font-mono focus:outline-none min-h-[75px] resize-y placeholder:font-sans"
+                  value={magnet}
+                  onChange={(e) => setMagnet(e.target.value)}
+                  disabled={loading}
+                />
+                {magnet && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Extracted File Name Preview */}
             {magnet.trim() && (
-              <div className="bg-[#070D18]/90 border border-slate-800/80 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <div className="bg-[#090F1C]/90 border border-[#1E293B] rounded-xl p-3.5 animate-in fade-in slide-in-from-top-1 duration-200 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-[#00DF81]">
+                  <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Detected File / Torrent Name</span>
+                    <span>Detected File Name</span>
                   </div>
                   {isValidMagnet(magnet) && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      <CheckCircle2 className="w-3 h-3" /> Valid Magnet URI
+                    <span className="text-[11px] font-normal text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Valid Magnet
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/60 focus-within:border-emerald-500">
-                  <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                <div className="flex items-center gap-2 bg-[#141D2E] rounded-lg px-3 py-2 border border-[#1E293B] focus-within:border-[#00DF81]">
+                  <FileText className="w-4 h-4 text-slate-400 shrink-0" />
                   <input
                     type="text"
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
-                    placeholder="Enter file or torrent name..."
-                    className="w-full bg-transparent text-sm text-gray-100 focus:outline-none placeholder:text-gray-500 font-medium"
+                    placeholder="Torrent or file name..."
+                    className="w-full bg-transparent text-xs sm:text-sm text-slate-100 focus:outline-none"
                   />
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1.5">
-                  You can edit the name above if you want to rename it before adding to Seedr.
-                </p>
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="text-xs text-gray-500 hidden sm:block">
-                Supports all standard BitTorrent magnet URIs (Max 4.5 GB) • Auto-schedules in queue if storage is full
-              </div>
-              
-              <div className="flex items-center gap-2.5 ml-auto">
-                <button
-                  type="submit"
-                  disabled={loading || !magnet.trim()}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 px-8 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[140px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
-                </button>
-              </div>
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleScheduleInQueue}
+                disabled={loading || !magnet.trim()}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all disabled:opacity-40 active:scale-95"
+              >
+                <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Schedule Queue</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading || !magnet.trim()}
+                className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-[120px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
+              </button>
             </div>
           </div>
         )}
