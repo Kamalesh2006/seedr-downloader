@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { CloudRain, Send, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { 
+  CloudRain, 
+  Send, 
+  AlertTriangle, 
+  CheckCircle, 
+  Info, 
+  XCircle,
+  HardDrive,
+  Sparkles,
+  ExternalLink
+} from 'lucide-react';
+import Sidebar from './components/Sidebar';
+import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
@@ -10,7 +22,7 @@ import TelegramModal from './components/TelegramModal';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
-import { isOversizedForSeedr, parseSizeInGB } from './utils/magnet';
+import { isOversizedForSeedr, formatBytes } from './utils/magnet';
 
 function App() {
   const { search, results, loading: searchLoading, error: searchError } = useSearch();
@@ -44,6 +56,8 @@ function App() {
     toggleAutoQueue
   } = useQueue();
   
+  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
@@ -175,102 +189,239 @@ function App() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 font-sans selection:bg-emerald-500/30">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        
-        {/* Header */}
-        <header className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-500 p-2.5 rounded-xl shadow-lg shadow-emerald-500/20">
-              <CloudRain className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                Seedr Downloader
-              </h1>
-              <p className="text-sm text-gray-500">Search, Schedule & Download Torrents instantly (Max 4.5 GB)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsTelegramOpen(true)}
-              className="bg-gray-900 hover:bg-gray-800 border border-sky-900/50 hover:border-sky-700/60 text-sky-400 hover:text-sky-300 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-md group"
-              title="Telegram Bot Integration"
-            >
-              <Send className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">Telegram Bot</span>
-            </button>
-            <button
-              onClick={() => setIsMagnetsOpen(true)}
-              className="relative bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 group shadow-md"
-            >
-              <span>Pasted Magnets</span>
-              {recentMagnets.some(m => m.status !== 'finished' && m.status !== 'failed') && (
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              )}
-            </button>
-          </div>
-        </header>
+  const used = storage.spaceUsed || 0;
+  const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024);
+  const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
 
-        {/* Search & Magnet Bar */}
-        <SearchBar 
-          onSearch={handleSearch} 
-          onAddMagnet={handleAddMagnet} 
-          onAddToQueue={handleAddToQueue}
-          loading={searchLoading} 
+  return (
+    <div className="min-h-screen bg-[#0B111E] text-gray-100 font-sans flex antialiased selection:bg-emerald-500/30">
+      
+      {/* Desktop Left Sidebar */}
+      <div className="hidden md:block">
+        <Sidebar 
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          storage={storage}
           queueCount={queue.length}
           recentCount={recentMagnets.length}
+          onOpenTelegram={() => setIsTelegramOpen(true)}
           onOpenRecent={() => setIsMagnetsOpen(true)}
         />
+      </div>
 
-        {searchError && (
-          <div className="bg-red-900/20 border border-red-900/50 text-red-400 p-4 rounded-xl mb-8">
-            {searchError}
+      {/* Mobile Drawer Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm md:hidden animate-in fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div 
+            className="w-64 h-full bg-[#070D18] border-r border-slate-800 animate-in slide-in-from-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Sidebar 
+              currentTab={currentTab}
+              setCurrentTab={(tab) => {
+                setCurrentTab(tab);
+                setIsMobileMenuOpen(false);
+              }}
+              storage={storage}
+              queueCount={queue.length}
+              recentCount={recentMagnets.length}
+              onOpenTelegram={() => {
+                setIsTelegramOpen(true);
+                setIsMobileMenuOpen(false);
+              }}
+              onOpenRecent={() => {
+                setIsMagnetsOpen(true);
+                setIsMobileMenuOpen(false);
+              }}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Results */}
-        <SearchResults 
-          results={results} 
-          onDownload={handleAddMagnet} 
-          onAddToQueue={handleAddToQueue}
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#0B111E]">
+        {/* Top Navbar */}
+        <Navbar 
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          onOpenRecent={() => setIsMagnetsOpen(true)}
+          onOpenTelegram={() => setIsTelegramOpen(true)}
+          isMobileMenuOpen={isMobileMenuOpen}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          queueCount={queue.length}
         />
 
-        {/* Active Cloud Downloads in Seedr */}
-        <ActiveDownloads 
-          transfers={activeTransfers} 
-          onCancel={(id, type) => handleDelete(id, type || 'torrent')}
-        />
+        {/* Page Body */}
+        <main className="flex-1 p-4 sm:p-8 max-w-6xl w-full mx-auto">
+          {currentTab === 'dashboard' && (
+            <>
+              {/* Search & Magnet Bar */}
+              <SearchBar 
+                onSearch={handleSearch} 
+                onAddMagnet={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
+                loading={searchLoading} 
+                queueCount={queue.length}
+                recentCount={recentMagnets.length}
+                onOpenRecent={() => setIsMagnetsOpen(true)}
+              />
 
-        {/* Upcoming Download Schedule / Queue Manager */}
-        <QueueManager 
-          queue={queue}
-          isAutoEnabled={isAutoEnabled}
-          onMoveItem={moveItem}
-          onRemoveItem={removeFromQueue}
-          onClearQueue={clearQueue}
-          onToggleAuto={toggleAutoQueue}
-          onSendNow={handleSendFromQueueNow}
-        />
+              {searchError && (
+                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-8">
+                  {searchError}
+                </div>
+              )}
 
-        {/* Completed Files & Seedr Storage Manager */}
-        <CompletedFiles 
-          files={completedFiles} 
-          activeTorrents={cloudTorrents}
-          storage={storage}
-          folderContents={folderContents}
-          loading={seedrLoading}
-          onRefresh={refreshFiles}
-          onFetchFolder={fetchFolderContents}
-          onDownload={handleDownloadFile} 
-          onDelete={handleDelete} 
-          getDownloadUrl={getDownloadUrl}
-        />
+              {/* Results */}
+              <SearchResults 
+                results={results} 
+                onDownload={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
+              />
 
+              {/* Active Cloud Downloads in Seedr */}
+              <ActiveDownloads 
+                transfers={activeTransfers} 
+                onCancel={(id, type) => handleDelete(id, type || 'torrent')}
+              />
+
+              {/* Upcoming Download Schedule / Queue Manager */}
+              <QueueManager 
+                queue={queue}
+                isAutoEnabled={isAutoEnabled}
+                onMoveItem={moveItem}
+                onRemoveItem={removeFromQueue}
+                onClearQueue={clearQueue}
+                onToggleAuto={toggleAutoQueue}
+                onSendNow={handleSendFromQueueNow}
+              />
+
+              {/* Completed Files & Seedr Storage Manager */}
+              <CompletedFiles 
+                files={completedFiles} 
+                activeTorrents={cloudTorrents}
+                storage={storage}
+                folderContents={folderContents}
+                loading={seedrLoading}
+                onRefresh={refreshFiles}
+                onFetchFolder={fetchFolderContents}
+                onDownload={handleDownloadFile} 
+                onDelete={handleDelete} 
+                getDownloadUrl={getDownloadUrl}
+              />
+            </>
+          )}
+
+          {currentTab === 'queue' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-100">Upcoming Download Queue</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Order-wise automated scheduler (FIFO). As soon as storage is freed, the next torrent automatically starts.
+                  </p>
+                </div>
+              </div>
+
+              <QueueManager 
+                queue={queue}
+                isAutoEnabled={isAutoEnabled}
+                onMoveItem={moveItem}
+                onRemoveItem={removeFromQueue}
+                onClearQueue={clearQueue}
+                onToggleAuto={toggleAutoQueue}
+                onSendNow={handleSendFromQueueNow}
+              />
+
+              {/* Search Bar for quickly adding to queue */}
+              <SearchBar 
+                onSearch={handleSearch} 
+                onAddMagnet={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
+                loading={searchLoading} 
+                queueCount={queue.length}
+                recentCount={recentMagnets.length}
+                onOpenRecent={() => setIsMagnetsOpen(true)}
+              />
+
+              <SearchResults 
+                results={results} 
+                onDownload={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
+              />
+            </div>
+          )}
+
+          {currentTab === 'storage' && (
+            <div className="space-y-6 max-w-3xl">
+              <div className="pb-4 border-b border-slate-800">
+                <h2 className="text-xl font-bold text-gray-100">Seedr Cloud Storage Details</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Overview of your account storage quota and cloud allocation.
+                </p>
+              </div>
+
+              <div className="bg-[#0E1626] p-6 rounded-2xl border border-slate-800/80 shadow-xl space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                      <HardDrive className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-gray-100">Free Tier Account</h4>
+                      <p className="text-xs text-gray-400">Total capacity: {formatBytes(max)}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-400 font-mono">
+                    {formatBytes(used)} Used
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>Used: {usedPercentage}%</span>
+                    <span>Free: {formatBytes(Math.max(0, max - used))}</span>
+                  </div>
+                  <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
+                    <div 
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                      style={{ width: `${usedPercentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Want more than 4.5 GB?</span>
+                  <a
+                    href="https://www.seedr.cc/premium"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold rounded-xl text-xs shadow-md"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 fill-current" />
+                    <span>Get More Storage</span>
+                  </a>
+                </div>
+              </div>
+
+              <CompletedFiles 
+                files={completedFiles} 
+                activeTorrents={cloudTorrents}
+                storage={storage}
+                folderContents={folderContents}
+                loading={seedrLoading}
+                onRefresh={refreshFiles}
+                onFetchFolder={fetchFolderContents}
+                onDownload={handleDownloadFile} 
+                onDelete={handleDelete} 
+                getDownloadUrl={getDownloadUrl}
+              />
+            </div>
+          )}
+        </main>
       </div>
 
       {/* Telegram Bot Modal */}

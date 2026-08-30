@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X, ListOrdered, Plus } from 'lucide-react';
-import { extractMagnetName, isValidMagnet } from '../utils/magnet';
+import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X, ListOrdered } from 'lucide-react';
+import { extractMagnetName, isValidMagnet, isOversizedForSeedr } from '../utils/magnet';
 
 export default function SearchBar({ 
   onSearch, 
@@ -13,7 +13,7 @@ export default function SearchBar({
   prefilledMagnet = null,
   prefilledName = null
 }) {
-  const [mode, setMode] = useState('magnet');
+  const [mode, setMode] = useState('search');
   const [query, setQuery] = useState('');
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
@@ -74,44 +74,43 @@ export default function SearchBar({
   };
 
   return (
-    <div className="bg-gray-900 p-6 rounded-2xl shadow-xl mb-8 border border-gray-800">
+    <div className="bg-[#0E1626] p-6 rounded-2xl shadow-xl mb-8 border border-slate-800/80">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         {/* Mode Switcher Tabs */}
-        <div className="flex items-center bg-gray-950/70 p-1 rounded-xl border border-gray-800">
+        <div className="flex items-center bg-[#070D18] p-1 rounded-xl border border-slate-800/80">
           <button
             type="button"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              mode === 'magnet' 
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
-            }`}
-            onClick={() => setMode('magnet')}
-          >
-            <LinkIcon className="w-4 h-4" />
-            Paste Magnet
-          </button>
-
-          <button
-            type="button"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
               mode === 'search' 
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                ? 'bg-emerald-500 text-gray-950 shadow-md shadow-emerald-500/20' 
+                : 'text-gray-400 hover:text-gray-200'
             }`}
             onClick={() => setMode('search')}
           >
             <Search className="w-4 h-4" />
             Search Torrents
           </button>
+
+          <button
+            type="button"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+              mode === 'magnet' 
+                ? 'bg-emerald-500 text-gray-950 shadow-md shadow-emerald-500/20' 
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+            onClick={() => setMode('magnet')}
+          >
+            <LinkIcon className="w-4 h-4" />
+            Paste Magnet
+          </button>
         </div>
 
         {/* Action Badges */}
         <div className="flex items-center gap-2">
-          {/* Show Recent Button */}
           <button
             type="button"
             onClick={onOpenRecent}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-700/60 hover:border-emerald-500/40 transition-all group"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-700/80 transition-all group"
             title="View recent magnet links"
           >
             <History className="w-4 h-4 text-emerald-400 group-hover:rotate-[-20deg] transition-transform" />
@@ -125,13 +124,13 @@ export default function SearchBar({
 
       <form onSubmit={handleSubmit} className="relative">
         {mode === 'search' ? (
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Search for movies, TV series, software, books..."
-                className="w-full bg-gray-800/70 text-gray-100 pl-11 pr-4 py-3.5 rounded-xl border border-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-gray-500 text-sm md:text-base"
+                className="w-full bg-[#070D18] text-gray-100 pl-11 pr-4 py-3.5 rounded-xl border border-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all placeholder:text-gray-500 text-sm md:text-base"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={loading}
@@ -140,7 +139,7 @@ export default function SearchBar({
             <button
               type="submit"
               disabled={loading || !query.trim()}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-7 py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center min-w-[120px] disabled:opacity-50 shadow-lg shadow-emerald-950/40 hover:scale-[1.01] active:scale-[0.99]"
+              className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold px-7 py-3.5 rounded-xl transition-all flex items-center justify-center min-w-[120px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
             </button>
@@ -151,7 +150,7 @@ export default function SearchBar({
               <LinkIcon className="absolute left-3.5 top-3.5 text-gray-400 w-5 h-5" />
               <textarea
                 placeholder="Paste magnet link (magnet:?xt=urn:btih:...)..."
-                className="w-full bg-gray-800/70 text-gray-100 pl-11 pr-10 py-3.5 rounded-xl border border-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all min-h-[95px] resize-y text-sm font-mono placeholder:font-sans placeholder:text-gray-500"
+                className="w-full bg-[#070D18] text-gray-100 pl-11 pr-10 py-3.5 rounded-xl border border-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all min-h-[95px] resize-y text-sm font-mono placeholder:font-sans placeholder:text-gray-500"
                 value={magnet}
                 onChange={(e) => setMagnet(e.target.value)}
                 disabled={loading}
@@ -160,7 +159,7 @@ export default function SearchBar({
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-200 p-1 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-200 p-1 hover:bg-slate-800 rounded-lg transition-colors"
                   title="Clear input"
                 >
                   <X className="w-4 h-4" />
@@ -170,7 +169,7 @@ export default function SearchBar({
 
             {/* Extracted File Name Preview & Editor */}
             {magnet.trim() && (
-              <div className="bg-gray-950/60 border border-gray-800 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="bg-[#070D18]/90 border border-slate-800/80 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -183,7 +182,7 @@ export default function SearchBar({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 bg-gray-800/60 rounded-lg px-3 py-2 border border-gray-700/60 focus-within:border-emerald-500">
+                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/60 focus-within:border-emerald-500">
                   <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                   <input
                     type="text"
@@ -201,7 +200,7 @@ export default function SearchBar({
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <div className="text-xs text-gray-500 hidden sm:block">
-                Supports all standard BitTorrent magnet URIs
+                Supports all standard BitTorrent magnet URIs (Max 4.5 GB)
               </div>
               
               <div className="flex items-center gap-2.5 ml-auto">
@@ -219,7 +218,7 @@ export default function SearchBar({
                 <button
                   type="submit"
                   disabled={loading || !magnet.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-50 shadow-lg shadow-emerald-950/40 hover:scale-[1.01] active:scale-[0.99]"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 px-6 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
                 </button>
