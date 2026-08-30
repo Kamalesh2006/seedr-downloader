@@ -5,11 +5,12 @@ A personal web app to search for torrents, send magnet links to your [Seedr.cc](
 ## Features
 
 - 🔍 **Search torrents** across multiple providers (1337x, ThePirateBay, YTS)
-- 🧲 **Paste magnet links** directly as a fallback
+- 🧲 **Paste magnet links** directly with real-time **File Name auto-detection**
+- 🕒 **Recent magnet history** — stores up to 10 recent links with file names, 1-click re-add, and copy
 - ☁️ **Cloud download** via Seedr.cc — no local torrenting needed
 - 📊 **Real-time progress** tracking with auto-polling
-- 📥 **One-click download** when files are ready
-- 🗑️ **Manage storage** — delete files from Seedr to free space
+- 📥 **One-click download** for both root files and nested folder contents
+- 🗑️ **Seedr Storage Manager** — view storage quota & delete files/folders with confirmation
 - 📱 **Responsive dark UI** — works on desktop and mobile
 
 ## Prerequisites

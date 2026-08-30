@@ -5,6 +5,7 @@
   "description": "Torrent search & download via Seedr.cc cloud",
   "dependencies": {
     "axios": "^1.6.0",
+    "node-telegram-bot-api": "^2.1.0",
     "torrent-search-api": "^2.1.4"
   }
 }

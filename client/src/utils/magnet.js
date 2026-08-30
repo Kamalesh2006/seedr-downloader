@@ -49,7 +49,7 @@ export function extractMagnetHash(magnetUri) {
  */
 export function isValidMagnet(str) {
   if (!str || typeof str !== 'string') return false;
-  return str.trim().startsWith('magnet:?');
+  return str.trim().toLowerCase().startsWith('magnet:?');
 }
 
 /**
@@ -59,12 +59,14 @@ export function isValidMagnet(str) {
  * @returns {string}
  */
 export function formatBytes(bytes, decimals = 2) {
-  if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
+  if (!bytes || isNaN(bytes) || Number(bytes) === 0) return '0 B';
+  const numBytes = Number(bytes);
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i] || 'B'}`;
+  const i = Math.floor(Math.log(numBytes) / Math.log(k));
+  const clampedIndex = Math.min(i, sizes.length - 1);
+  return `${parseFloat((numBytes / Math.pow(k, clampedIndex)).toFixed(dm))} ${sizes[clampedIndex]}`;
 }
 
 /**

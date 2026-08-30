@@ -1,5 +1,29 @@
 {
-  "searchProviders": ["1337x", "ThePirateBay", "Yts"],
+  "searchProviders": [
+    {
+      "name": "1337x",
+      "urls": [
+        "https://1337x.to",
+        "https://1337x.gd",
+        "https://1337x.is"
+      ]
+    },
+    {
+      "name": "ThePirateBay",
+      "urls": [
+        "https://thepiratebay.org",
+        "https://thepiratebay.party",
+        "https://tpb.party"
+      ]
+    },
+    {
+      "name": "Yts",
+      "urls": [
+        "https://yts.mx",
+        "https://yts.lt"
+      ]
+    }
+  ],
   "maxFileSizeGB": 4.5,
   "maxResults": 20,
   "seedrPollIntervalMs": 3000,
