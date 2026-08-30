@@ -5,13 +5,16 @@ import {
   AlertTriangle, 
   CheckCircle, 
   Info, 
-  XCircle,
-  HardDrive,
-  Sparkles,
-  ExternalLink
+  XCircle, 
+  HardDrive, 
+  Sparkles, 
+  ExternalLink,
+  RefreshCw,
+  Folder
 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import StorageCard from './components/StorageCard';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
@@ -19,6 +22,7 @@ import CompletedFiles from './components/CompletedFiles';
 import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import TelegramModal from './components/TelegramModal';
+import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
@@ -28,21 +32,21 @@ function App() {
   const { search, results, loading: searchLoading, error: searchError } = useSearch();
   const { 
     activeTransfers, 
-    cloudTorrents,
+    cloudTorrents, 
     completedFiles, 
-    storage,
-    folderContents,
-    loading: seedrLoading,
-    refreshFiles,
-    fetchFolderContents,
-    recentMagnets,
+    storage, 
+    folderContents, 
+    loading: seedrLoading, 
+    refreshFiles, 
+    fetchFolderContents, 
+    recentMagnets, 
     addMagnet, 
     getDownloadUrl, 
     deleteFile, 
-    deleteFolder,
-    deleteTorrent,
-    deleteTask,
-    removeManualMagnet
+    deleteFolder, 
+    deleteTorrent, 
+    deleteTask, 
+    removeManualMagnet 
   } = useSeedr();
 
   const {
@@ -57,10 +61,10 @@ function App() {
   } = useQueue();
   
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -81,10 +85,10 @@ function App() {
     try {
       const res = await addMagnet(magnet, name, size);
       if (res && res.autoQueued) {
-        showToast(`Seedr is currently occupied. "${name || 'Torrent'}" automatically scheduled in Upcoming Queue! (Will start when space is freed)`, 'info');
+        showToast(`Seedr is currently occupied. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
         fetchQueue();
       } else {
-        showToast('Added to Seedr. Polling progress...', 'success');
+        showToast('Added to Seedr cloud! Fetching progress...', 'success');
         if (!name) {
           setIsMagnetsOpen(true);
         }
@@ -96,6 +100,20 @@ function App() {
       } else {
         showToast(errDetail || 'Failed to add to Seedr', 'error');
       }
+    }
+  };
+
+  const handleAddToQueue = async (magnet, name = '', size = null) => {
+    if (size && isOversizedForSeedr(size)) {
+      showToast(`⚠️ Cannot schedule "${name || 'Torrent'}" (${size}): Exceeds Seedr 4.5 GB limit.`, 'error');
+      return;
+    }
+
+    try {
+      await addToQueue(magnet, name, size);
+      showToast(`Scheduled "${name || 'Torrent'}" in queue!`, 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to schedule in queue', 'error');
     }
   };
 
@@ -150,13 +168,13 @@ function App() {
   const getToastStyles = (type) => {
     switch (type) {
       case 'error':
-        return 'bg-red-950 border border-red-800 text-red-200 shadow-red-950/50';
+        return 'bg-red-950/90 border border-red-800 text-red-200 shadow-red-950/50';
       case 'info':
-        return 'bg-indigo-950 border border-indigo-800 text-indigo-200 shadow-indigo-950/50';
+        return 'bg-indigo-950/90 border border-indigo-800 text-indigo-200 shadow-indigo-950/50';
       case 'warning':
-        return 'bg-amber-950 border border-amber-800 text-amber-200 shadow-amber-950/50';
+        return 'bg-amber-950/90 border border-amber-800 text-amber-200 shadow-amber-950/50';
       default:
-        return 'bg-emerald-950 border border-emerald-800 text-emerald-200 shadow-emerald-950/50';
+        return 'bg-emerald-950/90 border border-emerald-800 text-emerald-200 shadow-emerald-950/50';
     }
   };
 
@@ -169,7 +187,7 @@ function App() {
       case 'warning':
         return <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
       default:
-        return <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />;
+        return <CheckCircle className="w-5 h-5 text-[#00DF81] shrink-0" />;
     }
   };
 
@@ -178,7 +196,7 @@ function App() {
   const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
 
   return (
-    <div className="min-h-screen bg-[#0B111E] text-gray-100 font-sans flex antialiased selection:bg-emerald-500/30">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#070B14] text-slate-100' : 'bg-slate-900 text-slate-100'} font-sans flex antialiased selection:bg-[#00DF81]/30`}>
       
       {/* Desktop Left Sidebar */}
       <div className="hidden md:block">
@@ -193,75 +211,51 @@ function App() {
         />
       </div>
 
-      {/* Mobile Drawer Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm md:hidden animate-in fade-in"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          <div 
-            className="w-64 h-full bg-[#070D18] border-r border-slate-800 animate-in slide-in-from-left"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Sidebar 
-              currentTab={currentTab}
-              setCurrentTab={(tab) => {
-                setCurrentTab(tab);
-                setIsMobileMenuOpen(false);
-              }}
-              storage={storage}
-              queueCount={queue.length}
-              recentCount={recentMagnets.length}
-              onOpenTelegram={() => {
-                setIsTelegramOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-              onOpenRecent={() => {
-                setIsMagnetsOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#0B111E]">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#070B14]">
         {/* Top Navbar */}
         <Navbar 
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
           onOpenRecent={() => setIsMagnetsOpen(true)}
           onOpenTelegram={() => setIsTelegramOpen(true)}
-          isMobileMenuOpen={isMobileMenuOpen}
-          setIsMobileMenuOpen={setIsMobileMenuOpen}
           queueCount={queue.length}
+          isDarkMode={isDarkMode}
+          onToggleTheme={() => setIsDarkMode(!isDarkMode)}
         />
 
         {/* Page Body */}
-        <main className="flex-1 p-4 sm:p-8 max-w-6xl w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-4xl lg:max-w-5xl w-full mx-auto pb-28 md:pb-12">
           {currentTab === 'dashboard' && (
             <>
-              {/* Search & Magnet Bar */}
+              {/* Top Search & Magnet Input Card */}
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
               />
 
+              {/* Storage Capacity Card */}
+              <StorageCard 
+                storage={storage} 
+                onClickDetails={() => setCurrentTab('storage')}
+              />
+
               {searchError && (
-                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-8">
+                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
                   {searchError}
                 </div>
               )}
 
-              {/* Results */}
+              {/* Torrent Search Results */}
               <SearchResults 
                 results={results} 
                 onDownload={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
               />
 
               {/* Active Cloud Downloads in Seedr */}
@@ -281,7 +275,7 @@ function App() {
                 onSendNow={handleSendFromQueueNow}
               />
 
-              {/* Completed Files & Seedr Storage Manager */}
+              {/* Completed Files in Seedr Cloud */}
               <CompletedFiles 
                 files={completedFiles} 
                 activeTorrents={cloudTorrents}
@@ -299,13 +293,11 @@ function App() {
 
           {currentTab === 'queue' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-100">Upcoming Download Queue</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Order-wise automated scheduler (FIFO). As soon as storage is freed, the next torrent automatically starts.
-                  </p>
-                </div>
+              <div className="pb-3 border-b border-[#1E293B]">
+                <h2 className="text-lg sm:text-xl font-bold text-white">Upcoming Download Queue</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Order-wise automated scheduler (FIFO). As soon as storage is freed, the next torrent automatically starts.
+                </p>
               </div>
 
               <QueueManager 
@@ -322,6 +314,7 @@ function App() {
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -331,46 +324,49 @@ function App() {
               <SearchResults 
                 results={results} 
                 onDownload={handleAddMagnet} 
+                onAddToQueue={handleAddToQueue}
               />
             </div>
           )}
 
           {currentTab === 'storage' && (
             <div className="space-y-6 max-w-3xl">
-              <div className="pb-4 border-b border-slate-800">
-                <h2 className="text-xl font-bold text-gray-100">Seedr Cloud Storage Details</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
+              <div className="pb-3 border-b border-[#1E293B]">
+                <h2 className="text-lg sm:text-xl font-bold text-white">Seedr Cloud Storage Details</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
                   Overview of your account storage quota and cloud allocation.
                 </p>
               </div>
 
-              <div className="bg-[#0E1626] p-6 rounded-2xl border border-slate-800/80 shadow-xl space-y-5">
+              <StorageCard storage={storage} />
+
+              <div className="bg-[#111927] p-5 sm:p-6 rounded-2xl border border-[#1E293B] shadow-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                    <div className="p-3 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20">
                       <HardDrive className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="text-base font-bold text-gray-100">Free Tier Account</h4>
-                      <p className="text-xs text-gray-400">Total capacity: {formatBytes(max)}</p>
+                      <h4 className="text-sm sm:text-base font-bold text-white">Free Tier Account</h4>
+                      <p className="text-xs text-slate-400">Total capacity: {formatBytes(max)}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-emerald-400 font-mono">
+                  <span className="text-xs sm:text-sm font-bold text-[#00DF81] font-mono">
                     {formatBytes(used)} Used
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-gray-400">
-                    <span>Used: {usedPercentage}%</span>
-                    <span>Free: {formatBytes(Math.max(0, max - used))}</span>
-                  </div>
-                  <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
-                    <div 
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
-                      style={{ width: `${usedPercentage}%` }}
-                    />
-                  </div>
+                <div className="pt-4 border-t border-[#1E293B] flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Want more than 4.5 GB?</span>
+                  <a
+                    href="https://www.seedr.cc/premium"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#00DF81] hover:underline"
+                  >
+                    <span>Upgrade on Seedr.cc</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               </div>
 
@@ -391,13 +387,23 @@ function App() {
         </main>
       </div>
 
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <BottomNav 
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        onOpenRecent={() => setIsMagnetsOpen(true)}
+        onOpenTelegram={() => setIsTelegramOpen(true)}
+        recentCount={recentMagnets.length}
+        queueCount={queue.length}
+      />
+
       {/* Telegram Bot Modal */}
       <TelegramModal 
         isOpen={isTelegramOpen}
         onClose={() => setIsTelegramOpen(false)}
       />
 
-      {/* Recent / Manual Magnets Converter Modal */}
+      {/* Recent Magnets Modal */}
       <RecentMagnetsModal 
         isOpen={isMagnetsOpen}
         onClose={() => setIsMagnetsOpen(false)}
@@ -407,8 +413,8 @@ function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 max-w-md">
-          <div className={`px-5 py-3.5 rounded-xl shadow-2xl font-medium flex items-center gap-3 text-xs sm:text-sm ${getToastStyles(toast.type)}`}>
+        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 animate-in fade-in slide-in-from-bottom-4 max-w-sm sm:max-w-md">
+          <div className={`px-4 sm:px-5 py-3 rounded-xl shadow-2xl font-medium flex items-center gap-3 text-xs sm:text-sm backdrop-blur-md ${getToastStyles(toast.type)}`}>
             {getToastIcon(toast.type)}
             <span className="flex-1">{toast.message}</span>
           </div>

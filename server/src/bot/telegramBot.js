@@ -72,6 +72,12 @@ class SeedrTelegramBot {
     this.allowedUsers = process.env.TELEGRAM_ALLOWED_USERS
       ? process.env.TELEGRAM_ALLOWED_USERS.split(',').map(u => u.trim().toLowerCase())
       : null;
+
+    let webUrl = process.env.WEBSITE_URL || process.env.VERCEL_URL || 'https://seedr-downloader.vercel.app';
+    if (!webUrl.startsWith('http://') && !webUrl.startsWith('https://')) {
+      webUrl = `https://${webUrl}`;
+    }
+    this.websiteUrl = webUrl;
     
     // User conversation states (e.g. waiting for search input)
     this.userStates = new Map();
@@ -130,7 +136,8 @@ class SeedrTelegramBot {
         keyboard: [
           [{ text: '🔍 Search Torrents' }, { text: '📁 Seedr Files' }],
           [{ text: '⚡ Active Transfers' }, { text: '📋 Queue' }],
-          [{ text: '💾 Storage Quota' }, { text: '❓ Help' }]
+          [{ text: '💾 Storage Quota' }, { text: '🌐 View Website' }],
+          [{ text: '❓ Help' }]
         ],
         resize_keyboard: true,
         persistent: true
@@ -155,13 +162,14 @@ class SeedrTelegramBot {
 
       const welcomeText = 
         `👋 <b>Welcome to Seedr Torrent Bot!</b>\n\n` +
-        `Search torrents, send magnet links to your Seedr cloud, browse files, and download completed media directly from Telegram.\n\n` +
+        `Search torrents, send magnet links to your Seedr cloud, browse files, and download completed media directly from Telegram or the Web App.\n\n` +
         `⚡ <b>Quick Actions:</b>\n` +
         `• 🔍 <b>Search:</b> Type <code>/search &lt;query&gt;</code> or click below\n` +
         `• 🧲 <b>Magnet:</b> Paste any <code>magnet:?xt=...</code> link directly\n` +
         `• 📁 <b>Files:</b> Use <code>/files</code> to view Seedr cloud storage\n` +
         `• ⚡ <b>Transfers:</b> Use <code>/transfers</code> for active downloads\n` +
-        `• 💾 <b>Storage:</b> Use <code>/quota</code> to check remaining space\n\n` +
+        `• 📋 <b>Queue:</b> Use <code>/queue</code> to view scheduled downloads\n` +
+        `• 🌐 <b>Web App:</b> <a href="${this.websiteUrl}">${this.websiteUrl}</a>\n\n` +
         `<i>Choose an option below to get started:</i>`;
 
       const inlineKeyboard = {
@@ -172,6 +180,10 @@ class SeedrTelegramBot {
           ],
           [
             { text: '⚡ Active Transfers', callback_data: 'cmd_transfers' },
+            { text: '📋 Queue', callback_data: 'cmd_queue' }
+          ],
+          [
+            { text: '🌐 Open Web App (Vercel)', url: this.websiteUrl },
             { text: '💾 Storage Quota', callback_data: 'cmd_quota' }
           ]
         ]
@@ -240,6 +252,26 @@ class SeedrTelegramBot {
       await this.displayStorageQuota(msg.chat.id);
     });
 
+    // /web or /website or /app command
+    this.bot.onText(/^\/(?:web|website|app|vercel)/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      const text = 
+        `🌐 <b>Seedr Downloader Web Application</b>\n\n` +
+        `Access your full dashboard, search torrents, and manage your Seedr cloud files on the web:\n\n` +
+        `🔗 <b>Vercel App URL:</b>\n<code>${this.websiteUrl}</code>\n\n` +
+        `<i>Click the button below to open in your browser:</i>`;
+
+      await this.bot.sendMessage(msg.chat.id, text, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🌐 Open Web App (Vercel)', url: this.websiteUrl }],
+            [{ text: '📁 View Seedr Files', callback_data: 'nav_folder:root' }]
+          ]
+        }
+      });
+    });
+
     // Handle generic text messages (keyboard buttons, search input, magnet links)
     this.bot.on('message', async (msg) => {
       // Ignore non-text messages or command messages already handled
@@ -264,6 +296,21 @@ class SeedrTelegramBot {
       }
       if (text === '💾 Storage Quota') {
         return this.displayStorageQuota(msg.chat.id);
+      }
+      if (text === '🌐 View Website') {
+        return this.bot.sendMessage(
+          msg.chat.id,
+          `🌐 <b>Seedr Downloader Web Application</b>\n\n🔗 <b>Vercel App URL:</b>\n<code>${this.websiteUrl}</code>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🌐 Open Web App (Vercel)', url: this.websiteUrl }],
+                [{ text: '📁 View Seedr Files', callback_data: 'nav_folder:root' }]
+              ]
+            }
+          }
+        );
       }
       if (text === '❓ Help') {
         return this.bot.sendMessage(msg.chat.id, 'Type <code>/help</code> or paste a magnet link!', { parse_mode: 'HTML' });

@@ -177,50 +177,50 @@ export default function MediaPreviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="bg-gray-900 border border-gray-800 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200"
+        className="bg-[#111927] border border-[#1E293B] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-gray-800 bg-gray-900/95 flex items-center justify-between gap-3">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#1E293B] bg-[#111927] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
+            <div className="p-2.5 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20 shrink-0">
               {isVideo ? <Film className="w-5 h-5" /> : isAudio ? <Music className="w-5 h-5" /> : isImage ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm sm:text-base font-bold text-gray-100 truncate" title={fileName}>
+              <h3 className="text-xs sm:text-base font-bold text-slate-100 truncate" title={fileName}>
                 {fileName}
               </h3>
-              <div className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+              <div className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-2 mt-0.5">
                 <span>{formatBytes(file.size)}</span>
                 <span>•</span>
-                <span className="uppercase text-emerald-400 font-semibold text-[11px]">{ext || 'FILE'}</span>
+                <span className="uppercase text-[#00DF81] font-semibold text-[10px] sm:text-[11px]">{ext || 'FILE'}</span>
                 {isHlsPlaying && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> HLS Web Stream
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00DF81]/15 text-[#00DF81] border border-[#00DF81]/30 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> HLS Stream
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={handleCopyLink}
               disabled={!downloadUrl && !hlsUrl}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#182438] hover:bg-[#1E2E46] text-slate-200 hover:text-white border border-[#1E293B] transition-all disabled:opacity-50"
               title="Copy direct streaming link"
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-medium">Copied!</span>
+                  <Check className="w-3.5 h-3.5 text-[#00DF81]" />
+                  <span className="text-[#00DF81] font-medium hidden sm:inline">Copied!</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Copy Link</span>
+                  <span className="hidden sm:inline">Copy</span>
                 </>
               )}
             </button>
@@ -228,7 +228,7 @@ export default function MediaPreviewModal({
             <button
               onClick={handleDownload}
               disabled={!downloadUrl || loadingUrl}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-950/40 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-[#071911] bg-[#00DF81] hover:bg-[#05D686] shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50"
               title="Download file directly"
             >
               <Download className="w-3.5 h-3.5" />
@@ -237,7 +237,7 @@ export default function MediaPreviewModal({
 
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-xl transition-colors"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
               title="Close preview"
             >
               <X className="w-5 h-5" />
@@ -246,7 +246,7 @@ export default function MediaPreviewModal({
         </div>
 
         {/* Modal Body / Media Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-gray-950/80 min-h-[300px]">
+        <div className="p-3 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-[#090F1C] min-h-[250px] sm:min-h-[300px]">
           {loadingUrl && !hlsUrl ? (
             <div className="py-20 text-center text-gray-400 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
