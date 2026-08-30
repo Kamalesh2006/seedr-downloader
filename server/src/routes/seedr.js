@@ -53,15 +53,17 @@ router.post('/add', async (req, res) => {
     const spaceMax = folderData.space_max || (4.5 * 1024 * 1024 * 1024);
     const freeSpaceBytes = Math.max(0, spaceMax - spaceUsed);
 
-    const hasExistingContent = activeTorrents.length > 0 || activeTasks.length > 0 || completedFolders.length > 0 || completedFiles.length > 0;
+    const hasExistingFiles = completedFolders.length > 0 || completedFiles.length > 0;
+    const hasActiveDownloads = activeTorrents.length > 0 || activeTasks.length > 0;
 
-    // If there is already an active download or free space is low (< 500MB), auto-queue directly!
-    if (activeTorrents.length > 0 || activeTasks.length > 0 || (hasExistingContent && freeSpaceBytes < 500 * 1024 * 1024)) {
-      console.log(`[Seedr] 📦 Seedr is currently occupied. Auto-enqueuing "${name || 'Torrent'}" into Upcoming Schedule...`);
+    // If there is already an active download or existing files occupying Seedr space:
+    // Automatically schedule in Upcoming Queue!
+    if (hasActiveDownloads || (hasExistingFiles && freeSpaceBytes < 800 * 1024 * 1024)) {
+      console.log(`[Seedr] 📦 Seedr storage occupied (files/downloads active). Auto-enqueuing "${name || 'Torrent'}" into Upcoming Schedule...`);
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
         autoQueued: true,
-        message: 'Existing files/downloads in Seedr detected. Automatically scheduled in Upcoming Queue!',
+        message: 'Existing files detected in Seedr. Automatically scheduled in Upcoming Queue! (Will auto-start once space is freed)',
         queueItem
       });
     }
@@ -83,7 +85,7 @@ router.post('/add', async (req, res) => {
         const queueItem = downloadQueue.addToQueue({ magnet, name, size });
         return res.json({
           autoQueued: true,
-          message: 'Seedr storage is currently full. Automatically scheduled in Upcoming Queue!',
+          message: 'Seedr storage is currently full. Automatically scheduled in Upcoming Queue! (Will auto-start once space is freed)',
           queueItem
         });
       }
@@ -105,7 +107,7 @@ router.post('/add', async (req, res) => {
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
         autoQueued: true,
-        message: 'Seedr storage is currently full. Automatically scheduled in Upcoming Queue!',
+        message: 'Seedr storage is currently full. Automatically scheduled in Upcoming Queue! (Will auto-start once space is freed)',
         queueItem
       });
     }

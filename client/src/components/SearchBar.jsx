@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X, ListOrdered } from 'lucide-react';
-import { extractMagnetName, isValidMagnet, isOversizedForSeedr } from '../utils/magnet';
+import { Search, Link as LinkIcon, Loader2, History, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { extractMagnetName, isValidMagnet } from '../utils/magnet';
 
 export default function SearchBar({ 
   onSearch, 
   onAddMagnet, 
-  onAddToQueue,
   loading,
   recentCount = 0,
   queueCount = 0,
@@ -55,16 +54,6 @@ export default function SearchBar({
       setCustomName('');
       setDetectedName('');
     }
-  };
-
-  const handleScheduleInQueue = (e) => {
-    e.preventDefault();
-    if (!magnet.trim() || !onAddToQueue) return;
-    const finalName = customName.trim() || detectedName || 'Scheduled Magnet';
-    onAddToQueue(magnet.trim(), finalName);
-    setMagnet('');
-    setCustomName('');
-    setDetectedName('');
   };
 
   const handleClear = () => {
@@ -193,32 +182,21 @@ export default function SearchBar({
                   />
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1.5">
-                  You can edit the name above if you want to rename it before adding or scheduling.
+                  You can edit the name above if you want to rename it before adding to Seedr.
                 </p>
               </div>
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <div className="text-xs text-gray-500 hidden sm:block">
-                Supports all standard BitTorrent magnet URIs (Max 4.5 GB)
+                Supports all standard BitTorrent magnet URIs (Max 4.5 GB) • Auto-schedules in queue if storage is full
               </div>
               
               <div className="flex items-center gap-2.5 ml-auto">
                 <button
-                  type="button"
-                  onClick={handleScheduleInQueue}
-                  disabled={loading || !magnet.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:border-indigo-500 transition-all disabled:opacity-50 shadow-sm"
-                  title="Add to upcoming queue (auto-downloads when storage frees)"
-                >
-                  <ListOrdered className="w-4 h-4 text-indigo-400" />
-                  <span>Schedule in Queue</span>
-                </button>
-
-                <button
                   type="submit"
                   disabled={loading || !magnet.trim()}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 px-6 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-gray-950 px-8 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center min-w-[140px] disabled:opacity-50 shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99]"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
                 </button>

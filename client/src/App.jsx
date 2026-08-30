@@ -64,7 +64,7 @@ function App() {
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4500);
+    setTimeout(() => setToast(null), 5000);
   };
 
   const handleSearch = (query) => {
@@ -81,7 +81,7 @@ function App() {
     try {
       const res = await addMagnet(magnet, name, size);
       if (res && res.autoQueued) {
-        showToast(`Existing files in Seedr detected. "${name || 'Torrent'}" automatically scheduled in Upcoming Queue!`, 'info');
+        showToast(`Seedr is currently occupied. "${name || 'Torrent'}" automatically scheduled in Upcoming Queue! (Will start when space is freed)`, 'info');
         fetchQueue();
       } else {
         showToast('Added to Seedr. Polling progress...', 'success');
@@ -96,22 +96,6 @@ function App() {
       } else {
         showToast(errDetail || 'Failed to add to Seedr', 'error');
       }
-    }
-  };
-
-  const handleAddToQueue = async (magnet, name = '', size = null) => {
-    // 1. Validate file size > 4.5 GB limit
-    if (size && isOversizedForSeedr(size)) {
-      showToast(`⚠️ Cannot schedule "${name || 'Torrent'}" (${size}): File size exceeds Seedr's 4.5 GB storage limit.`, 'error');
-      return;
-    }
-
-    try {
-      await addToQueue(magnet, name, size);
-      showToast(`Added "${name || 'Torrent'}" to upcoming schedule!`, 'success');
-    } catch (err) {
-      const errDetail = err.response?.data?.error || err.message || '';
-      showToast(errDetail || 'Failed to schedule in queue', 'error');
     }
   };
 
@@ -262,7 +246,6 @@ function App() {
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -279,7 +262,6 @@ function App() {
               <SearchResults 
                 results={results} 
                 onDownload={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
               />
 
               {/* Active Cloud Downloads in Seedr */}
@@ -340,7 +322,6 @@ function App() {
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -350,7 +331,6 @@ function App() {
               <SearchResults 
                 results={results} 
                 onDownload={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
               />
             </div>
           )}

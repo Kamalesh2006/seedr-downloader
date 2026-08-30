@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
-import { CloudDownload, ArrowDown, ArrowUp, ListOrdered, Check, AlertOctagon } from 'lucide-react';
+import React from 'react';
+import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon } from 'lucide-react';
 import { isOversizedForSeedr } from '../utils/magnet';
 
-export default function SearchResults({ results, onDownload, onAddToQueue }) {
-  const [queuedIds, setQueuedIds] = useState(new Set());
-
+export default function SearchResults({ results, onDownload }) {
   if (!results || results.length === 0) return null;
 
   const getSizeColor = (sizeStr) => {
@@ -26,55 +24,37 @@ export default function SearchResults({ results, onDownload, onAddToQueue }) {
     return 'text-rose-400 font-semibold';
   };
 
-  const handleQueue = async (result, idx) => {
-    if (!onAddToQueue) return;
-    try {
-      await onAddToQueue(result.magnet, result.title, result.size);
-      setQueuedIds(prev => new Set(prev).add(idx));
-      setTimeout(() => {
-        setQueuedIds(prev => {
-          const next = new Set(prev);
-          next.delete(idx);
-          return next;
-        });
-      }, 3000);
-    } catch (e) {
-      console.error('Failed to queue', e);
-    }
-  };
-
   return (
-    <div className="bg-gray-900 rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-800">
-      <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/70 flex items-center justify-between">
+    <div className="bg-[#0E1626] rounded-2xl shadow-xl overflow-hidden mb-8 border border-slate-800/80">
+      <div className="px-6 py-4 border-b border-slate-800/80 bg-[#0E1626] flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-100">Search Results</h3>
-          <p className="text-xs text-gray-400">Found {results.length} torrents matching your query (Max 4.5 GB limit)</p>
+          <h3 className="text-base sm:text-lg font-bold text-gray-100">Search Results</h3>
+          <p className="text-xs text-gray-400">Found {results.length} torrents (Max 4.5 GB limit • Auto-schedules if storage is full)</p>
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-800/40 text-gray-400 text-xs uppercase tracking-wider border-b border-gray-800">
+            <tr className="bg-[#070D18]/70 text-gray-400 text-xs uppercase tracking-wider border-b border-slate-800/80">
               <th className="px-6 py-3.5 font-semibold">Name & Provider</th>
               <th className="px-6 py-3.5 font-semibold w-36">Size</th>
               <th className="px-6 py-3.5 font-semibold w-24">Seeders</th>
               <th className="px-6 py-3.5 font-semibold w-24">Leechers</th>
-              <th className="px-6 py-3.5 font-semibold w-48 text-right">Action</th>
+              <th className="px-6 py-3.5 font-semibold w-40 text-right">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-800/60">
+          <tbody className="divide-y divide-slate-800/60">
             {results.map((result, idx) => {
-              const isQueued = queuedIds.has(idx);
               const isOversized = isOversizedForSeedr(result.size);
 
               return (
-                <tr key={idx} className={`transition-colors group ${isOversized ? 'bg-red-950/10 hover:bg-red-950/20' : 'hover:bg-gray-800/40'}`}>
+                <tr key={idx} className={`transition-colors group ${isOversized ? 'bg-red-950/10 hover:bg-red-950/20' : 'hover:bg-slate-800/40'}`}>
                   <td className="px-6 py-4">
                     <div className="text-gray-100 font-medium text-sm line-clamp-2 group-hover:text-emerald-300 transition-colors" title={result.title}>
                       {result.title}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-gray-400 font-mono">
                         {result.provider}
                       </span>
                       {result.time && (
@@ -107,37 +87,19 @@ export default function SearchResults({ results, onDownload, onAddToQueue }) {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="inline-flex items-center gap-2">
-                      {onAddToQueue && (
-                        <button
-                          onClick={() => handleQueue(result, idx)}
-                          disabled={isQueued || isOversized}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                            isOversized
-                              ? 'opacity-40 cursor-not-allowed bg-gray-800 border-gray-700 text-gray-500'
-                              : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30 hover:scale-[1.02] active:scale-[0.98]'
-                          }`}
-                          title={isOversized ? 'File size exceeds Seedr 4.5 GB limit' : 'Schedule in queue for later'}
-                        >
-                          {isQueued ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <ListOrdered className="w-3.5 h-3.5" />}
-                          <span>{isQueued ? 'Queued' : '+ Queue'}</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => onDownload(result.magnet, result.title, result.size)}
-                        disabled={isOversized}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-md ${
-                          isOversized
-                            ? 'opacity-40 cursor-not-allowed bg-gray-800 text-gray-500 border border-gray-700'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98]'
-                        }`}
-                        title={isOversized ? 'File size exceeds Seedr 4.5 GB limit' : 'Send to Seedr'}
-                      >
-                        <CloudDownload className="w-4 h-4" />
-                        <span>Seedr</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => onDownload(result.magnet, result.title, result.size)}
+                      disabled={isOversized}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                        isOversized
+                          ? 'opacity-40 cursor-not-allowed bg-slate-800 text-gray-500 border border-slate-700'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-gray-950 shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98]'
+                      }`}
+                      title={isOversized ? 'File size exceeds Seedr 4.5 GB limit' : 'Add to Seedr (auto-schedules if storage is occupied)'}
+                    >
+                      <CloudDownload className="w-4 h-4" />
+                      <span>Add to Seedr</span>
+                    </button>
                   </td>
                 </tr>
               );
