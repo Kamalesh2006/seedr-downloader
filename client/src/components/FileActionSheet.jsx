@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Play, 
@@ -9,9 +9,12 @@ import {
   Film, 
   Folder, 
   FileText, 
-  ExternalLink 
+  ExternalLink,
+  Radio
 } from 'lucide-react';
 import { formatBytes, formatRelativeTime } from '../utils/magnet';
+import { VlcIcon } from './VLCStreamModal';
+import { openInVLC, copyVLCStreamUrl } from '../utils/vlc';
 
 export default function FileActionSheet({ 
   isOpen, 
@@ -21,13 +24,59 @@ export default function FileActionSheet({
   onDownload, 
   onCopyLink, 
   isCopied, 
-  onDelete 
+  onDelete,
+  getDownloadUrl,
+  onOpenVlcModal
 }) {
+  const [vlcLoading, setVlcLoading] = useState(false);
+  const [vlcCopied, setVlcCopied] = useState(false);
+
   if (!isOpen || !file) return null;
 
   const isFolder = file.type === 'folder';
   const ext = file.name?.split('.').pop()?.toLowerCase();
-  const isMedia = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'mp3', 'wav', 'flac', 'm4a'].includes(ext);
+  const isMedia = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v', 'flv', 'ts', 'mp3', 'wav', 'flac', 'm4a'].includes(ext);
+
+  const handleLaunchVLC = async () => {
+    if (onOpenVlcModal) {
+      onClose();
+      onOpenVlcModal(file);
+      return;
+    }
+
+    if (!getDownloadUrl) {
+      onStream(file);
+      return;
+    }
+
+    try {
+      setVlcLoading(true);
+      const url = await getDownloadUrl(file.id);
+      if (url) {
+        openInVLC(url, file.name);
+      }
+    } catch (e) {
+      console.error('Failed to get VLC stream URL', e);
+    } finally {
+      setVlcLoading(false);
+    }
+  };
+
+  const handleCopyVlcStream = async (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (!getDownloadUrl) return;
+
+    try {
+      const url = await getDownloadUrl(file.id);
+      if (url) {
+        await copyVLCStreamUrl(url);
+        setVlcCopied(true);
+        setTimeout(() => setVlcCopied(false), 2500);
+      }
+    } catch (e) {
+      console.error('Failed to copy VLC stream', e);
+    }
+  };
 
   return (
     <div 
@@ -76,16 +125,34 @@ export default function FileActionSheet({
           {!isFolder && (
             <>
               {isMedia && (
-                <button
-                  onClick={() => {
-                    onClose();
-                    onStream(file);
-                  }}
-                  className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-[#00DF81]/10 border border-[#00DF81]/25 text-[#00DF81] font-semibold text-sm hover:bg-[#00DF81]/20 transition-all active:scale-[0.99]"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Stream / Play Video</span>
-                </button>
+                <>
+                  {/* Stream in VLC Mobile App */}
+                  <button
+                    onClick={handleLaunchVLC}
+                    disabled={vlcLoading}
+                    className="flex items-center justify-between w-full p-3.5 rounded-xl bg-gradient-to-r from-orange-500/15 via-orange-500/10 to-amber-500/15 border border-orange-500/30 text-orange-400 font-bold text-sm hover:bg-orange-500/25 transition-all active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <VlcIcon className="w-5 h-5" />
+                      <span>{vlcLoading ? 'Preparing VLC Stream...' : 'Stream in VLC App'}</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-300">
+                      Mobile & Desktop
+                    </span>
+                  </button>
+
+                  {/* Regular In-App Player Stream */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onStream(file);
+                    }}
+                    className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-[#00DF81]/10 border border-[#00DF81]/25 text-[#00DF81] font-semibold text-sm hover:bg-[#00DF81]/20 transition-all active:scale-[0.99]"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>In-App Web Player</span>
+                  </button>
+                </>
               )}
 
               <button
@@ -115,6 +182,25 @@ export default function FileActionSheet({
                   </>
                 )}
               </button>
+
+              {isMedia && (
+                <button
+                  onClick={handleCopyVlcStream}
+                  className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-[#182438] border border-[#1E293B] text-orange-300 font-semibold text-xs hover:bg-[#1E2E46] transition-all active:scale-[0.99]"
+                >
+                  {vlcCopied ? (
+                    <>
+                      <Check className="w-4 h-4 text-[#00DF81]" />
+                      <span className="text-[#00DF81]">VLC Stream Link Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Radio className="w-4 h-4 text-orange-400" />
+                      <span>Copy VLC Network Stream Link</span>
+                    </>
+                  )}
+                </button>
+              )}
             </>
           )}
 

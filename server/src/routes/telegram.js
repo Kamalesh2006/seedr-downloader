@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const telegramBot = require('../bot/telegramBot');
+const { sanitizeErrorMessage } = require('../middleware/errorHandler');
 
 // Check Telegram bot status
 router.get('/status', async (req, res) => {
@@ -28,8 +29,8 @@ router.post('/webhook', async (req, res) => {
     await telegramBot.handleWebhookUpdate(req.body);
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Error handling webhook update:', error);
-    res.status(500).json({ error: error.message || 'Webhook processing failed' });
+    console.error('Error handling webhook update:', sanitizeErrorMessage(error));
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 

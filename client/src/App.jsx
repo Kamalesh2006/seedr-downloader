@@ -21,6 +21,7 @@ import ActiveDownloads from './components/ActiveDownloads';
 import CompletedFiles from './components/CompletedFiles';
 import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
+import RecentLinksView from './components/RecentLinksView';
 import TelegramModal from './components/TelegramModal';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
@@ -46,7 +47,8 @@ function App() {
     deleteFolder, 
     deleteTorrent, 
     deleteTask, 
-    removeManualMagnet 
+    removeManualMagnet,
+    clearRecentMagnets
   } = useSeedr();
 
   const {
@@ -384,6 +386,19 @@ function App() {
               />
             </div>
           )}
+
+          {currentTab === 'recent' && (
+            <RecentLinksView 
+              magnets={recentMagnets}
+              onRemove={removeManualMagnet}
+              onClearAll={clearRecentMagnets}
+              onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
+              onSearch={handleSearch}
+              onAddMagnet={handleAddMagnet}
+              onAddToQueue={handleAddToQueue}
+              searchLoading={searchLoading}
+            />
+          )}
         </main>
       </div>
 
@@ -409,6 +424,8 @@ function App() {
         onClose={() => setIsMagnetsOpen(false)}
         magnets={recentMagnets}
         onRemove={removeManualMagnet}
+        onClearAll={clearRecentMagnets}
+        onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
       />
 
       {/* Toast Notification */}

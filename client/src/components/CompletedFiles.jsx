@@ -25,6 +25,7 @@ import {
 import { formatBytes, formatRelativeTime } from '../utils/magnet';
 import MediaPreviewModal from './MediaPreviewModal';
 import FileActionSheet from './FileActionSheet';
+import VLCStreamModal, { VlcIcon } from './VLCStreamModal';
 
 function getFileIcon(fileName) {
   if (!fileName) return <File className="w-5 h-5 text-slate-400" />;
@@ -76,6 +77,12 @@ function getFileIcon(fileName) {
   }
 }
 
+function isMediaFile(fileName) {
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'm4v', 'ts', 'mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg'].includes(ext);
+}
+
 export default function CompletedFiles({ 
   files = [], 
   activeTorrents = [],
@@ -95,6 +102,10 @@ export default function CompletedFiles({
   // Media Preview Modal state
   const [previewFile, setPreviewFile] = useState(null);
   const [copiedFileId, setCopiedFileId] = useState(null);
+
+  // VLC Modal state
+  const [vlcModalItem, setVlcModalItem] = useState(null);
+  const [vlcModalUrl, setVlcModalUrl] = useState('');
 
   // Mobile Action Sheet state
   const [selectedMobileFile, setSelectedMobileFile] = useState(null);
@@ -141,11 +152,26 @@ export default function CompletedFiles({
     setPreviewFile(item);
   };
 
+  const handleOpenVlcModal = async (item) => {
+    setVlcModalItem(item);
+    setVlcModalUrl(item.hlsUrl || '');
+    if (getDownloadUrl) {
+      try {
+        const url = await getDownloadUrl(item.id);
+        if (url) {
+          setVlcModalUrl(url);
+        }
+      } catch (e) {
+        console.error('Failed to get stream URL for VLC', e);
+      }
+    }
+  };
+
   const handleItemClick = (item) => {
     if (item.type === 'folder') {
       toggleFolder(item.id);
     } else {
-      // If mobile, open preview or action sheet
+      // If mobile, open action sheet
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
         setSelectedMobileFile(item);
@@ -234,6 +260,7 @@ export default function CompletedFiles({
               const isFolderLoading = folderData.loading;
               const isCopied = copiedFileId === item.id;
               const relativeTimeStr = formatRelativeTime(item.created || item.last_update);
+              const isMedia = !isFolder && isMediaFile(item.name);
 
               return (
                 <div key={`${item.type}-${item.id}`} className="group/row transition-colors">
@@ -269,6 +296,11 @@ export default function CompletedFiles({
                               • {isExpanded ? 'Collapse' : 'Explore'}
                             </span>
                           )}
+                          {isMedia && (
+                            <span className="text-orange-400/90 ml-1 font-medium hidden md:inline text-[10px]">
+                              • VLC Stream Ready
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -291,10 +323,22 @@ export default function CompletedFiles({
                       <div className="hidden md:flex items-center gap-1.5">
                         {!isFolder && (
                           <>
+                            {/* VLC Stream Quick Button */}
+                            {isMedia && (
+                              <button
+                                onClick={() => handleOpenVlcModal(item)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 rounded-xl border border-orange-500/30 transition-colors"
+                                title="Stream in VLC Media Player (Desktop / Network Stream)"
+                              >
+                                <VlcIcon className="w-3.5 h-3.5" />
+                                <span>VLC</span>
+                              </button>
+                            )}
+
                             <button
                               onClick={() => handleOpenPreview(item)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-[#00DF81] bg-[#162238] hover:bg-[#00DF81]/10 rounded-xl border border-[#1E293B] hover:border-[#00DF81]/40 transition-colors"
-                              title="View / Stream"
+                              title="View / Stream In-App"
                             >
                               <Eye className="w-3.5 h-3.5 text-[#00DF81]" />
                               <span>View</span>
@@ -367,6 +411,7 @@ export default function CompletedFiles({
                           {folderData.files.map(nestedFile => {
                             const isNestedCopied = copiedFileId === nestedFile.id;
                             const nestedTime = formatRelativeTime(nestedFile.created || nestedFile.last_update);
+                            const isNestedMedia = isMediaFile(nestedFile.name);
 
                             return (
                               <div 
@@ -404,6 +449,17 @@ export default function CompletedFiles({
 
                                   {/* Desktop inline */}
                                   <div className="hidden md:flex items-center gap-1">
+                                    {/* VLC stream nested */}
+                                    {isNestedMedia && (
+                                      <button
+                                        onClick={() => handleOpenVlcModal(nestedFile)}
+                                        className="p-1.5 text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 rounded-lg transition-colors border border-orange-500/25"
+                                        title="Stream in VLC Media Player"
+                                      >
+                                        <VlcIcon className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+
                                     <button
                                       onClick={() => handleOpenPreview(nestedFile)}
                                       className="p-1.5 text-slate-300 hover:text-[#00DF81] bg-[#182438] rounded-lg transition-colors border border-[#1E293B]"
@@ -468,6 +524,17 @@ export default function CompletedFiles({
         getDownloadUrl={getDownloadUrl}
       />
 
+      {/* Dedicated VLC Stream & Network Stream Guide Modal */}
+      <VLCStreamModal
+        isOpen={!!vlcModalItem}
+        onClose={() => {
+          setVlcModalItem(null);
+          setVlcModalUrl('');
+        }}
+        file={vlcModalItem}
+        streamUrl={vlcModalUrl}
+      />
+
       {/* Mobile Touch Action Sheet */}
       <FileActionSheet 
         isOpen={!!selectedMobileFile}
@@ -478,6 +545,8 @@ export default function CompletedFiles({
         onCopyLink={handleCopyLink}
         isCopied={copiedFileId === selectedMobileFile?.id}
         onDelete={(file) => setDeleteTarget({ id: file.id, name: file.name, type: file.type || 'file' })}
+        getDownloadUrl={getDownloadUrl}
+        onOpenVlcModal={handleOpenVlcModal}
       />
 
       {/* Delete Confirmation Modal */}

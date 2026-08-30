@@ -3,6 +3,9 @@ const router = express.Router();
 const seedrService = require('../services/seedrService');
 const torrentWatchdog = require('../services/torrentWatchdogService');
 const downloadQueue = require('../services/downloadQueueService');
+const { seedrActionLimiter } = require('../middleware/rateLimiter');
+const { validateMagnet, validateIdParam } = require('../middleware/validator');
+const { sanitizeErrorMessage } = require('../middleware/errorHandler');
 
 function parseSizeInGB(sizeStr) {
   if (!sizeStr) return 0;
@@ -20,24 +23,21 @@ function parseSizeInGB(sizeStr) {
   return val;
 }
 
-router.post('/add', async (req, res) => {
+// 1. Add Magnet to Seedr (Rate limited + Magnet validated)
+router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
   try {
     const { magnet, name, size } = req.body;
-    if (!magnet) {
-      return res.status(400).json({ error: 'Magnet link is required' });
-    }
 
-    // 1. Strict check: File size exceeds 4.5 GB limit
+    // Strict check: File size exceeds 4.5 GB limit
     const sizeInGB = parseSizeInGB(size);
     if (sizeInGB > 4.5) {
-      console.warn(`[Seedr] ⚠️ Blocked addition of oversized torrent "${name || 'Torrent'}" (${sizeInGB.toFixed(2)} GB > 4.5 GB limit).`);
       return res.status(400).json({ 
         error: `File size (${size || sizeInGB.toFixed(2) + ' GB'}) exceeds Seedr's 4.5 GB total storage limit.`, 
         isOversized: true 
       });
     }
 
-    // 2. Check current Seedr storage and active downloads
+    // Check current Seedr storage and active downloads
     let folderData;
     try {
       folderData = await seedrService.listFolder();
@@ -59,7 +59,6 @@ router.post('/add', async (req, res) => {
     // If there is already an active download or existing files occupying Seedr space:
     // Automatically schedule in Upcoming Queue!
     if (hasActiveDownloads || (hasExistingFiles && freeSpaceBytes < 800 * 1024 * 1024)) {
-      console.log(`[Seedr] 📦 Seedr storage occupied (files/downloads active). Auto-enqueuing "${name || 'Torrent'}" into Upcoming Schedule...`);
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
         autoQueued: true,
@@ -68,10 +67,10 @@ router.post('/add', async (req, res) => {
       });
     }
 
-    // 3. Attempt direct addition to Seedr
+    // Attempt direct addition to Seedr
     const result = await seedrService.addMagnet(magnet);
 
-    // 4. Handle Seedr response codes
+    // Handle Seedr response codes
     if (result) {
       if (result.result === 'file_too_big' || result.error === 'file_too_big') {
         return res.status(400).json({
@@ -81,7 +80,6 @@ router.post('/add', async (req, res) => {
       }
 
       if (result.result === 'not_enough_space' || result.result === 'free_user_limit' || result.result === false || result.result === 'user_torrent_limit') {
-        console.log(`[Seedr] 📦 Seedr returned ${result.result}. Auto-enqueuing "${name || 'Torrent'}" into Upcoming Schedule...`);
         const queueItem = downloadQueue.addToQueue({ magnet, name, size });
         return res.json({
           autoQueued: true,
@@ -93,7 +91,7 @@ router.post('/add', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    const errorMsg = String(error.message || error.result || (error.response?.data?.result) || (error.response?.data?.error) || '');
+    const errorMsg = sanitizeErrorMessage(error);
     
     if (errorMsg.includes('file_too_big')) {
       return res.status(400).json({
@@ -102,7 +100,7 @@ router.post('/add', async (req, res) => {
       });
     }
 
-    if (errorMsg.includes('not_enough_space') || errorMsg.includes('free_user_limit') || errorMsg.includes('user_torrent_limit')) {
+    if (errorMsg.includes('not_enough_space') || errorMsg.includes('free_user_limit') || errorMsg.includes('user_torrent_limit') || errorMsg.includes('wishlist')) {
       const { magnet, name, size } = req.body;
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
@@ -112,17 +110,17 @@ router.post('/add', async (req, res) => {
       });
     }
 
-    res.status(500).json({ error: 'Failed to add magnet', details: error.message || error });
+    res.status(500).json({ error: errorMsg || 'Failed to add magnet' });
   }
 });
 
-router.get('/status/:transferId', async (req, res) => {
+router.get('/status/:transferId', validateIdParam('transferId'), async (req, res) => {
   try {
     const { transferId } = req.params;
     const result = await seedrService.getTransferStatus(transferId);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get transfer status', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to get transfer status' });
   }
 });
 
@@ -131,74 +129,104 @@ router.get('/folders', async (req, res) => {
     const result = await seedrService.listFolder();
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to list root folder', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to list root folder' });
   }
 });
 
-router.get('/folder/:id', async (req, res) => {
+router.get('/folder/:id', validateIdParam('id'), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await seedrService.listFolder(id);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to list folder', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to list folder' });
   }
 });
 
-router.get('/download/:fileId', async (req, res) => {
+router.get('/download/:fileId', validateIdParam('fileId'), async (req, res) => {
   try {
     const { fileId } = req.params;
     const result = await seedrService.getDownloadUrl(fileId);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get download URL', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to get download URL' });
   }
 });
 
-router.delete('/file/:fileId', async (req, res) => {
+// Direct stream redirect for external media players (VLC, IINA, MPV, Kodi)
+router.get('/stream/:fileId', validateIdParam('fileId'), async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const result = await seedrService.getDownloadUrl(fileId);
+    if (result && result.url) {
+      return res.redirect(302, result.url);
+    }
+    res.status(404).json({ error: 'Stream URL not found' });
+  } catch (error) {
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to get stream URL' });
+  }
+});
+
+// M3U Playlist file generation for instant 1-click VLC playback
+router.get('/playlist/:fileId', validateIdParam('fileId'), async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const result = await seedrService.getDownloadUrl(fileId);
+    if (!result || !result.url) {
+      return res.status(404).json({ error: 'Stream URL not found' });
+    }
+    const fileName = (result.name || `seedr-video-${fileId}`).replace(/["\r\n]/g, '');
+    const m3uContent = `#EXTM3U\n#EXTINF:-1,${fileName}\n${result.url}\n`;
+    
+    res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}.m3u"`);
+    res.send(m3uContent);
+  } catch (error) {
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to generate playlist' });
+  }
+});
+
+router.delete('/file/:fileId', validateIdParam('fileId'), async (req, res) => {
   try {
     const { fileId } = req.params;
     const result = await seedrService.deleteFile(fileId);
     res.json(result);
-    // Storage space freed: trigger queue check
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete file', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete file' });
   }
 });
 
-router.delete('/folder/:folderId', async (req, res) => {
+router.delete('/folder/:folderId', validateIdParam('folderId'), async (req, res) => {
   try {
     const { folderId } = req.params;
     const result = await seedrService.deleteFolder(folderId);
     res.json(result);
-    // Storage space freed: trigger queue check
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete folder', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete folder' });
   }
 });
 
-router.delete('/torrent/:torrentId', async (req, res) => {
+router.delete('/torrent/:torrentId', validateIdParam('torrentId'), async (req, res) => {
   try {
     const { torrentId } = req.params;
     const result = await seedrService.deleteTorrent(torrentId);
     res.json(result);
-    // Torrent slot freed: trigger queue check
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete torrent', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete torrent' });
   }
 });
 
-router.delete('/task/:taskId', async (req, res) => {
+router.delete('/task/:taskId', validateIdParam('taskId'), async (req, res) => {
   try {
     const { taskId } = req.params;
     const result = await seedrService.deleteTask(taskId);
     res.json(result);
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete task', details: error });
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete task' });
   }
 });
 
@@ -207,3 +235,4 @@ router.get('/watchdog', (req, res) => {
 });
 
 module.exports = router;
+

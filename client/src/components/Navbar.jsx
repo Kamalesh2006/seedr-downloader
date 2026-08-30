@@ -3,20 +3,12 @@ import {
   Sun, 
   Moon,
   Bell, 
-  Settings, 
-  Send, 
-  ListOrdered,
-  Clock,
-  Cloud,
-  ArrowDownToLine
+  Settings
 } from 'lucide-react';
 
 export default function Navbar({ 
   currentTab = 'dashboard', 
   setCurrentTab,
-  onOpenRecent,
-  onOpenTelegram,
-  queueCount = 0,
   isDarkMode = true,
   onToggleTheme
 }) {
@@ -45,54 +37,7 @@ export default function Navbar({
         </span>
       </div>
 
-      {/* Center: Desktop Navigation Tabs */}
-      <nav className="hidden md:flex items-center gap-7 h-full">
-        <button
-          onClick={() => setCurrentTab('dashboard')}
-          className={`h-full flex items-center gap-2 text-sm font-semibold border-b-2 transition-all px-1 ${
-            currentTab === 'dashboard'
-              ? 'border-[#00DF81] text-[#00DF81]'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>Dashboard</span>
-        </button>
-
-        <button
-          onClick={() => setCurrentTab('queue')}
-          className={`h-full flex items-center gap-2 text-sm font-semibold border-b-2 transition-all px-1 ${
-            currentTab === 'queue'
-              ? 'border-[#00DF81] text-[#00DF81]'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <ListOrdered className="w-4 h-4" />
-          <span>Upcoming Queue</span>
-          {queueCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              {queueCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={onOpenRecent}
-          className="h-full flex items-center gap-1.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors px-1"
-        >
-          <Clock className="w-4 h-4 text-[#00DF81]" />
-          <span>Magnets</span>
-        </button>
-
-        <button
-          onClick={onOpenTelegram}
-          className="h-full flex items-center gap-1.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-sky-300 transition-colors px-1"
-        >
-          <Send className="w-4 h-4 text-sky-400" />
-          <span>Telegram Bot</span>
-        </button>
-      </nav>
-
-      {/* Right: Quick Action Controls */}
+      {/* Right: Action Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Theme Toggle (Moon Icon matching mockup) */}
         <button
@@ -125,15 +70,6 @@ export default function Navbar({
           >
             <Settings className="w-4 h-4" />
           </button>
-        </div>
-
-        {/* User Profile Avatar */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00DF81] to-teal-500 p-0.5 shadow-md flex items-center justify-center cursor-pointer hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-full bg-[#070B14] flex items-center justify-center text-xs font-bold text-[#00DF81]">
-              K
-            </div>
-          </div>
         </div>
       </div>
     </header>

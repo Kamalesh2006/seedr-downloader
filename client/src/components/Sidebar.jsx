@@ -85,22 +85,38 @@ export default function Sidebar({
             const Icon = item.icon;
             const isActive = currentTab === item.id;
 
+            if (item.id === 'telegram') {
+              return (
+                <a
+                  key={item.id}
+                  href="https://t.me/seedr_download_bot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all text-gray-400 hover:text-sky-300 hover:bg-slate-800/50 border border-transparent"
+                  title="Open Seedr Telegram Bot (@seedr_download_bot)"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-4 h-4 text-sky-400" />
+                    <span>{item.label}</span>
+                  </div>
+
+                  {item.badge && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${item.badgeColor}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </a>
+              );
+            }
+
             return (
               <button
                 key={item.id}
-                onClick={() => {
-                  if (item.id === 'telegram') {
-                    onOpenTelegram();
-                  } else if (item.id === 'recent') {
-                    onOpenRecent();
-                  } else {
-                    setCurrentTab(item.id);
-                  }
-                }}
+                onClick={() => setCurrentTab(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30 shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-800/50 border border-transparent'
+                    ? 'bg-[#00DF81]/15 text-[#00DF81] font-bold border border-[#00DF81]/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">

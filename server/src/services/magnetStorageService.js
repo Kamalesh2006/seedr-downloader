@@ -78,23 +78,38 @@ class MagnetStorageService {
 
   extractMagnetName(magnet) {
     if (!magnet || typeof magnet !== 'string') return '';
-    const match = magnet.match(/dn=([^&]+)/i);
-    return match ? decodeURIComponent(match[1].replace(/\+/g, ' ')) : '';
+    const match = magnet.match(/[?&](?:dn|name|title)=([^&]+)/i);
+    if (!match) return '';
+    try {
+      return decodeURIComponent(match[1].replace(/\+/g, ' ')).trim();
+    } catch (e) {
+      return match[1].replace(/\+/g, ' ').trim();
+    }
   }
 
   async getRecentMagnets() {
+    let list = [];
     if (this.hasRemoteConfig()) {
       try {
         const raw = await this.executeKvCommand('GET', STORAGE_KEY);
         if (raw) {
-          return typeof raw === 'string' ? JSON.parse(raw) : raw;
+          list = typeof raw === 'string' ? JSON.parse(raw) : raw;
         }
-        return [];
       } catch (err) {
         console.error('Failed to get recent magnets from KV, using local fallback:', err.message);
+        list = this.readLocalFallback();
       }
+    } else {
+      list = this.readLocalFallback();
     }
-    return this.readLocalFallback();
+
+    // Filter out dummy test items with fake hashes (e.g. hash12, hash11, etc.)
+    return Array.isArray(list) ? list.filter(item => {
+      if (!item || !item.magnet) return false;
+      const hash = item.hash || '';
+      const magnet = item.magnet || '';
+      return !(/^hash\d+$/i.test(hash) || /xt=urn:btih:hash\d+/i.test(magnet));
+    }) : [];
   }
 
   async saveRecentMagnets(list) {

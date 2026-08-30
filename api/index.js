@@ -1,5 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+
+const { apiLimiter } = require('../server/src/middleware/rateLimiter');
+const { errorHandler } = require('../server/src/middleware/errorHandler');
 
 const searchRoutes = require('../server/src/routes/search');
 const seedrRoutes = require('../server/src/routes/seedr');
@@ -9,8 +13,22 @@ const queueRoutes = require('../server/src/routes/queue');
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false
+}));
+
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json({ limit: '50kb' }));
+
+app.use('/api', apiLimiter);
 
 app.use('/api/search', searchRoutes);
 app.use('/api/seedr', seedrRoutes);
@@ -26,4 +44,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
+app.use(errorHandler);
+
 module.exports = app;
+

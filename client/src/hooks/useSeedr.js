@@ -20,7 +20,8 @@ export default function useSeedr() {
     recentMagnets,
     addManualMagnet,
     updateManualMagnet,
-    removeManualMagnet
+    removeManualMagnet,
+    clearRecentMagnets
   } = useRecentMagnets();
 
   const refreshFiles = useCallback(async () => {
@@ -137,10 +138,9 @@ export default function useSeedr() {
     try {
       const parsedName = name || getMagnetDisplayName(magnet);
       const { data } = await api.post('/seedr/add', { magnet, name: parsedName, size });
-      if (data.id) {
-        const finalTitle = data.title || parsedName;
-        addManualMagnet(data.id, finalTitle, magnet);
-      }
+      const finalId = data.id || data.user_torrent_id || (data.queueItem && data.queueItem.id) || Date.now().toString();
+      const finalTitle = data.title || parsedName || getMagnetDisplayName(magnet);
+      addManualMagnet(finalId, finalTitle, magnet);
       // Immediately refresh files and torrents
       refreshFiles();
       return data;
@@ -234,6 +234,7 @@ export default function useSeedr() {
     deleteFolder,
     deleteTorrent,
     deleteTask,
-    removeManualMagnet
+    removeManualMagnet,
+    clearRecentMagnets
   };
 }

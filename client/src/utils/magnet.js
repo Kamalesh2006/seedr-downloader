@@ -3,7 +3,7 @@
  */
 
 /**
- * Extracts the display name (dn) from a magnet URI, or generates a fallback name
+ * Extracts the display name (dn, name, or title) from a magnet URI, or generates a fallback name
  * @param {string} magnetUri - The magnet URI string
  * @returns {string} The extracted name or fallback
  */
@@ -11,15 +11,25 @@ export function extractMagnetName(magnetUri) {
   if (!magnetUri || typeof magnetUri !== 'string') return '';
   
   try {
-    // Check for dn parameter: dn=Name+Of+File or dn=Name%20Of%20File
-    const dnMatch = magnetUri.match(/[?&]dn=([^&]+)/i);
+    const trimmed = magnetUri.trim();
+    // Check for dn, name, or title parameters
+    const dnMatch = trimmed.match(/[?&](?:dn|name|title)=([^&]+)/i);
     if (dnMatch && dnMatch[1]) {
-      const decoded = decodeURIComponent(dnMatch[1].replace(/\+/g, ' '));
-      return decoded.trim();
+      let raw = dnMatch[1].replace(/\+/g, ' ');
+      try {
+        raw = decodeURIComponent(raw);
+      } catch (e) {
+        try {
+          raw = decodeURI(raw);
+        } catch (e2) {
+          raw = raw.replace(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        }
+      }
+      return raw.trim() || 'Magnet Download';
     }
 
     // Fallback: extract hash from xt parameter
-    const xtMatch = magnetUri.match(/[?&]xt=urn:btih:([a-zA-Z0-9]+)/i);
+    const xtMatch = trimmed.match(/[?&]xt=urn:btih:([a-zA-Z0-9]+)/i);
     if (xtMatch && xtMatch[1]) {
       const hash = xtMatch[1];
       return `Torrent-${hash.substring(0, 8)}...`;

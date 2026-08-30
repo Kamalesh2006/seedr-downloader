@@ -1,13 +1,11 @@
 import React from 'react';
-import { Folder, Clock, HardDrive, Bot, History, Database, Layers } from 'lucide-react';
+import { Folder, History, Database, Bot } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
   setCurrentTab, 
-  onOpenRecent, 
   onOpenTelegram,
-  recentCount = 0,
-  queueCount = 0
+  recentCount = 0
 }) {
   const tabs = [
     {
@@ -21,7 +19,7 @@ export default function BottomNav({
       label: 'Recent',
       icon: History,
       badge: recentCount > 0 ? recentCount : null,
-      onClick: () => onOpenRecent()
+      onClick: () => setCurrentTab('recent')
     },
     {
       id: 'storage',
@@ -33,7 +31,7 @@ export default function BottomNav({
       id: 'bot',
       label: 'Bot',
       icon: Bot,
-      onClick: () => onOpenTelegram()
+      onClick: () => onOpenTelegram ? onOpenTelegram() : setCurrentTab('bot')
     }
   ];
 

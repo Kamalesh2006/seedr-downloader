@@ -8,3 +8,5 @@ build/
 .vercel
 .env*
 recent_magnets_data.json
+scratch/
+server/scratch/
