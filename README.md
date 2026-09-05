@@ -5,7 +5,6 @@ A personal web app to search for torrents, send magnet links to your [Seedr.cc](
 ## Features
 
 - 🎬 **Discover Movies & Live Mirrors** — Automated search discovery of frequently changing mirror domains, real-time magnet scraping, and one-click Seedr cloud streaming
-- 📡 **Ace Stream Live Player** — Stream live broadcasts, sports & channels directly in-browser or VLC by pasting any 40-character Content ID (e.g. `78aa92a70ef16a0e450d861243cc7a90e23aca42`) or `acestream://` URL
 - 🤖 **Telegram Bot Integration** — Search torrents, browse Seedr files, get direct download URLs & send magnets on the go
 - 🔍 **Search torrents** across multiple providers (1337x, ThePirateBay, YTS)
 - 🧲 **Paste magnet links** directly with real-time **File Name auto-detection**
@@ -20,7 +19,6 @@ A personal web app to search for torrents, send magnet links to your [Seedr.cc](
 
 - [Node.js](https://nodejs.org/) v18 or later
 - A [Seedr.cc](https://seedr.cc) account (premium recommended for API access)
-- *(Optional)* [Docker](https://www.docker.com/) or an Ace Stream Engine daemon for in-browser Ace Stream playback
 - *(Optional)* A Telegram Bot Token from [@BotFather](https://t.me/BotFather) for Telegram integration
 
 ## Quick Start
@@ -34,9 +32,6 @@ SEEDR_EMAIL=your_email@example.com
 SEEDR_PASSWORD=your_password
 MAX_FILE_SIZE_GB=4.5
 PORT=3001
-
-# Ace Stream Engine (Optional, default: http://127.0.0.1:6878)
-ACESTREAM_ENGINE_URL=http://127.0.0.1:6878
 
 # Telegram Bot Integration (Optional)
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
