@@ -12,7 +12,8 @@ import {
   ChevronDown,
   Layers,
   Sparkles,
-  Settings
+  Settings,
+  Loader2
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr } from '../utils/magnet';
@@ -274,7 +275,12 @@ export default function MirrorMoviesView({
 
           {/* Mirror Status Pill & Action Buttons */}
           <div className="flex items-center flex-wrap gap-2.5">
-            {mirrorStatus?.domain ? (
+            {loading || rediscovering ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00DF81]" />
+                <span className="font-semibold text-[#00DF81]">Scraping 1TamilMV website...</span>
+              </div>
+            ) : mirrorStatus?.domain ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs text-slate-300">
                 <span className="w-2 h-2 rounded-full bg-[#00DF81] animate-pulse" />
                 <span className="font-mono text-[#00DF81] font-semibold truncate max-w-[180px]">
@@ -356,9 +362,11 @@ export default function MirrorMoviesView({
         </div>
 
         <div className="text-[11px] text-slate-400 hidden sm:block">
-          {viewMode === 'top'
-            ? `Showing ${displayedMovies.length} unique top releases with all qualities & sizes`
-            : `Showing ${displayedMovies.length} unique releases across all categories`}
+          {loading || rediscovering
+            ? 'Scraping 1TamilMV website for latest releases...'
+            : viewMode === 'top'
+              ? `Showing ${displayedMovies.length} unique top releases with all qualities & sizes`
+              : `Showing ${displayedMovies.length} unique releases across all categories`}
         </div>
       </div>
 
@@ -402,19 +410,48 @@ export default function MirrorMoviesView({
         </div>
       )}
 
-      {/* Loading Skeleton */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 space-y-3 animate-pulse">
-              <div className="w-full aspect-[16/9] bg-slate-800 rounded-xl" />
-              <div className="h-4 bg-slate-800 rounded w-3/4" />
-              <div className="space-y-2 pt-2">
-                <div className="h-10 bg-slate-800 rounded-lg w-full" />
-                <div className="h-10 bg-slate-800 rounded-lg w-full" />
+      {/* Loading / Scraping State */}
+      {(loading || rediscovering) && (
+        <div className="space-y-6">
+          <div className="bg-[#111927] border border-emerald-500/20 rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden shadow-xl shadow-black/20">
+            <div className="absolute top-0 right-0 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 max-w-md mx-auto space-y-3">
+              <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                <div className="absolute inset-0 rounded-2xl bg-emerald-500/20 animate-ping opacity-60" />
+                <div className="relative w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#00DF81]">
+                  <Film className="w-7 h-7 animate-pulse" />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white flex items-center justify-center gap-2">
+                  <span>Scraping 1TamilMV Website...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#00DF81]" />
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                  Connecting to active mirror, extracting top releases, audio languages, download qualities, and multi-resolution magnet streams...
+                </p>
+              </div>
+
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-500/20 text-xs font-mono text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00DF81] animate-ping" />
+                <span>Auto-discovering domain & parsing movie forum</span>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 space-y-3 animate-pulse">
+                <div className="w-full aspect-[16/9] bg-slate-800/60 rounded-xl" />
+                <div className="h-4 bg-slate-800/60 rounded w-3/4" />
+                <div className="space-y-2 pt-2">
+                  <div className="h-10 bg-slate-800/50 rounded-lg w-full" />
+                  <div className="h-10 bg-slate-800/50 rounded-lg w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -3,6 +3,8 @@ const searchService = require('../services/searchService');
 const seedrService = require('../services/seedrService');
 const downloadQueue = require('../services/downloadQueueService');
 const magnetStorage = require('../services/magnetStorageService');
+const movieScraper = require('../services/movieScraperService');
+const mirrorDiscovery = require('../services/mirrorDiscoveryService');
 const config = require('../../config.json');
 
 // In-memory cache for action data (to circumvent Telegram's 64-byte callback_data limit)
@@ -135,10 +137,10 @@ class SeedrTelegramBot {
     const mainKeyboard = {
       reply_markup: {
         keyboard: [
-          [{ text: '🔍 Search Torrents' }, { text: '📁 Seedr Files' }],
-          [{ text: '⚡ Active Transfers' }, { text: '📋 Queue' }],
-          [{ text: '💾 Storage Quota' }, { text: '🌐 View Website' }],
-          [{ text: '❓ Help' }]
+          [{ text: '🔥 Top Releases' }, { text: '🔍 Search Torrents' }],
+          [{ text: '📁 Seedr Files' }, { text: '⚡ Active Transfers' }],
+          [{ text: '📋 Queue' }, { text: '💾 Storage Quota' }],
+          [{ text: '🌐 View Website' }, { text: '❓ Help' }]
         ],
         resize_keyboard: true,
         persistent: true
@@ -162,12 +164,13 @@ class SeedrTelegramBot {
       this.userStates.delete(msg.chat.id);
 
       const welcomeText = 
-        `👋 <b>Welcome to Seedr Torrent Bot!</b>\n\n` +
-        `Search torrents, send magnet links to your Seedr cloud, browse files, and download completed media directly from Telegram or the Web App.\n\n` +
+        `👋 <b>Welcome to Seedr Torrent & Movie Bot!</b>\n\n` +
+        `Browse Top Releases, search torrents, convert magnet links into direct cloud downloads, and stream completed media directly from Telegram or Web App.\n\n` +
         `⚡ <b>Quick Actions:</b>\n` +
+        `• 🔥 <b>Top Releases:</b> Type <code>/top</code> or click button below\n` +
         `• 🔍 <b>Search:</b> Type <code>/search &lt;query&gt;</code> or click below\n` +
-        `• 🧲 <b>Magnet:</b> Paste any <code>magnet:?xt=...</code> link directly\n` +
-        `• 📁 <b>Files:</b> Use <code>/files</code> to view Seedr cloud storage\n` +
+        `• 🧲 <b>Convert Link:</b> Paste any <code>magnet:?xt=...</code> or <b>1TamilMV topic URL</b>\n` +
+        `• 📁 <b>Files:</b> Use <code>/files</code> to view cloud storage & direct links\n` +
         `• ⚡ <b>Transfers:</b> Use <code>/transfers</code> for active downloads\n` +
         `• 📋 <b>Queue:</b> Use <code>/queue</code> to view scheduled downloads\n` +
         `• 🌐 <b>Web App:</b> <a href="${this.websiteUrl}">${this.websiteUrl}</a>\n\n` +
@@ -176,16 +179,20 @@ class SeedrTelegramBot {
       const inlineKeyboard = {
         inline_keyboard: [
           [
-            { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' },
-            { text: '📁 My Seedr Files', callback_data: 'nav_folder:root' }
+            { text: '🔥 Top Releases (1TamilMV)', callback_data: 'cmd_top:0' },
+            { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }
           ],
           [
-            { text: '⚡ Active Transfers', callback_data: 'cmd_transfers' },
-            { text: '📋 Queue', callback_data: 'cmd_queue' }
+            { text: '📁 My Seedr Files', callback_data: 'nav_folder:root' },
+            { text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }
           ],
           [
-            { text: '🌐 Open Web App (Vercel)', url: this.websiteUrl },
+            { text: '📋 Queue', callback_data: 'cmd_queue' },
             { text: '💾 Storage Quota', callback_data: 'cmd_quota' }
+          ],
+          [
+            { text: '🌐 Open Web App', url: this.websiteUrl },
+            { text: '🔄 Rediscover Mirror', callback_data: 'cmd_rediscover' }
           ]
         ]
       };
@@ -206,14 +213,60 @@ class SeedrTelegramBot {
       
       const helpText = 
         `📖 <b>Seedr Bot Command Guide:</b>\n\n` +
-        `• <code>/search &lt;query&gt;</code> - Search across 1337x, ThePirateBay, YTS\n` +
-        `• <code>/files</code> or <code>/myfiles</code> - Browse cloud files & generate download links\n` +
+        `• <code>/top</code> or <code>/movies</code> - Browse Top Releases with 1-click cloud convert\n` +
+        `• <code>/search &lt;query&gt;</code> - Search across 1TamilMV, 1337x, ThePirateBay, YTS\n` +
+        `• <code>/convert &lt;link or magnet&gt;</code> - Convert magnet link or 1TamilMV topic URL\n` +
+        `• <code>/mirror</code> or <code>/status</code> - Check active mirror status & domain\n` +
+        `• <code>/rediscover</code> - Re-scan & find newest working 1TamilMV mirror\n` +
+        `• <code>/files</code> or <code>/myfiles</code> - Browse cloud files & generate direct download links\n` +
         `• <code>/transfers</code> - Monitor currently downloading torrents\n` +
+        `• <code>/queue</code> - Manage scheduled download queue\n` +
         `• <code>/quota</code> - Check Seedr account storage usage\n` +
         `• <code>/help</code> - Show this command reference\n\n` +
-        `💡 <b>Pro Tip:</b> You can paste any <b>magnet link</b> right into the chat to immediately add it to your Seedr cloud!`;
+        `💡 <b>Pro Tip:</b> Paste any <b>magnet link</b> or <b>1TamilMV topic URL</b> right into the chat to immediately convert it!`;
 
       await this.bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'HTML', ...mainKeyboard });
+    });
+
+    // /top or /movies command
+    this.bot.onText(/^\/(?:top|movies|topreleases)/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      this.userStates.delete(msg.chat.id);
+      await this.displayTopReleases(msg.chat.id, 0);
+    });
+
+    // /mirror or /status command
+    this.bot.onText(/^\/(?:mirror|status)/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      this.userStates.delete(msg.chat.id);
+      await this.displayMirrorStatus(msg.chat.id);
+    });
+
+    // /rediscover command
+    this.bot.onText(/^\/rediscover/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      this.userStates.delete(msg.chat.id);
+      await this.handleRediscover(msg.chat.id);
+    });
+
+    // /convert <url or magnet> command
+    this.bot.onText(/^\/convert(?:\s+(.+))?/, async (msg, match) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      const input = match[1]?.trim();
+      if (!input) {
+        return this.bot.sendMessage(
+          msg.chat.id,
+          '🔗 <i>Please send a magnet link or 1TamilMV topic URL to convert:</i>\n\nExample: <code>/convert magnet:?xt=...</code>',
+          { parse_mode: 'HTML' }
+        );
+      }
+      if (input.startsWith('magnet:?xt=')) {
+        return this.handleDirectMagnet(msg.chat.id, input);
+      }
+      if (input.includes('/forums/topic/') || input.includes('tamilmv')) {
+        return this.handleConvertTopicUrl(msg.chat.id, input);
+      }
+      return this.handleDirectMagnet(msg.chat.id, input);
     });
 
     // /search <query> command
@@ -282,6 +335,10 @@ class SeedrTelegramBot {
       const text = msg.text.trim();
 
       // Handle main reply keyboard buttons
+      if (text === '🔥 Top Releases') {
+        this.userStates.delete(msg.chat.id);
+        return this.displayTopReleases(msg.chat.id, 0);
+      }
       if (text === '🔍 Search Torrents') {
         this.userStates.set(msg.chat.id, 'waiting_for_search');
         return this.bot.sendMessage(msg.chat.id, '🔍 Send the movie, show, or file name you want to search:');
@@ -314,13 +371,19 @@ class SeedrTelegramBot {
         );
       }
       if (text === '❓ Help') {
-        return this.bot.sendMessage(msg.chat.id, 'Type <code>/help</code> or paste a magnet link!', { parse_mode: 'HTML' });
+        return this.bot.sendMessage(msg.chat.id, 'Type <code>/help</code> or paste a magnet link or 1TamilMV movie URL!', { parse_mode: 'HTML' });
       }
 
       // Check if text is a magnet link
       if (text.startsWith('magnet:?xt=')) {
         this.userStates.delete(msg.chat.id);
         return this.handleDirectMagnet(msg.chat.id, text);
+      }
+
+      // Check if text is a 1TamilMV topic URL or forum URL
+      if (text.includes('/forums/topic/') || (text.includes('tamilmv') && (text.includes('http://') || text.includes('https://')))) {
+        this.userStates.delete(msg.chat.id);
+        return this.handleConvertTopicUrl(msg.chat.id, text);
       }
 
       // Check if user was waiting for search input
@@ -346,6 +409,39 @@ class SeedrTelegramBot {
       }
 
       try {
+        // Navigation: Top Releases
+        if (data.startsWith('cmd_top:')) {
+          const page = parseInt(data.replace('cmd_top:', ''), 10) || 0;
+          await this.bot.answerCallbackQuery(query.id);
+          return this.displayTopReleases(chatId, page, messageId);
+        }
+
+        // View movie detail: movie_view:<cacheId>
+        if (data.startsWith('movie_view:')) {
+          const cacheId = data.replace('movie_view:', '');
+          await this.bot.answerCallbackQuery(query.id);
+          return this.displayMovieDetails(chatId, cacheId, messageId);
+        }
+
+        // Convert specific movie quality magnet: convert_mag:<cacheId>
+        if (data.startsWith('convert_mag:')) {
+          const cacheId = data.replace('convert_mag:', '');
+          await this.bot.answerCallbackQuery(query.id, { text: 'Starting conversion...' });
+          return this.handleConvertMagnet(chatId, cacheId, messageId);
+        }
+
+        // Mirror status: cmd_mirror_status
+        if (data === 'cmd_mirror_status') {
+          await this.bot.answerCallbackQuery(query.id);
+          return this.displayMirrorStatus(chatId, messageId);
+        }
+
+        // Rediscover mirror: cmd_rediscover
+        if (data === 'cmd_rediscover') {
+          await this.bot.answerCallbackQuery(query.id, { text: 'Scanning mirrors...' });
+          return this.handleRediscover(chatId, messageId);
+        }
+
         // Navigation: Prompt search
         if (data === 'cmd_search_prompt') {
           this.userStates.set(chatId, 'waiting_for_search');
@@ -698,6 +794,37 @@ class SeedrTelegramBot {
 
         if (progress >= 100 || status === 'finished') {
           clearInterval(interval);
+          
+          // Try resolving direct download link for instant 1-tap download
+          let directInfo = null;
+          try {
+            directInfo = await this.resolveDirectDownloadLink(title);
+          } catch (e) {
+            console.error('Error resolving direct link after transfer finished:', e);
+          }
+
+          if (directInfo && directInfo.downloadUrl) {
+            return this.bot.sendMessage(
+              chatId,
+              `🎉 <b>Torrent Download Complete & Ready!</b>\n\n` +
+              `🎬 <b>File:</b> <code>${escapeHtml(directInfo.fileName || title)}</code>\n` +
+              (directInfo.fileSize ? `📦 <b>Size:</b> ${directInfo.fileSize}\n\n` : '\n') +
+              `📋 <b>Direct Download Link:</b> <i>(Tap code box to copy)</i>\n` +
+              `<code>${escapeHtml(directInfo.downloadUrl)}</code>\n\n` +
+              `💡 <i>Paste link into 1DM / IDM / Browser / VLC to download or stream at max speed!</i>`,
+              {
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '⚡ Direct Download / Stream', url: directInfo.downloadUrl }],
+                    [{ text: '📁 Open in Seedr Files', callback_data: `nav_folder:${directInfo.folderId || 'root'}` }]
+                  ]
+                }
+              }
+            );
+          }
+
           return this.bot.sendMessage(
             chatId,
             `🎉 <b>Torrent Download Complete!</b>\n\n` +
@@ -1217,6 +1344,486 @@ class SeedrTelegramBot {
       } else {
         await this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
       }
+    }
+  }
+
+  // Helper to auto-resolve direct download link after a torrent finishes
+  async resolveDirectDownloadLink(title) {
+    try {
+      const rootData = await seedrService.listFolder(null);
+      const cleanWords = (title || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .split(' ')
+        .filter(w => w.length > 2);
+
+      // Check subfolders
+      let matchedFolder = null;
+      if (rootData.folders && rootData.folders.length > 0) {
+        if (cleanWords.length > 0) {
+          matchedFolder = rootData.folders.find(f => {
+            const name = (f.name || '').toLowerCase();
+            return cleanWords.some(w => name.includes(w));
+          });
+        }
+        if (!matchedFolder) {
+          matchedFolder = rootData.folders[0];
+        }
+      }
+
+      if (matchedFolder) {
+        const folderData = await seedrService.listFolder(matchedFolder.id);
+        const files = folderData.files || [];
+        if (files.length > 0) {
+          const largestFile = [...files].sort((a, b) => (b.size || 0) - (a.size || 0))[0];
+          const dl = await seedrService.getDownloadUrl(largestFile.id);
+          return {
+            fileName: largestFile.name,
+            fileSize: largestFile.size ? formatBytes(largestFile.size) : '',
+            downloadUrl: dl.url,
+            folderId: matchedFolder.id,
+            fileId: largestFile.id
+          };
+        }
+      }
+
+      // Check root files
+      if (rootData.files && rootData.files.length > 0) {
+        let matchedFile = null;
+        if (cleanWords.length > 0) {
+          matchedFile = rootData.files.find(f => {
+            const name = (f.name || '').toLowerCase();
+            return cleanWords.some(w => name.includes(w));
+          });
+        }
+        if (!matchedFile) {
+          matchedFile = rootData.files[0];
+        }
+        const dl = await seedrService.getDownloadUrl(matchedFile.id);
+        return {
+          fileName: matchedFile.name,
+          fileSize: matchedFile.size ? formatBytes(matchedFile.size) : '',
+          downloadUrl: dl.url,
+          folderId: 'root',
+          fileId: matchedFile.id
+        };
+      }
+    } catch (err) {
+      console.error('Failed to resolve direct download link:', err.message);
+    }
+    return null;
+  }
+
+  // Display Top Releases from 1TamilMV
+  async displayTopReleases(chatId, page = 0, messageId = null) {
+    let statusMsg = null;
+    if (!messageId) {
+      statusMsg = await this.bot.sendMessage(chatId, '⏳ <i>Scraping 1TamilMV website for latest releases...</i>', {
+        parse_mode: 'HTML'
+      });
+    }
+
+    try {
+      const data = await movieScraper.fetchMovies();
+      const movies = data.topReleases && data.topReleases.length > 0 ? data.topReleases : (data.allMovies || []);
+
+      if (!movies || movies.length === 0) {
+        const noMovieText = 
+          `❌ <b>No Top Releases Found</b>\n\n` +
+          `Could not scrape latest releases from the active mirror.\n` +
+          `Try rediscovering mirror with <code>/rediscover</code> or search with <code>/search</code>.`;
+        
+        const markup = {
+          inline_keyboard: [
+            [{ text: '🔄 Rediscover Mirror', callback_data: 'cmd_rediscover' }],
+            [{ text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }]
+          ]
+        };
+
+        const targetId = messageId || statusMsg?.message_id;
+        if (targetId) {
+          return this.bot.editMessageText(noMovieText, { chat_id: chatId, message_id: targetId, parse_mode: 'HTML', reply_markup: markup });
+        } else {
+          return this.bot.sendMessage(chatId, noMovieText, { parse_mode: 'HTML', reply_markup: markup });
+        }
+      }
+
+      const PAGE_SIZE = 5;
+      const totalPages = Math.ceil(movies.length / PAGE_SIZE);
+      const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+      const pageMovies = movies.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+      const status = mirrorDiscovery.getStatus();
+      const mirrorDomain = status.activeDomain || '1TamilMV';
+
+      let text = 
+        `🔥 <b>Top Releases (1TamilMV)</b>\n` +
+        `🌐 <i>Mirror: ${escapeHtml(mirrorDomain)}</i>\n` +
+        `📄 <i>Page ${currentPage + 1} of ${totalPages} (${movies.length} releases)</i>\n\n`;
+
+      const inlineKeyboard = [];
+
+      pageMovies.forEach((m, idx) => {
+        const itemNumber = currentPage * PAGE_SIZE + idx + 1;
+        text += `<b>${itemNumber}. ${escapeHtml(m.title)}</b>\n`;
+        text += `   🏷️ <b>Quality:</b> ${escapeHtml(m.quality || 'HD')} | 📦 <b>Size:</b> ${escapeHtml(m.size || 'Multi')}\n\n`;
+
+        const cacheId = storeActionData({
+          title: m.title,
+          detailUrl: m.detailUrl,
+          magnet: m.magnet,
+          poster: m.poster,
+          page: currentPage
+        });
+
+        inlineKeyboard.push([
+          {
+            text: `🎬 #${itemNumber}. ${m.title.length > 25 ? m.title.substring(0, 25) + '…' : m.title}`,
+            callback_data: `movie_view:${cacheId}`
+          }
+        ]);
+      });
+
+      text += `<i>💡 Tap any movie button above to view resolutions and convert directly to cloud download!</i>`;
+
+      // Pagination row
+      const navRow = [];
+      if (currentPage > 0) {
+        navRow.push({ text: '⬅️ Prev', callback_data: `cmd_top:${currentPage - 1}` });
+      }
+      navRow.push({ text: `🔄 Refresh`, callback_data: `cmd_top:${currentPage}` });
+      if (currentPage < totalPages - 1) {
+        navRow.push({ text: 'Next ➡️', callback_data: `cmd_top:${currentPage + 1}` });
+      }
+      inlineKeyboard.push(navRow);
+
+      inlineKeyboard.push([
+        { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' },
+        { text: '🌐 Mirror Status', callback_data: 'cmd_mirror_status' }
+      ]);
+
+      const targetMsgId = messageId || statusMsg.message_id;
+      return this.bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: targetMsgId,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
+    } catch (error) {
+      console.error('Error in displayTopReleases:', error);
+      const errMsg = `❌ Failed to fetch top releases: ${escapeHtml(error.message || 'Unknown error')}`;
+      const targetMsgId = messageId || statusMsg?.message_id;
+      if (targetMsgId) {
+        return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: targetMsgId, parse_mode: 'HTML' });
+      } else {
+        return this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
+      }
+    }
+  }
+
+  // Display Movie details and quality conversion buttons
+  async displayMovieDetails(chatId, cacheId, messageId = null) {
+    const cached = getActionData(cacheId);
+    if (!cached) {
+      const expiredText = '⚠️ Movie information has expired. Please select it again from /top.';
+      if (messageId) {
+        return this.bot.editMessageText(expiredText, { chat_id: chatId, message_id: messageId });
+      }
+      return this.bot.sendMessage(chatId, expiredText);
+    }
+
+    let loadingMsg = null;
+    if (messageId) {
+      await this.bot.editMessageText(`⏳ <i>Fetching available qualities and download links for "${escapeHtml(cached.title)}"...</i>`, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'HTML'
+      });
+    } else {
+      loadingMsg = await this.bot.sendMessage(chatId, `⏳ <i>Fetching download links for "${escapeHtml(cached.title)}"...</i>`, {
+        parse_mode: 'HTML'
+      });
+    }
+    const activeMsgId = messageId || loadingMsg.message_id;
+
+    try {
+      let detailData = null;
+      if (cached.detailUrl) {
+        detailData = await movieScraper.fetchMovieDetail(cached.detailUrl);
+      }
+
+      const movieTitle = detailData?.title || cached.title;
+      const magnets = detailData?.magnets || [];
+
+      let text = `🎬 <b>${escapeHtml(movieTitle)}</b>\n\n`;
+
+      if (magnets.length === 0 && !cached.magnet) {
+        text += `⚠️ <i>No direct magnet links were found on this release page.</i>\n\n` +
+                (cached.detailUrl ? `🔗 <b>Forum Topic:</b> <a href="${cached.detailUrl}">View on 1TamilMV</a>` : '');
+        
+        return this.bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: activeMsgId,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` }]
+            ]
+          }
+        });
+      }
+
+      text += `⚡ <b>Available Qualities & Resolutions:</b>\n`;
+      text += `<i>Tap any button below to immediately convert into Seedr cloud download:</i>\n\n`;
+
+      const inlineKeyboard = [];
+
+      if (magnets.length > 0) {
+        magnets.slice(0, 8).forEach((m) => {
+          const magCacheId = storeActionData({
+            magnet: m.magnet,
+            title: `${movieTitle} [${m.quality || 'HD'}]`,
+            originalTitle: movieTitle
+          });
+
+          const label = `⚡ Convert: ${m.quality || 'HD'}${m.size ? ` (${m.size})` : ''}${m.language ? ` [${m.language}]` : ''}`;
+          inlineKeyboard.push([
+            {
+              text: label.length > 36 ? label.substring(0, 36) + '…' : label,
+              callback_data: `convert_mag:${magCacheId}`
+            }
+          ]);
+        });
+      } else if (cached.magnet) {
+        const magCacheId = storeActionData({
+          magnet: cached.magnet,
+          title: movieTitle,
+          originalTitle: movieTitle
+        });
+        inlineKeyboard.push([
+          {
+            text: `⚡ Convert to Seedr Cloud Download`,
+            callback_data: `convert_mag:${magCacheId}`
+          }
+        ]);
+      }
+
+      inlineKeyboard.push([
+        { text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` },
+        { text: '📁 Seedr Files', callback_data: 'nav_folder:root' }
+      ]);
+
+      await this.bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: activeMsgId,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
+    } catch (error) {
+      console.error('Error displaying movie details:', error);
+      const errMsg = `❌ Failed to fetch movie details: ${escapeHtml(error.message || 'Unknown error')}`;
+      return this.bot.editMessageText(errMsg, {
+        chat_id: chatId,
+        message_id: activeMsgId,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` }]
+          ]
+        }
+      });
+    }
+  }
+
+  // Convert selected quality magnet from movie details
+  async handleConvertMagnet(chatId, cacheId, messageId = null) {
+    const cached = getActionData(cacheId);
+    if (!cached || !cached.magnet) {
+      const errMsg = '⚠️ Convert request expired. Please pick the movie again from /top.';
+      if (messageId) {
+        return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId });
+      }
+      return this.bot.sendMessage(chatId, errMsg);
+    }
+
+    return this.handleAddTorrent(chatId, cached.magnet, cached.title);
+  }
+
+  // Convert a 1TamilMV topic URL into downloadable qualities
+  async handleConvertTopicUrl(chatId, topicUrl) {
+    const cleanUrl = topicUrl.trim();
+    const statusMsg = await this.bot.sendMessage(chatId, `⏳ <i>Scraping 1TamilMV link for resolutions and magnet links...</i>\n<code>${escapeHtml(cleanUrl)}</code>`, {
+      parse_mode: 'HTML'
+    });
+
+    try {
+      const detail = await movieScraper.fetchMovieDetail(cleanUrl);
+      const movieTitle = detail.title || '1TamilMV Movie';
+      const magnets = detail.magnets || [];
+
+      if (magnets.length === 0) {
+        return this.bot.editMessageText(
+          `❌ <b>No Download Links Found</b>\n\n` +
+          `No magnet links could be extracted from this 1TamilMV topic URL:\n` +
+          `<code>${escapeHtml(cleanUrl)}</code>`,
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'HTML'
+          }
+        );
+      }
+
+      let text = 
+        `🎬 <b>${escapeHtml(movieTitle)}</b>\n\n` +
+        `Found <b>${magnets.length}</b> downloadable release qualities!\n` +
+        `<i>Choose a resolution to convert into direct cloud download:</i>\n\n`;
+
+      const inlineKeyboard = [];
+
+      magnets.slice(0, 8).forEach((m) => {
+        const magCacheId = storeActionData({
+          magnet: m.magnet,
+          title: `${movieTitle} [${m.quality || 'HD'}]`,
+          originalTitle: movieTitle
+        });
+
+        const label = `⚡ Convert: ${m.quality || 'HD'}${m.size ? ` (${m.size})` : ''}${m.language ? ` [${m.language}]` : ''}`;
+        inlineKeyboard.push([
+          {
+            text: label.length > 36 ? label.substring(0, 36) + '…' : label,
+            callback_data: `convert_mag:${magCacheId}`
+          }
+        ]);
+      });
+
+      inlineKeyboard.push([
+        { text: '🔥 Browse Top Releases', callback_data: 'cmd_top:0' },
+        { text: '📁 Seedr Files', callback_data: 'nav_folder:root' }
+      ]);
+
+      await this.bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: statusMsg.message_id,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
+    } catch (error) {
+      console.error('Error converting topic URL:', error);
+      await this.bot.editMessageText(
+        `❌ <b>Failed to convert topic link:</b> ${escapeHtml(error.message || 'Scraper error')}\n\nMake sure the mirror is active or try rediscovering with /rediscover.`,
+        {
+          chat_id: chatId,
+          message_id: statusMsg.message_id,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔄 Rediscover Mirror', callback_data: 'cmd_rediscover' }]
+            ]
+          }
+        }
+      );
+    }
+  }
+
+  // Display active mirror status
+  async displayMirrorStatus(chatId, messageId = null) {
+    try {
+      const status = mirrorDiscovery.getStatus();
+      const domain = status.activeDomain || 'None';
+      const lastChecked = status.discoveredAt ? new Date(status.discoveredAt).toLocaleString() : 'Recent';
+      const engine = status.engineUsed || 'auto-discovery';
+
+      const text = 
+        `🌐 <b>1TamilMV Mirror Status</b>\n\n` +
+        `🔗 <b>Active Domain:</b> <code>${escapeHtml(domain)}</code>\n` +
+        `🔍 <b>Engine:</b> <code>${escapeHtml(engine)}</code>\n` +
+        `🕒 <b>Discovered At:</b> ${escapeHtml(lastChecked)}\n` +
+        `⚡ <b>Status:</b> ${status.isCacheValid ? '🟢 Valid & Active' : '🟡 Refresh Recommended'}\n\n` +
+        `<i>If movie links fail to load, tap Rediscover Mirror below to scan for the latest working proxy.</i>`;
+
+      const inlineKeyboard = [
+        [
+          { text: '🔄 Rediscover Mirror Now', callback_data: 'cmd_rediscover' },
+          { text: '🔥 Top Releases', callback_data: 'cmd_top:0' }
+        ],
+        [
+          { text: '📁 Seedr Files', callback_data: 'nav_folder:root' },
+          { text: '🌐 Open Web App', url: this.websiteUrl }
+        ]
+      ];
+
+      if (messageId) {
+        await this.bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        });
+      } else {
+        await this.bot.sendMessage(chatId, text, {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        });
+      }
+    } catch (error) {
+      console.error('Mirror status error:', error);
+      const errMsg = `❌ Failed to fetch mirror status: ${escapeHtml(error.message)}`;
+      if (messageId) {
+        await this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId });
+      } else {
+        await this.bot.sendMessage(chatId, errMsg);
+      }
+    }
+  }
+
+  // Re-discover mirror
+  async handleRediscover(chatId, messageId = null) {
+    let statusMsg = null;
+    if (messageId) {
+      await this.bot.editMessageText('🔄 <i>Testing 1TamilMV mirrors and finding the fastest active domain...</i>', {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'HTML'
+      });
+    } else {
+      statusMsg = await this.bot.sendMessage(chatId, '🔄 <i>Testing 1TamilMV mirrors and finding the fastest active domain...</i>', {
+        parse_mode: 'HTML'
+      });
+    }
+    const targetMsgId = messageId || statusMsg.message_id;
+
+    try {
+      const result = await mirrorDiscovery.discover(true);
+      const newDomain = result.domain || 'None';
+
+      const text = 
+        `✅ <b>Mirror Rediscovery Complete!</b>\n\n` +
+        `🔗 <b>Active Mirror:</b> <code>${escapeHtml(newDomain)}</code>\n` +
+        `🔍 <b>Engine:</b> <code>${escapeHtml(result.engine || 'verified-mirror')}</code>\n` +
+        `🕒 <b>Verified:</b> ${new Date().toLocaleTimeString()}\n\n` +
+        `<i>Top Releases and link conversions will now use this mirror.</i>`;
+
+      await this.bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: targetMsgId,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔥 Browse Top Releases', callback_data: 'cmd_top:0' }],
+            [{ text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }]
+          ]
+        }
+      });
+    } catch (error) {
+      console.error('Rediscover error:', error);
+      await this.bot.editMessageText(`❌ Failed to rediscover mirror: ${escapeHtml(error.message)}`, {
+        chat_id: chatId,
+        message_id: targetMsgId,
+        parse_mode: 'HTML'
+      });
     }
   }
 }

@@ -252,27 +252,29 @@ function App() {
   const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'dark bg-[#070B14] text-slate-100' : 'light bg-[#F8FAFC] text-slate-900'} font-sans flex antialiased selection:bg-[#00DF81]/30 transition-colors duration-200`}>
+    <div className={`min-h-screen min-h-[100dvh] ${isDarkMode ? 'dark bg-[#070B14] text-slate-100' : 'light bg-[#F8FAFC] text-slate-900'} font-sans antialiased selection:bg-[#00DF81]/30 transition-colors duration-200 relative`}>
       
-      {/* Desktop Left Sidebar (Fixed / Sticky at top of viewport) */}
-      <div className="hidden md:block sticky top-0 h-screen z-40 shrink-0">
-        <Sidebar 
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          storage={storage}
-          queueCount={queue.length}
-          recentCount={recentMagnets.length}
-          telegramUrl={telegramUrl}
-          onOpenRecent={() => setIsMagnetsOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
-      </div>
+      {/* App Content Flex Container (Desktop Sidebar + Main Content) */}
+      <div className="flex min-h-screen min-h-[100dvh]">
+        {/* Desktop Left Sidebar (Fixed / Sticky at top of viewport) */}
+        <div className="hidden md:block sticky top-0 h-screen z-40 shrink-0">
+          <Sidebar 
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            storage={storage}
+            queueCount={queue.length}
+            recentCount={recentMagnets.length}
+            telegramUrl={telegramUrl}
+            onOpenRecent={() => setIsMagnetsOpen(true)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+          />
+        </div>
 
-      {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col min-w-0 min-h-screen ${isDarkMode ? 'bg-[#070B14]' : 'bg-[#F8FAFC]'}`}>
-        {/* Top Navbar */}
-        <Navbar 
-          currentTab={currentTab}
+        {/* Main Content Area */}
+        <div className={`flex-1 flex flex-col min-w-0 ${isDarkMode ? 'bg-[#070B14]' : 'bg-[#F8FAFC]'}`}>
+          {/* Top Navbar */}
+          <Navbar 
+            currentTab={currentTab}
           setCurrentTab={setCurrentTab}
           onOpenRecent={() => setIsMagnetsOpen(true)}
           queueCount={queue.length}
@@ -510,6 +512,7 @@ function App() {
             />
           )}
         </main>
+      </div>
       </div>
 
       {/* Mobile Fixed Bottom Navigation Bar */}

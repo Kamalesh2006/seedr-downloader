@@ -247,7 +247,7 @@ export default function SearchBar({
                 Auto-schedules in queue if space is occupied (Max 4.5 GB)
               </div>
               
-              <div className="flex items-center gap-2.5 ml-auto">
+              <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-2.5 sm:ml-auto">
                 {isQueueTab ? (
                   <>
                     <button
@@ -262,7 +262,7 @@ export default function SearchBar({
                         }
                       }}
                       disabled={loading || !magnet.trim()}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all disabled:opacity-40"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all disabled:opacity-40"
                       title="Direct download in Seedr immediately"
                     >
                       <span>Direct Seedr</span>
@@ -272,11 +272,11 @@ export default function SearchBar({
                       type="button"
                       onClick={handleScheduleInQueue}
                       disabled={loading || !magnet.trim()}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 min-w-[170px] disabled:opacity-40 shadow-md shadow-indigo-500/25 active:scale-95"
+                      className="flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 min-w-0 sm:min-w-[170px] disabled:opacity-40 shadow-md shadow-indigo-500/25 active:scale-95"
                       title="Add to upcoming download queue"
                     >
                       <ListOrdered className="w-4 h-4" />
-                      <span>Add to Upcoming Queue</span>
+                      <span>Add to Queue</span>
                     </button>
                   </>
                 ) : (
@@ -285,7 +285,7 @@ export default function SearchBar({
                       type="button"
                       onClick={handleScheduleInQueue}
                       disabled={loading || !magnet.trim()}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all disabled:opacity-40 active:scale-95"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all disabled:opacity-40 active:scale-95"
                       title="Schedule in upcoming download queue"
                     >
                       <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
@@ -295,7 +295,7 @@ export default function SearchBar({
                     <button
                       type="submit"
                       disabled={loading || !magnet.trim()}
-                      className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
+                      className="flex-1 sm:flex-initial bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-0 sm:min-w-[130px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
                     </button>
