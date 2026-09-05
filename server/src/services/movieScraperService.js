@@ -68,6 +68,99 @@ class MovieScraperService {
     return match ? `${match[1]} ${match[2].toUpperCase()}` : null;
   }
 
+  extractLanguage(text) {
+    if (!text) return '';
+    const match = text.match(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English)\b/i);
+    return match ? (match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()) : '';
+  }
+
+  parseMovieIdentity(rawTitle) {
+    if (!rawTitle) return { groupKey: 'unknown', displayTitle: 'Unknown Movie', year: '', language: '' };
+    let title = rawTitle.replace(/\b(Forums|Languages|Original Audio|HQ Clean|Clean Audio|ESub|Org Audio)\b/gi, '').trim();
+    const yearMatch = title.match(/^(.*?)\s*\((\d{4})\)/i);
+    let baseTitle = '';
+    let year = '';
+    if (yearMatch) {
+      baseTitle = yearMatch[1].trim();
+      year = yearMatch[2];
+    } else {
+      baseTitle = title.split(/[-–—\[]/)[0].replace(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English)\b/gi, '').trim();
+    }
+    const langMatch = rawTitle.match(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English)\b/i);
+    const language = langMatch ? (langMatch[1].charAt(0).toUpperCase() + langMatch[1].slice(1).toLowerCase()) : '';
+    const cleanBase = baseTitle.replace(/[-–—]\s*$/, '').trim();
+    const displayTitle = cleanBase + (year ? ` (${year})` : '');
+    const groupKey = displayTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return { groupKey: groupKey || title.toLowerCase(), displayTitle: displayTitle || title, year, language };
+  }
+
+  groupMovies(movieList) {
+    if (!Array.isArray(movieList)) return [];
+    const map = new Map();
+
+    for (const movie of movieList) {
+      const info = this.parseMovieIdentity(movie.title);
+      const key = info.groupKey;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          id: `group-${key}`,
+          title: info.displayTitle,
+          rawTitle: movie.title,
+          year: info.year,
+          poster: movie.poster || '',
+          quality: movie.quality || 'HD',
+          size: movie.size || 'Multi Size',
+          seeds: movie.seeds || 0,
+          leeches: movie.leeches || 0,
+          languages: info.language ? [info.language] : [],
+          magnets: [],
+          detailUrls: movie.detailUrl ? [movie.detailUrl] : [],
+          detailUrl: movie.detailUrl || '',
+          isTopRelease: !!movie.isTopRelease,
+          hasDetailPending: !!movie.hasDetailPending
+        });
+      }
+
+      const group = map.get(key);
+      if (!group.poster && movie.poster) group.poster = movie.poster;
+      if (movie.seeds && movie.seeds > group.seeds) group.seeds = movie.seeds;
+      if (info.language && !group.languages.includes(info.language)) {
+        group.languages.push(info.language);
+      }
+      if (movie.detailUrl && !group.detailUrls.includes(movie.detailUrl)) {
+        group.detailUrls.push(movie.detailUrl);
+      }
+
+      const incomingMagnets = (movie.magnets && movie.magnets.length > 0)
+        ? movie.magnets
+        : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title }] : []);
+
+      for (const m of incomingMagnets) {
+        const magLang = m.language || info.language || '';
+        const alreadyHas = group.magnets.some(x => 
+          (m.infoHash && x.infoHash && x.infoHash === m.infoHash) || 
+          (m.magnet && x.magnet && x.magnet === m.magnet) ||
+          (m.quality === x.quality && m.size === x.size && (x.language === magLang))
+        );
+        if (!alreadyHas) {
+          group.magnets.push({
+            ...m,
+            language: magLang,
+            label: `${m.quality || 'HD'}${m.size ? ' • ' + m.size : ''}${magLang ? ' • ' + magLang : ''}`
+          });
+        }
+      }
+
+      if (group.magnets.length > 0) {
+        group.hasDetailPending = false;
+        if (!group.magnet) group.magnet = group.magnets[0].magnet;
+      }
+    }
+
+    return Array.from(map.values());
+  }
+
   cleanTitle(raw) {
     if (!raw) return '';
     return raw
@@ -325,7 +418,10 @@ class MovieScraperService {
       let cleanDn = meta.title || '';
       cleanDn = cleanDn.replace(/^www\.[a-zA-Z0-9.-]+\s*-\s*/i, '').trim();
 
-      let label = `${quality}${size ? ` • ${size}` : ''}`;
+      const pageTitle = $('h1, h2, .title, .entry-title').first().text().trim() || '';
+      const language = this.extractLanguage(meta.title) || this.extractLanguage(parentText) || this.extractLanguage(detailUrl) || this.extractLanguage(pageTitle) || '';
+
+      let label = `${quality}${size ? ` • ${size}` : ''}${language ? ` • ${language}` : ''}`;
       if (!quality && !size) label = cleanDn || $(el).text().trim() || 'Magnet Link';
 
       magnetLinks.push({
@@ -334,6 +430,7 @@ class MovieScraperService {
         quality,
         size,
         sizeBytes,
+        language,
         infoHash: meta.infoHash,
         title: cleanDn || meta.title
       });
@@ -531,6 +628,9 @@ class MovieScraperService {
       }));
     }
 
+    const groupedTop = this.groupMovies(resolvedTop);
+    const groupedAll = this.groupMovies(resolvedAll);
+
     return {
       success: true,
       domain: discoveryResult.domain,
@@ -539,11 +639,11 @@ class MovieScraperService {
       searchEngine: discoveryResult.engine,
       cachedDomain: discoveryResult.cached || false,
       discoveredAt: discoveryResult.discoveredAt,
-      topReleases: resolvedTop,
-      movies: resolvedTop,
-      allMovies: resolvedAll,
-      count: resolvedTop.length,
-      totalCount: resolvedAll.length,
+      topReleases: groupedTop,
+      movies: groupedTop,
+      allMovies: groupedAll,
+      count: groupedTop.length,
+      totalCount: groupedAll.length,
       lastUpdated: new Date().toISOString()
     };
   }

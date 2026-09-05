@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Film, 
   RefreshCw, 
@@ -10,7 +10,8 @@ import {
   ShieldAlert, 
   Flame, 
   ChevronDown,
-  Layers
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr } from '../utils/magnet';
@@ -30,6 +31,9 @@ export default function MirrorMoviesView({
 
   // Per-movie loading state for fetching links on demand (e.g. for forum topics)
   const [loadingLinksMap, setLoadingLinksMap] = useState({});
+
+  // Per-movie selected language tab (for movies with multiple language releases)
+  const [selectedLangMap, setSelectedLangMap] = useState({});
 
   // Copied state tracker
   const [copiedId, setCopiedId] = useState(null);
@@ -89,27 +93,47 @@ export default function MirrorMoviesView({
   };
 
   const handleFetchMovieLinks = async (movie) => {
-    if (!movie.detailUrl) return;
+    const urlsToFetch = movie.detailUrls?.length ? movie.detailUrls : (movie.detailUrl ? [movie.detailUrl] : []);
+    if (urlsToFetch.length === 0) return;
+
     try {
       setLoadingLinksMap(prev => ({ ...prev, [movie.id]: true }));
-      const res = await api.get(`/mirror/detail?url=${encodeURIComponent(movie.detailUrl)}`);
-      if (res.data?.success && res.data.details) {
-        const details = res.data.details;
-        const updater = (m) => {
-          if (m.id === movie.id || (m.detailUrl && m.detailUrl === movie.detailUrl)) {
-            return {
-              ...m,
-              magnet: details.magnet || m.magnet,
-              magnets: details.magnets || [],
-              poster: details.poster || m.poster,
-              hasDetailPending: false
-            };
+      const detailsList = await Promise.allSettled(
+        urlsToFetch.map(u => api.get(`/mirror/detail?url=${encodeURIComponent(u)}`))
+      );
+
+      const combinedMagnets = [...(movie.magnets || [])];
+      let resolvedPoster = movie.poster;
+
+      for (const res of detailsList) {
+        if (res.status === 'fulfilled' && res.value.data?.success && res.value.data.details) {
+          const d = res.value.data.details;
+          if (d.poster && !resolvedPoster) resolvedPoster = d.poster;
+          if (Array.isArray(d.magnets)) {
+            for (const m of d.magnets) {
+              const exists = combinedMagnets.some(x => 
+                (m.infoHash && x.infoHash === m.infoHash) || (m.magnet && x.magnet === m.magnet)
+              );
+              if (!exists) combinedMagnets.push(m);
+            }
           }
-          return m;
-        };
-        setTopReleases(prev => prev.map(updater));
-        setAllMovies(prev => prev.map(updater));
+        }
       }
+
+      const updater = (m) => {
+        if (m.id === movie.id || (m.title && m.title === movie.title)) {
+          return {
+            ...m,
+            poster: resolvedPoster,
+            magnets: combinedMagnets,
+            hasDetailPending: false
+          };
+        }
+        return m;
+      };
+
+      setTopReleases(prev => prev.map(updater));
+      setAllMovies(prev => prev.map(updater));
     } catch (err) {
       onShowToast?.('Failed to fetch download links: ' + (err.message || 'Unknown error'), 'error');
     } finally {
@@ -117,13 +141,80 @@ export default function MirrorMoviesView({
     }
   };
 
-  const displayedMovies = viewMode === 'top' ? topReleases : allMovies;
+  // Group movies by title so each movie appears only once with all its available sizes/languages
+  const displayedMovies = useMemo(() => {
+    const list = viewMode === 'top' ? topReleases : allMovies;
+    if (!Array.isArray(list)) return [];
+
+    const map = new Map();
+    for (const item of list) {
+      const title = item.title || '';
+      const yearMatch = title.match(/^(.*?)\s*\((\d{4})\)/i);
+      let base = '';
+      let year = '';
+      if (yearMatch) {
+        base = yearMatch[1].trim();
+        year = yearMatch[2];
+      } else {
+        base = title.split(/[-–—\[]/)[0].replace(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English)\b/gi, '').trim();
+      }
+      const langMatch = title.match(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English)\b/i);
+      const language = langMatch ? (langMatch[1].charAt(0).toUpperCase() + langMatch[1].slice(1).toLowerCase()) : '';
+      const cleanBase = base.replace(/[-–—]\s*$/, '').trim();
+      const displayTitle = cleanBase + (year ? ` (${year})` : '');
+      const groupKey = (displayTitle || title).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (!map.has(groupKey)) {
+        map.set(groupKey, {
+          ...item,
+          id: item.id || `group-${groupKey}`,
+          title: displayTitle || item.title,
+          rawTitle: item.title,
+          year,
+          languages: item.languages?.length ? [...item.languages] : (language ? [language] : []),
+          magnets: [...(item.magnets || [])]
+        });
+      } else {
+        const group = map.get(groupKey);
+        if (!group.poster && item.poster) group.poster = item.poster;
+        if (language && !group.languages.includes(language)) {
+          group.languages.push(language);
+        }
+        if (item.languages) {
+          for (const l of item.languages) {
+            if (!group.languages.includes(l)) group.languages.push(l);
+          }
+        }
+        const incoming = (item.magnets && item.magnets.length > 0)
+          ? item.magnets
+          : (item.magnet ? [{ magnet: item.magnet, quality: item.quality, size: item.size, title: item.title, language }] : []);
+
+        for (const m of incoming) {
+          const magLang = m.language || language || '';
+          const already = group.magnets.some(x => 
+            (m.infoHash && x.infoHash && x.infoHash === m.infoHash) || 
+            (m.magnet && x.magnet && x.magnet === m.magnet) ||
+            (m.quality === x.quality && m.size === x.size && (x.language === magLang))
+          );
+          if (!already) {
+            group.magnets.push({
+              ...m,
+              language: magLang
+            });
+          }
+        }
+        if (group.magnets.length > 0) {
+          group.hasDetailPending = false;
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [topReleases, allMovies, viewMode]);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
       {/* Top Banner & Control Bar */}
       <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
-        {/* Subtle Background Glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
@@ -136,11 +227,11 @@ export default function MirrorMoviesView({
                 Top Releases • 1TamilMV
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-[#00DF81] border border-emerald-500/30">
-                DIRECT DOWNLOAD LINKS
+                ONE-CLICK SEEDR CLOUD
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Latest releases from the active mirror with direct links, qualities, file sizes, and one-click Seedr cloud download.
+              Each movie is shown once with all its available download qualities, file sizes, and 1-click Seedr cloud download.
             </p>
           </div>
 
@@ -178,7 +269,7 @@ export default function MirrorMoviesView({
         </div>
       </div>
 
-      {/* View Mode Switcher: Top Releases vs All Movies (No filters) */}
+      {/* View Mode Switcher: Top Releases vs All Movies */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111927] p-2.5 sm:p-3 rounded-2xl border border-[#1E293B]">
         <div className="flex items-center gap-2">
           <button
@@ -191,9 +282,9 @@ export default function MirrorMoviesView({
           >
             <Flame className="w-3.5 h-3.5 text-orange-400" />
             <span>Top Releases</span>
-            {topReleases.length > 0 && (
+            {displayedMovies.length > 0 && viewMode === 'top' && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                {topReleases.length}
+                {displayedMovies.length}
               </span>
             )}
           </button>
@@ -208,9 +299,9 @@ export default function MirrorMoviesView({
           >
             <Film className="w-3.5 h-3.5 text-emerald-400" />
             <span>All Movies & Releases</span>
-            {allMovies.length > 0 && (
+            {displayedMovies.length > 0 && viewMode === 'all' && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                {allMovies.length}
+                {displayedMovies.length}
               </span>
             )}
           </button>
@@ -218,8 +309,8 @@ export default function MirrorMoviesView({
 
         <div className="text-[11px] text-slate-400 hidden sm:block">
           {viewMode === 'top'
-            ? `Displaying ${topReleases.length} curated top releases with direct download links`
-            : `Showing ${allMovies.length} releases across all categories`}
+            ? `Showing ${displayedMovies.length} unique top releases with all qualities & sizes`
+            : `Showing ${displayedMovies.length} unique releases across all categories`}
         </div>
       </div>
 
@@ -281,14 +372,23 @@ export default function MirrorMoviesView({
         </div>
       )}
 
-      {/* Movie Cards Grid with Direct Available Links and Sizes */}
+      {/* Movie Cards Grid: Each unique movie shown ONCE with all available sizes and qualities */}
       {!loading && displayedMovies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {displayedMovies.map((movie) => {
+            const activeLang = selectedLangMap[movie.id] || 'ALL';
+            const hasMultipleLangs = movie.languages && movie.languages.length > 1;
+
             const magnets = (movie.magnets && movie.magnets.length > 0)
               ? movie.magnets
-              : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title }] : []);
+              : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title, language: movie.languages?.[0] || '' }] : []);
+
+            const visibleMagnets = (!hasMultipleLangs || activeLang === 'ALL')
+              ? magnets
+              : magnets.filter(m => !m.language || m.language.toLowerCase() === activeLang.toLowerCase());
+
             const isFetchingThis = loadingLinksMap[movie.id];
+            const uniqueQualities = Array.from(new Set(magnets.map(m => m.quality).filter(Boolean)));
 
             return (
               <div
@@ -326,7 +426,7 @@ export default function MirrorMoviesView({
                       )}
                     </div>
 
-                    {/* Available count badge */}
+                    {/* Total Available Links Count */}
                     {magnets.length > 0 && (
                       <div className="absolute top-2.5 right-2.5">
                         <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-semibold bg-black/75 backdrop-blur-md text-slate-300 border border-slate-700 flex items-center gap-1">
@@ -337,32 +437,93 @@ export default function MirrorMoviesView({
                     )}
                   </div>
 
-                  {/* Movie Title */}
+                  {/* Clean Movie Title */}
                   <h3
-                    className="text-sm sm:text-base font-bold text-white line-clamp-2 leading-snug group-hover:text-[#00DF81] transition-colors mb-3"
+                    className="text-base sm:text-lg font-bold text-white line-clamp-2 leading-snug group-hover:text-[#00DF81] transition-colors mb-2"
                     title={movie.title}
                   >
                     {movie.title}
                   </h3>
+
+                  {/* Available Qualities Summary Pills */}
+                  {uniqueQualities.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Resolutions:
+                      </span>
+                      {uniqueQualities.map(q => (
+                        <span
+                          key={q}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700"
+                        >
+                          {q}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Multi-Language / Audio Filter Tabs */}
+                  {hasMultipleLangs && (
+                    <div className="flex items-center gap-1.5 flex-wrap pb-2 border-b border-slate-800/60 mb-2.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-0.5">
+                        Audio:
+                      </span>
+                      <button
+                        onClick={() => setSelectedLangMap(prev => ({ ...prev, [movie.id]: 'ALL' }))}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
+                          activeLang === 'ALL'
+                            ? 'bg-[#00DF81] text-[#071911] shadow-sm'
+                            : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700'
+                        }`}
+                      >
+                        All ({magnets.length})
+                      </button>
+                      {movie.languages.map(lang => {
+                        const langCount = magnets.filter(m => m.language?.toLowerCase() === lang.toLowerCase()).length;
+                        return (
+                          <button
+                            key={lang}
+                            onClick={() => setSelectedLangMap(prev => ({ ...prev, [movie.id]: lang }))}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
+                              activeLang.toLowerCase() === lang.toLowerCase()
+                                ? 'bg-[#00DF81] text-[#071911] shadow-sm'
+                                : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700'
+                            }`}
+                          >
+                            {lang} {langCount > 0 ? `(${langCount})` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Single Language Badge if only one language */}
+                  {!hasMultipleLangs && movie.languages?.length === 1 && (
+                    <div className="mb-2">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
+                        {movie.languages[0]} Audio
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Direct Available Links and Sizes List */}
-                <div className="pt-3 border-t border-slate-800/80 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                {/* Direct Available Links & Sizes List */}
+                <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                     <span className="flex items-center gap-1.5 text-emerald-400">
                       <CloudDownload className="w-3.5 h-3.5" />
-                      Available Links & Sizes
+                      Available Qualities & Sizes
                     </span>
-                    {magnets.length > 0 && (
+                    {visibleMagnets.length > 0 && (
                       <span className="text-[10px] font-mono text-slate-500 font-normal">
-                        {magnets.length} available
+                        {visibleMagnets.length} {visibleMagnets.length === 1 ? 'option' : 'options'}
                       </span>
                     )}
                   </div>
 
-                  {magnets.length > 0 ? (
-                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
-                      {magnets.map((link, lIdx) => {
+                  {visibleMagnets.length > 0 ? (
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
+                      {visibleMagnets.map((link, lIdx) => {
                         const isOversized = link.size && isOversizedForSeedr(link.size);
                         const isCopied = copiedId === `${movie.id}-${lIdx}`;
                         const magnetTitle = link.title || movie.title;
@@ -373,16 +534,22 @@ export default function MirrorMoviesView({
                             key={lIdx}
                             className="p-2 sm:p-2.5 rounded-xl bg-[#0A0F1D] border border-slate-800/80 hover:border-slate-700/80 transition-all flex items-center justify-between gap-2"
                           >
-                            {/* Left: Quality Badge & Exact Size */}
+                            {/* Left: Quality Badge, Language & Exact Size */}
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-[#00DF81] border border-emerald-500/25 shrink-0">
                                 {link.quality || 'HD'}
                               </span>
+
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <span className={`text-xs font-bold ${isOversized ? 'text-amber-400' : 'text-slate-200'} shrink-0`}>
                                     {displaySize}
                                   </span>
+                                  {hasMultipleLangs && activeLang === 'ALL' && link.language && (
+                                    <span className="text-[9px] font-semibold text-sky-400 bg-sky-500/10 px-1.5 py-0.2 rounded border border-sky-500/20 shrink-0">
+                                      {link.language}
+                                    </span>
+                                  )}
                                   {isOversized && (
                                     <span className="text-[9px] font-semibold text-rose-400 bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/20 shrink-0">
                                       &gt; 4.5 GB
@@ -397,9 +564,9 @@ export default function MirrorMoviesView({
                               </div>
                             </div>
 
-                            {/* Right: Actions */}
+                            {/* Right: Cloud Download & Queue Actions */}
                             <div className="flex items-center gap-1 shrink-0">
-                              {/* Add to Seedr Cloud */}
+                              {/* Direct Add to Seedr Cloud */}
                               <button
                                 onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
                                 disabled={isOversized}
@@ -411,7 +578,7 @@ export default function MirrorMoviesView({
                                 title={isOversized ? 'Exceeds Seedr 4.5 GB limit (use Queue)' : 'Add directly to Seedr Cloud'}
                               >
                                 <CloudDownload className="w-3.5 h-3.5 shrink-0" />
-                                <span className="hidden xs:inline">Seedr</span>
+                                <span>Seedr</span>
                               </button>
 
                               {/* Queue */}
@@ -437,7 +604,7 @@ export default function MirrorMoviesView({
                       })}
                     </div>
                   ) : (
-                    /* Movie has detail pending */
+                    /* Detail pending */
                     <button
                       onClick={() => handleFetchMovieLinks(movie)}
                       disabled={isFetchingThis}
@@ -471,7 +638,7 @@ export default function MirrorMoviesView({
             className="inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-[#111927] hover:bg-[#162134] text-[#00DF81] border border-emerald-500/30 hover:border-emerald-500/60 shadow-lg shadow-black/20 transition-all active:scale-95 group"
           >
             <Film className="w-4 h-4 text-[#00DF81] group-hover:scale-110 transition-transform" />
-            <span>Load More / Show All Latest Movies ({allMovies.length - topReleases.length} more)</span>
+            <span>Load More / Show All Latest Movies</span>
             <ChevronDown className="w-4 h-4 text-slate-400 group-hover:translate-y-0.5 transition-transform" />
           </button>
         </div>
@@ -485,7 +652,7 @@ export default function MirrorMoviesView({
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-[#111927] hover:bg-[#162134] text-slate-300 border border-slate-700 transition-all active:scale-95"
           >
             <Flame className="w-4 h-4 text-orange-400" />
-            <span>Show Top Releases Only ({topReleases.length})</span>
+            <span>Show Top Releases Only ({displayedMovies.length})</span>
           </button>
         </div>
       )}
