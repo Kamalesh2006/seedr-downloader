@@ -387,14 +387,7 @@ function App() {
           )}
 
           {currentTab === 'queue' && (
-            <div className="space-y-6">
-              <div className="pb-3 border-b border-[#1E293B]">
-                <h2 className="text-lg sm:text-xl font-bold text-white">Upcoming Download Queue</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Order-wise automated scheduler (FIFO). As soon as storage is freed, the next torrent automatically starts.
-                </p>
-              </div>
-
+            <div className="space-y-5">
               {/* Active Cloud Downloads if any torrent is currently downloading in Seedr */}
               {activeTransfers.length > 0 && (
                 <ActiveDownloads transfers={activeTransfers} onCancel={handleCancelTransfer} />

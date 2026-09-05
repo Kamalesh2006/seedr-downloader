@@ -251,46 +251,31 @@ export default function MirrorMoviesView({
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
-      {/* Top Banner & Control Bar */}
-      <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-emerald-500/10 text-[#00DF81] rounded-xl border border-emerald-500/20">
-                <Film className="w-5 h-5" />
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Top Releases • 1TamilMV
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-[#00DF81] border border-emerald-500/30">
-                ONE-CLICK SEEDR CLOUD
-              </span>
+      {/* Release header and controls */}
+      <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-3 sm:p-4 shadow-lg">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-emerald-500/10 text-[#00DF81] rounded-xl border border-emerald-500/20 shrink-0">
+              <Film className="w-5 h-5" />
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Each movie is shown once with all its available download qualities, file sizes, and 1-click Seedr cloud download.
-            </p>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">1TamilMV Releases</h1>
+              <p className="text-xs text-slate-400">Browse releases and send them to Seedr.</p>
+            </div>
           </div>
 
-          {/* Mirror Status Pill & Action Buttons */}
-          <div className="flex items-center flex-wrap gap-2.5">
+          <div className="flex items-center flex-wrap gap-2">
             {loading || rediscovering ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300 animate-pulse">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300 animate-pulse">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00DF81]" />
-                <span className="font-semibold text-[#00DF81]">Scraping 1TamilMV website...</span>
+                <span className="font-semibold text-[#00DF81]">Updating releases...</span>
               </div>
             ) : mirrorStatus?.domain ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-[#00DF81] animate-pulse" />
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs text-slate-300 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-[#00DF81] shrink-0" />
                 <span className="font-mono text-[#00DF81] font-semibold truncate max-w-[180px]">
                   {mirrorStatus.domain.replace(/^https?:\/\//, '')}
                 </span>
-                {mirrorStatus.engine && (
-                  <span className="text-[10px] text-slate-500 border-l border-slate-700 pl-2">
-                    {mirrorStatus.engine}
-                  </span>
-                )}
               </div>
             ) : (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 font-medium">
@@ -321,14 +306,11 @@ export default function MirrorMoviesView({
             )}
           </div>
         </div>
-      </div>
 
-      {/* View Mode Switcher: Top Releases vs All Movies */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111927] p-2.5 sm:p-3 rounded-2xl border border-[#1E293B]">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#1E293B] overflow-x-auto">
           <button
             onClick={() => setViewMode('top')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               viewMode === 'top'
                 ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
                 : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
@@ -345,28 +327,20 @@ export default function MirrorMoviesView({
 
           <button
             onClick={() => setViewMode('all')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               viewMode === 'all'
                 ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
                 : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
             }`}
           >
             <Film className="w-3.5 h-3.5 text-emerald-400" />
-            <span>All Movies & Releases</span>
+            <span>All Releases</span>
             {displayedMovies.length > 0 && viewMode === 'all' && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
                 {displayedMovies.length}
               </span>
             )}
           </button>
-        </div>
-
-        <div className="text-[11px] text-slate-400 hidden sm:block">
-          {loading || rediscovering
-            ? 'Scraping 1TamilMV website for latest releases...'
-            : viewMode === 'top'
-              ? `Showing ${displayedMovies.length} unique top releases with all qualities & sizes`
-              : `Showing ${displayedMovies.length} unique releases across all categories`}
         </div>
       </div>
 

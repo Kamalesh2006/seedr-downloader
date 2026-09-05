@@ -61,7 +61,7 @@ export default function QueueManager({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-bold text-white">Upcoming Download Queue</h3>
+              <h3 className="text-sm sm:text-base font-bold text-white">Upcoming Queue</h3>
               <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${
                 queue.length > 0 
                   ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' 
@@ -70,9 +70,7 @@ export default function QueueManager({
                 {queue.length} Queued
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-400">
-              List of scheduled magnet links waiting to download in order (FIFO)
-            </p>
+            <p className="text-[11px] sm:text-xs text-slate-400">Downloads start automatically when space is available.</p>
           </div>
         </div>
 
@@ -126,19 +124,16 @@ export default function QueueManager({
 
       {/* Queue Items List OR Empty State */}
       {queue.length === 0 ? (
-        <div className="p-8 sm:p-10 text-center space-y-3 bg-[#090F1C]/40">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
-            <ListOrdered className="w-6 h-6 opacity-80" />
+        <div className="p-8 text-center space-y-3 bg-[#090F1C]/40">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+            <ListOrdered className="w-5 h-5 opacity-80" />
           </div>
           <div className="max-w-md mx-auto space-y-1">
             <h4 className="text-sm font-bold text-slate-200">
-              No Magnet Links in Upcoming Queue
+              Your queue is empty
             </h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Paste or copy any magnet link into the box above and click <strong className="text-indigo-300">"Add to Upcoming Queue"</strong>, or click the <strong className="text-indigo-300">Queue</strong> button on any movie in Top Releases.
-            </p>
-            <p className="text-[11px] text-slate-500 pt-1">
-              Queued torrents are saved here and dispatched to Seedr cloud in order (FIFO) whenever storage is freed.
+              Paste a magnet link above or queue a release while browsing movies.
             </p>
           </div>
         </div>

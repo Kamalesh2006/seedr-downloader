@@ -49,25 +49,6 @@ export default function SearchBar({
   const [customName, setCustomName] = useState('');
   const [detectedName, setDetectedName] = useState('');
 
-  // Fetch top releases once for search suggestions
-  useEffect(() => {
-    let isMounted = true;
-    const loadTopReleases = async () => {
-      try {
-        setLoadingTop(true);
-        const res = await api.get('/mirror/movies');
-        if (isMounted && res.data?.success && Array.isArray(res.data.movies)) {
-          setTopReleases(res.data.movies.slice(0, 16));
-        }
-      } catch (e) {
-        // Silently fail if mirror is unreachable
-      } finally {
-        if (isMounted) setLoadingTop(false);
-      }
-    };
-    loadTopReleases();
-    return () => { isMounted = false; };
-  }, []);
 
   // Handle prefilled magnet link
   useEffect(() => {
@@ -152,9 +133,9 @@ export default function SearchBar({
   };
 
   return (
-    <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-lg shadow-black/20 mb-6">
+    <div className={`bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-lg shadow-black/20 mb-6 ${isQueueTab ? 'mb-0' : ''}`}>
       {/* Top Mode Switcher Tabs: Paste Magnet comes FIRST, Search Torrents comes SECOND */}
-      <div className="grid grid-cols-2 gap-2 bg-[#090F1C] p-1 rounded-xl border border-[#1E293B] mb-4 select-none">
+      <div className={`${isQueueTab ? 'hidden' : 'grid'} grid-cols-2 gap-2 bg-[#090F1C] p-1 rounded-xl border border-[#1E293B] mb-4 select-none`}>
         <button
           type="button"
           onClick={() => setMode('magnet')}
@@ -190,11 +171,11 @@ export default function SearchBar({
               <div className="flex items-start gap-2.5">
                 <LinkIcon className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
                 <textarea
-                  rows={3}
+                  rows={isQueueTab ? 2 : 3}
                   value={magnet}
                   onChange={(e) => setMagnet(e.target.value)}
                   placeholder={isQueueTab 
-                    ? "Paste or copy magnet link here to schedule in upcoming queue (magnet:?xt=urn:btih:...)..."
+                    ? "Paste a magnet link to add it to the queue..."
                     : "Paste magnet link (magnet:?xt=urn:btih:...)..."
                   }
                   className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-xs sm:text-sm p-3.5 focus:outline-none resize-none font-mono"
@@ -243,9 +224,11 @@ export default function SearchBar({
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="text-xs text-slate-500 hidden sm:block">
-                Auto-schedules in queue if space is occupied (Max 4.5 GB)
-              </div>
+              {!isQueueTab && (
+                <div className="text-xs text-slate-500 hidden sm:block">
+                  Auto-schedules in queue if space is occupied (Max 4.5 GB)
+                </div>
+              )}
               
               <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-2.5 sm:ml-auto">
                 {isQueueTab ? (
