@@ -56,8 +56,10 @@ class MovieScraperService {
 
   extractQuality(text) {
     if (!text) return 'HD';
-    const match = text.match(/\b(2160p|4K\s*UHD|4K|UHD|1080p|720p|480p|WEB-DL|BluRay|HDTC|DVDRip|HDR|CAMRip|HQ|PreDVD)\b/i);
-    return match ? match[1].toUpperCase() : 'HD';
+    const resMatch = text.match(/\b(2160p|4k(?:\s*uhd)?|uhd|1080p|720p|480p)\b/i);
+    if (resMatch) return resMatch[1].toUpperCase();
+    const sourceMatch = text.match(/\b(web-dl|bluray|hdtc|dvdrip|hdr|camrip|hq|predvd)\b/i);
+    return sourceMatch ? sourceMatch[1].toUpperCase() : 'HD';
   }
 
   extractSize(text) {
