@@ -24,6 +24,7 @@ import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import RecentLinksView from './components/RecentLinksView';
 import MirrorMoviesView from './components/MirrorMoviesView';
+import SettingsModal from './components/SettingsModal';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
@@ -66,6 +67,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/seedr_download_bot');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
@@ -260,6 +262,7 @@ function App() {
           recentCount={recentMagnets.length}
           telegramUrl={telegramUrl}
           onOpenRecent={() => setIsMagnetsOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
       </div>
 
@@ -273,6 +276,7 @@ function App() {
           queueCount={queue.length}
           isDarkMode={isDarkMode}
           onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Page Body */}
@@ -464,6 +468,7 @@ function App() {
               onAddMagnet={handleAddMagnet}
               onAddToQueue={handleAddToQueue}
               onShowToast={(msg, type) => showToast(msg, type)}
+              onOpenSettings={() => setIsSettingsOpen(true)}
             />
           )}
         </main>
@@ -489,6 +494,13 @@ function App() {
         onRetry={(magnet, name, size) => handleAddMagnet(magnet, name, size)}
         onAddMagnet={handleAddMagnet}
         onAddToQueue={handleAddToQueue}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onShowToast={(msg, type) => showToast(msg, type)}
       />
 
       {/* Toast Notification */}

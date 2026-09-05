@@ -10,7 +10,8 @@ export default function Navbar({
   currentTab = 'dashboard', 
   setCurrentTab,
   isDarkMode = true,
-  onToggleTheme
+  onToggleTheme,
+  onOpenSettings
 }) {
   return (
     <header className="h-16 bg-[#070B14]/90 backdrop-blur-md border-b border-[#1E293B] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none">
@@ -73,7 +74,7 @@ export default function Navbar({
           </button>
 
           <button
-            onClick={() => {}}
+            onClick={onOpenSettings}
             className={`p-2 rounded-xl transition-colors ${
               isDarkMode 
                 ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' 

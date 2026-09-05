@@ -106,7 +106,16 @@ class MirrorDiscoveryService {
       'privacysavvy.com',
       'techradar.com',
       't.me',
-      'telegram.org'
+      'telegram.org',
+      'blogspot.com',
+      'blogger.com',
+      '1tamilmv-official.com',
+      '1tamilmv.garden',
+      'sharrnow',
+      'droidthunder.com',
+      'tamilrockers',
+      'techsonu.com',
+      'hindipost.com'
     ];
     return excludedHosts.some(ex => lower.includes(ex));
   }
@@ -194,9 +203,16 @@ class MirrorDiscoveryService {
         validateStatus: (status) => status < 500
       });
       const html = typeof res.data === 'string' ? res.data.toLowerCase() : '';
-      const hasContent = html.includes('tamilmv') || html.includes('forums') || html.includes('topic') || html.includes('magnet:') || html.includes('banger');
+      const isBlocked = html.includes('court.html') || html.includes('deny') || html.includes('webadmin') || html.includes('dot compliance') || html.includes('blocked by') || html.length < 1000;
+      const isSpamBlog = html.includes('blogspot.com') || html.includes('blogger.com') || html.includes('_widgetmanager') || html.includes('sharrnow');
+      
+      // Must be an authentic IPS / 1TamilMV forum with topics and releases
+      const hasForums = html.includes('forums/topic/') || html.includes('/forums/topic') || (html.includes('ipsapp') && html.includes('forums'));
+      const hasBrand = html.includes('1tamilmv') || html.includes('tamilmv');
+
+      const ok = res.status < 400 && !isBlocked && !isSpamBlog && hasForums && hasBrand;
       return { 
-        ok: res.status < 400 && hasContent, 
+        ok, 
         status: res.status, 
         finalUrl: res.request?.res?.responseUrl || domainUrl 
       };
@@ -229,29 +245,40 @@ class MirrorDiscoveryService {
       throw new Error('No search keyword configured. Please specify DISCOVERY_KEYWORD in .env or server/config.json');
     }
 
-    // Direct check for known official redirector domains if keyword matches
+    // Direct check for known verified active domains if keyword matches
     const kwLower = cfg.keyword.toLowerCase();
     if (kwLower.includes('tamilmv')) {
-      try {
-        console.log('[MirrorDiscovery] Checking official TamilMV redirector: https://www.1tamilmv.fi');
-        const check = await this.validateDomain('https://www.1tamilmv.fi');
-        if (check.ok && check.finalUrl) {
-          const resolved = this.cleanDomain(check.finalUrl);
-          if (resolved) {
-            const cachePayload = {
-              domain: resolved,
-              fullUrl: check.finalUrl,
-              keyword: cfg.keyword,
-              discoveredAt: new Date().toISOString(),
-              engine: 'official-redirector',
-              lastTestedOk: true
-            };
-            this.saveCache(cachePayload);
-            return { cached: false, ...cachePayload };
+      const knownMirrors = [
+        cfg.fallbackDomain || 'https://www.1tamilmv.meme',
+        'https://1tamilmv.meme',
+        'https://www.1tamilmv.pm',
+        'https://1tamilmv.pm',
+        'https://www.1tamilmv.tf',
+        'https://www.1tamilmv.fi'
+      ].filter(Boolean);
+
+      for (const mirror of knownMirrors) {
+        try {
+          console.log(`[MirrorDiscovery] Checking known mirror candidate: ${mirror}`);
+          const check = await this.validateDomain(mirror);
+          if (check.ok && check.finalUrl) {
+            const resolved = this.cleanDomain(check.finalUrl);
+            if (resolved) {
+              const cachePayload = {
+                domain: resolved,
+                fullUrl: check.finalUrl,
+                keyword: cfg.keyword,
+                discoveredAt: new Date().toISOString(),
+                engine: 'verified-mirror',
+                lastTestedOk: true
+              };
+              this.saveCache(cachePayload);
+              return { cached: false, ...cachePayload };
+            }
           }
+        } catch (e) {
+          // continue checking next candidate
         }
-      } catch (e) {
-        console.warn('[MirrorDiscovery] Redirector check failed, continuing to search:', e.message);
       }
     }
 

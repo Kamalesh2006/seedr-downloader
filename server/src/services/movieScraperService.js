@@ -604,8 +604,32 @@ class MovieScraperService {
     }
 
     const { topReleases, allMovies } = this.parseMoviesFromHtml(fetchResult.html, targetUrl);
-    const resolvedTop = topReleases || [];
-    const resolvedAll = allMovies || resolvedTop;
+    let resolvedTop = topReleases || [];
+    let resolvedAll = allMovies || resolvedTop;
+
+    // If 0 releases found and target domain is not the configured fallback, try the fallback domain
+    if (resolvedTop.length === 0 && resolvedAll.length === 0) {
+      const cfg = config.mirrorDiscovery || {};
+      const fbDomain = cfg.fallbackDomain ? cfg.fallbackDomain.trim().replace(/\/+$/, '') : '';
+      const currentClean = targetUrl.replace(/\/+$/, '');
+      if (fbDomain && currentClean !== fbDomain) {
+        console.log(`[MovieScraper] 0 releases found on ${targetUrl}, trying fallback domain ${fbDomain}...`);
+        const fallbackRes = await this.fetchHtml(fbDomain);
+        if (fallbackRes.ok) {
+          const fbParsed = this.parseMoviesFromHtml(fallbackRes.html, fbDomain);
+          if ((fbParsed.topReleases?.length || 0) > 0 || (fbParsed.allMovies?.length || 0) > 0) {
+            resolvedTop = fbParsed.topReleases || [];
+            resolvedAll = fbParsed.allMovies || resolvedTop;
+            targetUrl = fbDomain;
+            try {
+              mirrorDiscovery.setManualDomain(fbDomain);
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+      }
+    }
 
     // Auto-resolve magnets and posters in parallel for all Top Releases
     const pendingWithDetail = resolvedTop.filter(m => m.hasDetailPending);

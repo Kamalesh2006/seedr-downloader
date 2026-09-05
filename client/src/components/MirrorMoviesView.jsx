@@ -11,7 +11,8 @@ import {
   Flame, 
   ChevronDown,
   Layers,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr } from '../utils/magnet';
@@ -19,7 +20,8 @@ import { isOversizedForSeedr } from '../utils/magnet';
 export default function MirrorMoviesView({
   onAddMagnet,
   onAddToQueue,
-  onShowToast
+  onShowToast,
+  onOpenSettings
 }) {
   const [topReleases, setTopReleases] = useState([]);
   const [allMovies, setAllMovies] = useState([]);
@@ -48,6 +50,14 @@ export default function MirrorMoviesView({
       if (res.data?.success) {
         const top = res.data.topReleases || res.data.movies || [];
         const all = res.data.allMovies || top;
+        const currentDomain = res.data.domain;
+
+        // If domain is empty or no releases loaded on landing, auto-initiate rediscovery!
+        if (!refresh && (!currentDomain || currentDomain.trim() === '' || top.length === 0)) {
+          console.log('[MirrorView] Domain is empty or no releases loaded on landing, auto-initiating rediscovery...');
+          return fetchMovies(true);
+        }
+
         setTopReleases(top);
         setAllMovies(all);
         setMirrorStatus({
@@ -58,12 +68,20 @@ export default function MirrorMoviesView({
           cached: res.data.cachedDomain
         });
       } else {
+        if (!refresh) {
+          console.log('[MirrorView] Fetch failed on landing, auto-initiating rediscovery...');
+          return fetchMovies(true);
+        }
         setError(res.data?.error || 'Failed to load movie listings');
         if (res.data?.domain) {
           setMirrorStatus(prev => ({ ...(prev || {}), domain: res.data.domain }));
         }
       }
     } catch (err) {
+      if (!refresh) {
+        console.log('[MirrorView] Exception on landing, auto-initiating rediscovery...');
+        return fetchMovies(true);
+      }
       const msg = err.response?.data?.error || err.message || 'Error fetching movies';
       setError(msg);
       if (err.response?.data?.status) {
@@ -265,6 +283,17 @@ export default function MirrorMoviesView({
               <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-400' : ''}`} />
               <span className="hidden sm:inline">Rediscover</span>
             </button>
+
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#00DF81]/15 hover:bg-[#00DF81]/25 text-[#00DF81] border border-[#00DF81]/30 transition-all active:scale-95"
+                title="Configure search keyword and mirror settings"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -324,7 +353,7 @@ export default function MirrorMoviesView({
               {error}
             </p>
             <p className="text-[11px] text-slate-400 mt-1">
-              Tip: Click <strong>"Rediscover"</strong> above to refresh and query the latest mirror domain.
+              Tip: Click <strong>"Rediscover"</strong> above or check <strong>Settings</strong> to update the mirror domain.
             </p>
           </div>
         </div>
@@ -372,7 +401,7 @@ export default function MirrorMoviesView({
         </div>
       )}
 
-      {/* Movie Cards Grid: Each unique movie shown ONCE with all available sizes and qualities */}
+      {/* Movie Cards Grid */}
       {!loading && displayedMovies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {displayedMovies.map((movie) => {
@@ -509,7 +538,7 @@ export default function MirrorMoviesView({
 
                 {/* Direct Available Links & Sizes List */}
                 <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 relative z-0">
                     <span className="flex items-center gap-1.5 text-emerald-400">
                       <CloudDownload className="w-3.5 h-3.5" />
                       Available Qualities & Sizes
@@ -522,7 +551,7 @@ export default function MirrorMoviesView({
                   </div>
 
                   {visibleMagnets.length > 0 ? (
-                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                       {visibleMagnets.map((link, lIdx) => {
                         const isOversized = link.size && isOversizedForSeedr(link.size);
                         const isCopied = copiedId === `${movie.id}-${lIdx}`;
@@ -532,72 +561,90 @@ export default function MirrorMoviesView({
                         return (
                           <div
                             key={lIdx}
-                            className="p-2 sm:p-2.5 rounded-xl bg-[#0A0F1D] border border-slate-800/80 hover:border-slate-700/80 transition-all flex items-center justify-between gap-2"
+                            className="p-2.5 rounded-xl bg-[#090F1C] border border-[#1E293B] hover:border-slate-700/80 transition-all space-y-2"
                           >
-                            {/* Left: Quality Badge, Language & Exact Size */}
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-[#00DF81] border border-emerald-500/25 shrink-0">
-                                {link.quality || 'HD'}
-                              </span>
+                            {/* Top row: Quality, Size, Audio, and Oversized notice */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black tracking-wider shrink-0 ${
+                                  link.quality === '4K' || link.quality === '2160P'
+                                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    : 'bg-emerald-500/15 text-[#00DF81] border border-emerald-500/30'
+                                }`}>
+                                  {link.quality || 'HD'}
+                                </span>
 
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`text-xs font-bold ${isOversized ? 'text-amber-400' : 'text-slate-200'} shrink-0`}>
-                                    {displaySize}
+                                <span className={`text-xs font-bold font-mono shrink-0 ${isOversized ? 'text-amber-300' : 'text-slate-100'}`}>
+                                  {displaySize}
+                                </span>
+
+                                {hasMultipleLangs && activeLang === 'ALL' && link.language && (
+                                  <span className="text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-1.5 py-0.2 rounded border border-sky-500/30 shrink-0">
+                                    {link.language}
                                   </span>
-                                  {hasMultipleLangs && activeLang === 'ALL' && link.language && (
-                                    <span className="text-[9px] font-semibold text-sky-400 bg-sky-500/10 px-1.5 py-0.2 rounded border border-sky-500/20 shrink-0">
-                                      {link.language}
-                                    </span>
-                                  )}
-                                  {isOversized && (
-                                    <span className="text-[9px] font-semibold text-rose-400 bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/20 shrink-0">
-                                      &gt; 4.5 GB
-                                    </span>
-                                  )}
-                                </div>
-                                {link.title && link.title !== movie.title && (
-                                  <p className="text-[10px] text-slate-500 truncate max-w-[120px] sm:max-w-[160px]" title={link.title}>
-                                    {link.title}
-                                  </p>
                                 )}
                               </div>
+
+                              {isOversized && (
+                                <span className="text-[9px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 flex items-center gap-1">
+                                  &gt; 4.5 GB Limit
+                                </span>
+                              )}
                             </div>
 
-                            {/* Right: Cloud Download & Queue Actions */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              {/* Direct Add to Seedr Cloud */}
-                              <button
-                                onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
-                                disabled={isOversized}
-                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  isOversized
-                                    ? 'bg-slate-800/40 text-slate-600 cursor-not-allowed border border-slate-800'
-                                    : 'bg-[#00DF81] hover:bg-[#00c572] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
-                                }`}
-                                title={isOversized ? 'Exceeds Seedr 4.5 GB limit (use Queue)' : 'Add directly to Seedr Cloud'}
-                              >
-                                <CloudDownload className="w-3.5 h-3.5 shrink-0" />
-                                <span>Seedr</span>
-                              </button>
+                            {/* Bottom row: File description & Action buttons */}
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+                              <div className="min-w-0 flex-1">
+                                {link.title && link.title !== movie.title ? (
+                                  <p className="text-[10px] text-slate-500 truncate" title={link.title}>
+                                    {link.title}
+                                  </p>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500">
+                                    {isOversized ? 'Requires queue schedule' : 'Direct Cloud Download'}
+                                  </span>
+                                )}
+                              </div>
 
-                              {/* Queue */}
-                              <button
-                                onClick={() => onAddToQueue(link.magnet, magnetTitle, link.size)}
-                                className="px-2 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-colors active:scale-95"
-                                title="Schedule in Queue"
-                              >
-                                <ListOrdered className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isOversized ? (
+                                  <button
+                                    onClick={() => onAddToQueue(link.magnet, magnetTitle, link.size)}
+                                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20 active:scale-95 transition-all"
+                                    title="File exceeds 4.5 GB — Schedule in Queue"
+                                  >
+                                    <ListOrdered className="w-3.5 h-3.5" />
+                                    <span>Queue</span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                                      title="Add directly to Seedr Cloud"
+                                    >
+                                      <CloudDownload className="w-3.5 h-3.5 shrink-0" />
+                                      <span>Seedr</span>
+                                    </button>
 
-                              {/* Copy Magnet Link */}
-                              <button
-                                onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}
-                                className="p-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                                title="Copy Magnet Link"
-                              >
-                                {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
-                              </button>
+                                    <button
+                                      onClick={() => onAddToQueue(link.magnet, magnetTitle, link.size)}
+                                      className="p-1.5 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-colors active:scale-95"
+                                      title="Schedule in Queue"
+                                    >
+                                      <ListOrdered className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
+
+                                <button
+                                  onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}
+                                  className="p-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                                  title="Copy magnet link"
+                                >
+                                  {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );

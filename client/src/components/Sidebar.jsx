@@ -10,7 +10,8 @@ import {
   LogOut, 
   Cloud,
   Film,
-  History
+  History,
+  Settings
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
@@ -21,7 +22,8 @@ export default function Sidebar({
   queueCount = 0,
   recentCount = 0,
   telegramUrl = 'https://t.me/seedr_download_bot',
-  onOpenRecent
+  onOpenRecent,
+  onOpenSettings
 }) {
   const used = storage.spaceUsed || 0;
   const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024);
@@ -146,6 +148,14 @@ export default function Sidebar({
 
       {/* Bottom Section */}
       <div className="p-4 border-t border-slate-800/60 space-y-1">
+        <button
+          onClick={onOpenSettings}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs text-gray-400 hover:text-emerald-400 hover:bg-slate-800/40 transition-colors"
+          title="Open Settings"
+        >
+          <Settings className="w-4 h-4 text-emerald-400" />
+          <span>Settings</span>
+        </button>
         <a
           href="https://www.seedr.cc/faq"
           target="_blank"
