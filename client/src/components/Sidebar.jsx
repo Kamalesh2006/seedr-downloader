@@ -8,7 +8,8 @@ import {
   ListOrdered, 
   HelpCircle, 
   LogOut, 
-  Cloud
+  Cloud,
+  Radio
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
@@ -18,7 +19,7 @@ export default function Sidebar({
   storage = { spaceUsed: 0, spaceMax: 0 },
   queueCount = 0,
   recentCount = 0,
-  onOpenTelegram,
+  telegramUrl = 'https://t.me/seedr_download_bot',
   onOpenRecent
 }) {
   const used = storage.spaceUsed || 0;
@@ -30,6 +31,13 @@ export default function Sidebar({
       label: 'All Files', 
       icon: Folder, 
       badge: null 
+    },
+    { 
+      id: 'acestream', 
+      label: 'Ace Stream', 
+      icon: Radio, 
+      badge: 'Live',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
     },
     { 
       id: 'queue', 
@@ -89,11 +97,11 @@ export default function Sidebar({
               return (
                 <a
                   key={item.id}
-                  href="https://t.me/seedr_download_bot"
+                  href={telegramUrl || "https://t.me/seedr_download_bot"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all text-gray-400 hover:text-sky-300 hover:bg-slate-800/50 border border-transparent"
-                  title="Open Seedr Telegram Bot (@seedr_download_bot)"
+                  title="Open Seedr Telegram Bot"
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="w-4 h-4 text-sky-400" />

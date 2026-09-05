@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CloudRain, 
   Send, 
@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Folder
 } from 'lucide-react';
+import api from './api/client';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import StorageCard from './components/StorageCard';
@@ -22,7 +23,7 @@ import CompletedFiles from './components/CompletedFiles';
 import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import RecentLinksView from './components/RecentLinksView';
-import TelegramModal from './components/TelegramModal';
+import AceStreamView from './components/AceStreamView';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
@@ -63,14 +64,31 @@ function App() {
   } = useQueue();
   
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [aceStreamId, setAceStreamId] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
-  const [isTelegramOpen, setIsTelegramOpen] = useState(false);
+  const [telegramUrl, setTelegramUrl] = useState('https://t.me/seedr_download_bot');
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  useEffect(() => {
+    api.get('/telegram/status')
+      .then((res) => {
+        if (res.data?.botUsername) {
+          setTelegramUrl(`https://t.me/${res.data.botUsername}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleOpenAceStream = (id) => {
+    setAceStreamId(id || '');
+    setCurrentTab('acestream');
+    showToast(`Opening Ace Stream ${id ? id.substring(0, 10) + '...' : ''}`, 'info');
   };
 
   const handleSearch = (query) => {
@@ -208,7 +226,7 @@ function App() {
           storage={storage}
           queueCount={queue.length}
           recentCount={recentMagnets.length}
-          onOpenTelegram={() => setIsTelegramOpen(true)}
+          telegramUrl={telegramUrl}
           onOpenRecent={() => setIsMagnetsOpen(true)}
         />
       </div>
@@ -220,7 +238,6 @@ function App() {
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
           onOpenRecent={() => setIsMagnetsOpen(true)}
-          onOpenTelegram={() => setIsTelegramOpen(true)}
           queueCount={queue.length}
           isDarkMode={isDarkMode}
           onToggleTheme={() => setIsDarkMode(!isDarkMode)}
@@ -239,6 +256,7 @@ function App() {
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
+                onOpenAceStream={handleOpenAceStream}
               />
 
               {/* Storage Capacity Card */}
@@ -317,6 +335,7 @@ function App() {
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
                 onAddToQueue={handleAddToQueue}
+                onOpenAceStream={handleOpenAceStream}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -399,6 +418,13 @@ function App() {
               searchLoading={searchLoading}
             />
           )}
+
+          {currentTab === 'acestream' && (
+            <AceStreamView 
+              initialId={aceStreamId}
+              onShowToast={(msg, type) => showToast(msg, type)}
+            />
+          )}
         </main>
       </div>
 
@@ -407,15 +433,9 @@ function App() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         onOpenRecent={() => setIsMagnetsOpen(true)}
-        onOpenTelegram={() => setIsTelegramOpen(true)}
+        telegramUrl={telegramUrl}
         recentCount={recentMagnets.length}
         queueCount={queue.length}
-      />
-
-      {/* Telegram Bot Modal */}
-      <TelegramModal 
-        isOpen={isTelegramOpen}
-        onClose={() => setIsTelegramOpen(false)}
       />
 
       {/* Recent Magnets Modal */}

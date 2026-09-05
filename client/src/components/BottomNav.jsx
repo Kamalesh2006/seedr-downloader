@@ -1,10 +1,10 @@
 import React from 'react';
-import { Folder, History, Database, Bot } from 'lucide-react';
+import { Folder, History, Database, Bot, Radio } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
   setCurrentTab, 
-  onOpenTelegram,
+  telegramUrl = 'https://t.me/seedr_download_bot',
   recentCount = 0
 }) {
   const tabs = [
@@ -13,6 +13,13 @@ export default function BottomNav({
       label: 'All Files',
       icon: Folder,
       onClick: () => setCurrentTab('dashboard')
+    },
+    {
+      id: 'acestream',
+      label: 'AceStream',
+      icon: Radio,
+      badge: 'Live',
+      onClick: () => setCurrentTab('acestream')
     },
     {
       id: 'recent',
@@ -31,7 +38,7 @@ export default function BottomNav({
       id: 'bot',
       label: 'Bot',
       icon: Bot,
-      onClick: () => onOpenTelegram ? onOpenTelegram() : setCurrentTab('bot')
+      href: telegramUrl || 'https://t.me/seedr_download_bot'
     }
   ];
 
@@ -41,6 +48,31 @@ export default function BottomNav({
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = currentTab === tab.id;
+
+          if (tab.href) {
+            return (
+              <a
+                key={tab.id}
+                href={tab.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center justify-center transition-all relative py-1 px-3 rounded-2xl text-slate-400 hover:text-sky-400 active:scale-95"
+                title="Open Telegram Bot"
+              >
+                <div className="relative">
+                  <Icon className="w-5 h-5 text-slate-400 group-hover:text-sky-400 stroke-[1.75]" />
+                  {tab.badge && (
+                    <span className="absolute -top-1 -right-2 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#00DF81] text-[#071911]">
+                      {tab.badge}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] mt-0.5 tracking-tight font-medium">
+                  {tab.label}
+                </span>
+              </a>
+            );
+          }
 
           return (
             <button
