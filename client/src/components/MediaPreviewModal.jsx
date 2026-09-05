@@ -97,7 +97,9 @@ export default function MediaPreviewModal({
     if (!isOpen || !isVideo || !videoRef.current) return;
 
     const videoEl = videoRef.current;
-    const streamSource = hlsUrl || (downloadUrl && ext === 'mp4' ? downloadUrl : '');
+    videoEl.removeAttribute('src');
+    videoEl.load();
+    setVideoError(false);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -306,7 +308,7 @@ export default function MediaPreviewModal({
                         ref={videoRef}
                         controls 
                         playsInline
-                        crossOrigin="anonymous"
+                        preload="metadata"
                         className="w-full h-full max-h-[58vh] object-contain"
                         onError={() => setVideoError(true)}
                       >
