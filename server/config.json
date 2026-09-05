@@ -27,5 +27,14 @@
   "maxFileSizeGB": 4.5,
   "maxResults": 20,
   "seedrPollIntervalMs": 3000,
-  "seedrBaseUrl": "https://www.seedr.cc/rest"
+  "seedrBaseUrl": "https://www.seedr.cc/rest",
+  "mirrorDiscovery": {
+    "enabled": true,
+    "keyword": "",
+    "searchEngine": "bing",
+    "fallbackDomain": "",
+    "cacheTtlMinutes": 360,
+    "maxMovies": 50,
+    "timeoutMs": 12000
+  }
 }

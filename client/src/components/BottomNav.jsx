@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, History, Database, Bot, Radio } from 'lucide-react';
+import { Folder, History, Database, Bot, Radio, Film } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
@@ -13,6 +13,13 @@ export default function BottomNav({
       label: 'All Files',
       icon: Folder,
       onClick: () => setCurrentTab('dashboard')
+    },
+    {
+      id: 'discover',
+      label: 'Discover',
+      icon: Film,
+      badge: 'New',
+      onClick: () => setCurrentTab('discover')
     },
     {
       id: 'acestream',

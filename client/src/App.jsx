@@ -24,6 +24,7 @@ import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import RecentLinksView from './components/RecentLinksView';
 import AceStreamView from './components/AceStreamView';
+import MirrorMoviesView from './components/MirrorMoviesView';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
@@ -416,6 +417,15 @@ function App() {
               onAddMagnet={handleAddMagnet}
               onAddToQueue={handleAddToQueue}
               searchLoading={searchLoading}
+            />
+          )}
+
+          {currentTab === 'discover' && (
+            <MirrorMoviesView 
+              onAddMagnet={handleAddMagnet}
+              onAddToQueue={handleAddToQueue}
+              onOpenAceStream={handleOpenAceStream}
+              onShowToast={(msg, type) => showToast(msg, type)}
             />
           )}
 

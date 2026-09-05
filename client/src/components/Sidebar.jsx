@@ -9,7 +9,8 @@ import {
   HelpCircle, 
   LogOut, 
   Cloud,
-  Radio
+  Radio,
+  Film
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
@@ -31,6 +32,13 @@ export default function Sidebar({
       label: 'All Files', 
       icon: Folder, 
       badge: null 
+    },
+    { 
+      id: 'discover', 
+      label: 'Discover Movies', 
+      icon: Film, 
+      badge: 'New',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },
     { 
       id: 'acestream', 

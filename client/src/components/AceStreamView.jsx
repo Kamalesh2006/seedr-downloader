@@ -505,37 +505,57 @@ export default function AceStreamView({ initialId = '', onShowToast }) {
                   </div>
                 )}
 
-                {/* Playback Error Overlay */}
+                {/* Playback Notice Overlay */}
                 {playbackError && (
-                  <div className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-30">
-                    <AlertCircle className="w-12 h-12 text-rose-500 mb-2" />
-                    <h3 className="text-base font-bold text-white">Stream Playback Notice</h3>
-                    <p className="text-xs text-slate-300 max-w-md mt-1 mb-4 leading-relaxed">
-                      {playbackError}
+                  <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-30 animate-in fade-in">
+                    <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 mb-3">
+                      <Server className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Ace Stream Engine Offline</h3>
+                    <p className="text-xs text-slate-300 max-w-md mt-1.5 mb-5 leading-relaxed">
+                      In-browser streaming requires an Ace Stream Engine daemon running on your computer or server. Alternatively, you can open this stream directly in an external player.
                     </p>
-                    <div className="flex flex-wrap items-center justify-center gap-2">
+                    <div className="flex flex-wrap items-center justify-center gap-2.5">
+                      <button
+                        onClick={handleOpenVLC}
+                        className="px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-orange-600/30 transition-all hover:scale-105"
+                      >
+                        <VlcIcon className="w-4 h-4" />
+                        <span>Play in VLC Player</span>
+                      </button>
                       <button
                         onClick={handleOpenNativeApp}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"
+                        className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Launch in Ace Stream App</span>
                       </button>
                       <button
-                        onClick={handleOpenVLC}
-                        className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-orange-600/30"
+                        onClick={handleDownloadM3U}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
                       >
-                        <VlcIcon className="w-4 h-4" />
-                        <span>Play in VLC</span>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download .M3U</span>
                       </button>
                       <button
-                        onClick={() => handleStartStream()}
-                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5"
+                        onClick={() => {
+                          checkEngine();
+                          handleStartStream();
+                        }}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                         <span>Retry</span>
                       </button>
                     </div>
+
+                    <button
+                      onClick={() => setShowSetupGuide(true)}
+                      className="mt-4 text-[11px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-1"
+                    >
+                      <span>How to run the engine on Mac / Docker</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
                   </div>
                 )}
 

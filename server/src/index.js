@@ -12,6 +12,7 @@ const telegramRoutes = require('./routes/telegram');
 const magnetsRoutes = require('./routes/magnets');
 const queueRoutes = require('./routes/queue');
 const acestreamRoutes = require('./routes/acestream');
+const mirrorRoutes = require('./routes/mirrorMovies');
 const telegramBot = require('./bot/telegramBot');
 const torrentWatchdog = require('./services/torrentWatchdogService');
 const downloadQueue = require('./services/downloadQueueService');
@@ -48,6 +49,7 @@ app.use('/api/seedr', seedrRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/magnets', magnetsRoutes);
 app.use('/api/queue', queueRoutes);
+app.use('/api/mirror', mirrorRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
