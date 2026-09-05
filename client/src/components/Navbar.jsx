@@ -39,16 +39,21 @@ export default function Navbar({
 
       {/* Right: Action Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Theme Toggle (Moon Icon matching mockup) */}
+        {/* Theme Toggle (Moon / Sun Icon matching mockup) */}
         <button
           onClick={onToggleTheme}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors"
-          title="Toggle Theme"
+          className={`p-2 rounded-xl transition-all active:scale-95 ${
+            isDarkMode 
+              ? 'text-slate-300 hover:text-white hover:bg-slate-800/60' 
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {isDarkMode ? (
-            <Moon className="w-5 h-5 stroke-[1.75]" />
+            <Moon className="w-5 h-5 stroke-[1.75] text-slate-300 hover:text-amber-300 transition-colors" />
           ) : (
-            <Sun className="w-5 h-5 stroke-[1.75]" />
+            <Sun className="w-5 h-5 stroke-[1.75] text-amber-500 hover:text-amber-600 transition-colors" />
           )}
         </button>
 
@@ -56,7 +61,11 @@ export default function Navbar({
         <div className="hidden sm:flex items-center gap-2">
           <button
             onClick={() => {}}
-            className="relative p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 rounded-xl transition-colors"
+            className={`relative p-2 rounded-xl transition-colors ${
+              isDarkMode 
+                ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' 
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+            }`}
             title="System Status"
           >
             <Bell className="w-4 h-4" />
@@ -65,7 +74,11 @@ export default function Navbar({
 
           <button
             onClick={() => {}}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 rounded-xl transition-colors"
+            className={`p-2 rounded-xl transition-colors ${
+              isDarkMode 
+                ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' 
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+            }`}
             title="Settings"
           >
             <Settings className="w-4 h-4" />

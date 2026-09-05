@@ -1,21 +1,18 @@
 import React, { useState } from 'react';
 import { 
-  ExternalLink, 
-  CheckCircle, 
-  Clock, 
   X, 
-  ArrowDownToLine, 
   Trash2, 
   Copy, 
   Check, 
   RotateCw, 
-  AlertCircle, 
   FileText, 
   Film, 
   Music, 
   Archive,
-  Download,
-  Plus
+  History,
+  Calendar,
+  Clock,
+  Layers
 } from 'lucide-react';
 import { extractMagnetName, formatBytes } from '../utils/magnet';
 
@@ -44,16 +41,37 @@ function getFileIcon(fileName) {
   }
 }
 
+function formatRelativeTime(dateString) {
+  if (!dateString) return 'Recently';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export default function RecentMagnetsModal({ 
   isOpen, 
   onClose, 
   magnets = [], 
   onRemove, 
   onClearAll,
-  onRetry 
+  onRetry,
+  onAddMagnet,
+  onAddToQueue
 }) {
   const [copiedId, setCopiedId] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
 
   if (!isOpen) return null;
 
@@ -64,6 +82,19 @@ export default function RecentMagnetsModal({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleRestore = async (magnet, name, size, id) => {
+    setRestoringId(id);
+    try {
+      if (onAddMagnet) {
+        await onAddMagnet(magnet, name, size);
+      } else if (onRetry) {
+        await onRetry(magnet, name, size);
+      }
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-[#111927] border border-[#1E293B] rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
@@ -72,12 +103,18 @@ export default function RecentMagnetsModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E293B] bg-[#111927]">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-white">Recent Magnet Links</h3>
-              <span className="text-xs font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
-                {magnets.length}
+              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                Deleted Magnet Links
+                <span className="text-xs font-mono font-bold text-[#00DF81] bg-[#00DF81]/10 px-2 py-0.5 rounded-full border border-[#00DF81]/20">
+                  {magnets.length}
+                </span>
+              </h3>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden sm:inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-emerald-400" />
+                Past 30 Days
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Pasted magnet links and cloud conversion history</p>
+            <p className="text-xs text-slate-400 mt-0.5">Deleted links preserved for 30 days to copy or restore</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -121,162 +158,115 @@ export default function RecentMagnetsModal({
         </div>
 
         {/* Content List */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
           {magnets.length === 0 ? (
             <div className="text-center py-12 text-slate-500">
-              <Clock className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#00DF81]" />
-              <p className="font-semibold text-slate-300 text-sm">No magnet links in history</p>
+              <Trash2 className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#00DF81]" />
+              <p className="font-semibold text-slate-300 text-sm">No deleted magnet links in the past 30 days</p>
               <p className="text-xs mt-1 text-slate-500 max-w-sm mx-auto">
-                Pasted magnet links will automatically be saved here with real-time download progress and direct links.
+                When you delete torrents or files from Seedr, their magnet links will be preserved here for 30 days.
               </p>
             </div>
           ) : (
             magnets.map((m) => {
-              const displayName = m.title || m.name || extractMagnetName(m.magnet) || 'Torrent Download';
+              const displayName = m.title || m.name || extractMagnetName(m.magnet) || 'Deleted Torrent';
               const isCopied = copiedId === m.id;
-              const isFailed = m.status === 'failed';
-              const isFinished = m.status === 'finished';
-              const isDownloading = m.status === 'downloading' || m.status === 'queued';
+              const isRestoring = restoringId === m.id;
+              const relativeTime = formatRelativeTime(m.deletedAt);
 
               return (
-                <div key={m.id} className="bg-[#090F1C] border border-[#1E293B] rounded-xl p-4 space-y-3 relative group transition-colors hover:border-slate-700">
-                  {/* Top Row: Icon, Title & Actions */}
+                <div key={m.id} className="bg-[#090F1C] border border-[#1E293B] rounded-xl p-3.5 space-y-3 relative group transition-colors hover:border-slate-700">
+                  {/* Top Row: Icon, Title & Delete */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="mt-0.5 shrink-0">
-                        {isFinished ? (
-                          <div className="p-1.5 bg-[#00DF81]/10 text-[#00DF81] rounded-lg border border-[#00DF81]/20">
-                            <CheckCircle className="w-4 h-4" />
-                          </div>
-                        ) : isFailed ? (
-                          <div className="p-1.5 bg-red-500/10 text-red-400 rounded-lg border border-red-500/20">
-                            <AlertCircle className="w-4 h-4" />
-                          </div>
-                        ) : (
-                          <div className="p-1.5 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20">
-                            <Clock className="w-4 h-4 animate-pulse" />
-                          </div>
-                        )}
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <div className="p-2 bg-[#151F32] rounded-lg border border-[#1E293B] shrink-0 mt-0.5">
+                        {getFileIcon(displayName)}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        {/* Displayed Torrent File Name */}
-                        <h4 className="text-xs sm:text-sm font-bold text-slate-100 break-words line-clamp-2" title={displayName}>
+                        <h4 className="text-sm font-semibold text-slate-100 break-words line-clamp-2" title={displayName}>
                           {displayName}
                         </h4>
 
-                        {/* Magnet Link Preview with Copy */}
-                        <div className="flex items-center gap-2 mt-1">
-                          <button
-                            onClick={(e) => handleCopyMagnet(e, m.magnet, m.id)}
-                            className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 hover:text-white bg-[#141D2E] px-2 py-0.5 rounded border border-[#1E293B] transition-colors max-w-full truncate"
-                            title="Click to copy full magnet URI"
-                          >
-                            {isCopied ? (
-                              <>
-                                <Check className="w-3 h-3 text-[#00DF81]" />
-                                <span className="text-[#00DF81]">Copied</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3 text-slate-400" />
-                                <span className="truncate">{m.magnet.substring(0, 42)}...</span>
-                              </>
-                            )}
-                          </button>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            <Clock className="w-2.5 h-2.5 text-amber-400" />
+                            Deleted {relativeTime}
+                          </span>
 
                           {m.size && (
-                            <span className="text-[11px] text-slate-400 font-mono">
+                            <span className="text-[10px] text-slate-400 font-mono">
                               {formatBytes(m.size)}
+                            </span>
+                          )}
+
+                          {m.deletedReason && (
+                            <span className="text-[10px] text-slate-500 truncate max-w-[150px]">
+                              • {m.deletedReason}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Delete item button */}
-                    <button
-                      onClick={() => onRemove(m.id)}
-                      className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors shrink-0"
-                      title="Remove from history"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {onRemove && (
+                      <button
+                        onClick={() => onRemove(m.id)}
+                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors shrink-0"
+                        title="Remove from history"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  {/* Progress bar (when active) */}
-                  {isDownloading && (
-                    <div className="space-y-1 pt-1">
-                      <div className="flex justify-between text-xs text-slate-400">
-                        <span>{m.status === 'downloading' ? 'Downloading in Seedr...' : 'Queued...'}</span>
-                        <span className="font-medium text-[#00DF81]">{m.progress || 0}%</span>
-                      </div>
-                      <div className="w-full bg-[#111927] rounded-full h-1.5 overflow-hidden border border-[#1E293B]">
-                        <div 
-                          className="bg-striped-mint h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.max(m.progress || 0, 3)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  {/* Actions Row */}
+                  <div className="pt-2 border-t border-[#1E293B]/60 flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      onClick={(e) => handleCopyMagnet(e, m.magnet, m.id)}
+                      className="inline-flex items-center gap-1 text-xs font-mono text-slate-300 hover:text-white bg-[#111927] px-2.5 py-1 rounded-lg border border-[#1E293B] transition-colors max-w-[200px] truncate"
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-3 h-3 text-[#00DF81]" />
+                          <span className="text-[#00DF81]">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-slate-400" />
+                          <span className="truncate">{m.magnet ? `${m.magnet.substring(0, 24)}...` : 'Copy Magnet'}</span>
+                        </>
+                      )}
+                    </button>
 
-                  {/* Finished Files List & Direct Download Links */}
-                  {isFinished && m.files && m.files.length > 0 && (
-                    <div className="pt-2 border-t border-[#1E293B]/80 space-y-1.5">
-                      <div className="text-[11px] font-semibold text-slate-400">Downloaded Files:</div>
-                      {m.files.map((file, idx) => (
-                        <a
-                          key={idx}
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between gap-3 text-xs bg-[#00DF81]/10 hover:bg-[#00DF81]/20 text-[#00DF81] px-3 py-2 rounded-xl transition-colors border border-[#00DF81]/20 font-medium"
-                        >
-                          <div className="flex items-center gap-2 truncate flex-1">
-                            {getFileIcon(file.name)}
-                            <span className="truncate">{file.name}</span>
-                          </div>
-                          <ArrowDownToLine className="w-3.5 h-3.5 shrink-0" />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Failed status notice with Retry/Re-add button */}
-                  {isFailed && (
-                    <div className="pt-2 border-t border-[#1E293B]/80 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs text-red-400 font-medium flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Failed to download (seeders unavailable or storage occupied)
-                      </span>
-
-                      {onRetry && (
+                    <div className="flex items-center gap-1.5">
+                      {onAddToQueue && (
                         <button
-                          onClick={() => onRetry(m.magnet, displayName)}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold bg-[#00DF81]/15 text-[#00DF81] hover:bg-[#00DF81]/25 border border-[#00DF81]/30 transition-all"
+                          onClick={() => onAddToQueue(m.magnet, displayName, m.size)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1"
                         >
-                          <RotateCw className="w-3 h-3" />
-                          <span>Retry in Seedr</span>
+                          <Layers className="w-3 h-3 text-indigo-400" />
+                          Queue
+                        </button>
+                      )}
+
+                      {(onAddMagnet || onRetry) && (
+                        <button
+                          disabled={isRestoring}
+                          onClick={() => handleRestore(m.magnet, displayName, m.size, m.id)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#00DF81]/15 text-[#00DF81] hover:bg-[#00DF81]/25 border border-[#00DF81]/30 flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <RotateCw className={`w-3 h-3 ${isRestoring ? 'animate-spin' : ''}`} />
+                          Restore
                         </button>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })
           )}
         </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-[#1E293B] bg-[#111927] flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium rounded-xl transition-colors"
-          >
-            Close
-          </button>
-        </div>
-
       </div>
     </div>
   );

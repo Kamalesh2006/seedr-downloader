@@ -9,7 +9,8 @@ import {
   HelpCircle, 
   LogOut, 
   Cloud,
-  Film
+  Film,
+  History
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
@@ -49,7 +50,7 @@ export default function Sidebar({
     { 
       id: 'recent', 
       label: 'Recent Links', 
-      icon: Clock, 
+      icon: History, 
       badge: recentCount > 0 ? recentCount : null,
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },

@@ -67,7 +67,27 @@ function App() {
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/seedr_download_bot');
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('seedr_theme');
+      if (saved) return saved === 'dark';
+    } catch (e) {}
+    return true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('seedr_theme', isDarkMode ? 'dark' : 'light');
+    } catch (e) {}
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   useEffect(() => {
     api.get('/telegram/status')
@@ -158,18 +178,25 @@ function App() {
 
   const handleDelete = async (id, type, parentFolderId = null) => {
     try {
+      let itemMeta = null;
+      if (type === 'torrent') {
+        itemMeta = cloudTorrents.find(t => String(t.id) === String(id));
+      } else if (type === 'folder' || type === 'file') {
+        itemMeta = completedFiles.find(f => String(f.id) === String(id));
+      }
+
       if (type === 'folder') {
-        await deleteFolder(id);
-        showToast('Folder deleted from Seedr (Checking queue for next download...)');
+        await deleteFolder(id, itemMeta);
+        showToast('Folder deleted from Seedr (Saved to 30-day deleted links)');
       } else if (type === 'torrent') {
-        await deleteTorrent(id);
-        showToast('Active torrent cancelled & removed from Seedr (Checking queue...)');
+        await deleteTorrent(id, itemMeta);
+        showToast('Active torrent cancelled & removed from Seedr (Saved to 30-day deleted links)');
       } else if (type === 'task') {
         await deleteTask(id);
         showToast('Task removed from Seedr');
       } else {
-        await deleteFile(id, parentFolderId);
-        showToast('File deleted from Seedr (Checking queue for next download...)');
+        await deleteFile(id, parentFolderId, itemMeta);
+        showToast('File deleted from Seedr (Saved to 30-day deleted links)');
       }
       fetchQueue();
     } catch (err) {
@@ -179,6 +206,18 @@ function App() {
   };
 
   const getToastStyles = (type) => {
+    if (!isDarkMode) {
+      switch (type) {
+        case 'error':
+          return 'bg-white border border-red-200 text-red-700 shadow-xl shadow-red-950/10';
+        case 'info':
+          return 'bg-white border border-indigo-200 text-indigo-700 shadow-xl shadow-indigo-950/10';
+        case 'warning':
+          return 'bg-white border border-amber-200 text-amber-700 shadow-xl shadow-amber-950/10';
+        default:
+          return 'bg-white border border-emerald-200 text-emerald-800 shadow-xl shadow-emerald-950/10';
+      }
+    }
     switch (type) {
       case 'error':
         return 'bg-red-950/90 border border-red-800 text-red-200 shadow-red-950/50';
@@ -209,7 +248,7 @@ function App() {
   const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-[#070B14] text-slate-100' : 'bg-slate-900 text-slate-100'} font-sans flex antialiased selection:bg-[#00DF81]/30`}>
+    <div className={`min-h-screen ${isDarkMode ? 'dark bg-[#070B14] text-slate-100' : 'light bg-[#F8FAFC] text-slate-900'} font-sans flex antialiased selection:bg-[#00DF81]/30 transition-colors duration-200`}>
       
       {/* Desktop Left Sidebar */}
       <div className="hidden md:block">
@@ -225,7 +264,7 @@ function App() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#070B14]">
+      <div className={`flex-1 flex flex-col min-w-0 min-h-screen ${isDarkMode ? 'bg-[#070B14]' : 'bg-[#F8FAFC]'}`}>
         {/* Top Navbar */}
         <Navbar 
           currentTab={currentTab}
@@ -437,7 +476,9 @@ function App() {
         magnets={recentMagnets}
         onRemove={removeManualMagnet}
         onClearAll={clearRecentMagnets}
-        onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
+        onRetry={(magnet, name, size) => handleAddMagnet(magnet, name, size)}
+        onAddMagnet={handleAddMagnet}
+        onAddToQueue={handleAddToQueue}
       />
 
       {/* Toast Notification */}

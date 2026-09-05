@@ -5,12 +5,288 @@
   color-scheme: dark;
 }
 
+html.light {
+  color-scheme: light;
+}
+
 body {
   background-color: #070B14;
   color: #F1F5F9;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.light body {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* ==========================================================================
+   SEEDR LIGHT MODE DESIGN SYSTEM
+   ========================================================================== */
+
+/* Main Layout & App Containers */
+html.light .bg-\[\#070B14\],
+html.light .bg-\[\#070D18\],
+html.light .bg-\[\#0B111E\] {
+  background-color: #F8FAFC !important;
+}
+
+/* Desktop Sidebar */
+html.light aside,
+html.light aside.bg-\[\#070D18\] {
+  background-color: #FFFFFF !important;
+  border-right-color: #E2E8F0 !important;
+  box-shadow: 1px 0 3px 0 rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Top Sticky Navbar */
+html.light header,
+html.light header.bg-\[\#070B14\]\/90 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-bottom-color: #E2E8F0 !important;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Primary Card Backgrounds (Storage, SearchBar, RecentLinks, CompletedFiles) */
+html.light .bg-\[\#111927\] {
+  background-color: #FFFFFF !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Inner Panels, Inputs, Filter Pills, Sub-boxes */
+html.light .bg-\[\#090F1C\],
+html.light .bg-\[\#0A101D\],
+html.light .bg-\[\#141D2E\],
+html.light .bg-\[\#151F32\],
+html.light .bg-\[\#162032\],
+html.light .bg-\[\#162238\],
+html.light .bg-\[\#182438\],
+html.light .bg-\[\#0D1424\] {
+  background-color: #F1F5F9 !important;
+}
+
+html.light .bg-\[\#090F1C\]\/90 {
+  background-color: rgba(241, 245, 249, 0.95) !important;
+}
+
+html.light .bg-\[\#111927\]\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Mobile Bottom Navigation & Glass Nav */
+html.light .glass-nav,
+html.light .bg-\[\#0D1424\]\/95 {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-top-color: #E2E8F0 !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Modals & Backdrop Overlays */
+html.light .bg-black\/75,
+html.light .bg-black\/80,
+html.light .bg-black\/70,
+html.light .bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Card Borders & Section Dividers */
+html.light .border-\[\#1E293B\],
+html.light .border-\[\#1E293B\]\/60,
+html.light .border-\[\#1E293B\]\/70,
+html.light .border-\[\#1E293B\]\/80,
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60,
+html.light .border-slate-800\/40,
+html.light .border-slate-700,
+html.light .border-slate-700\/80,
+html.light .border-slate-700\/60 {
+  border-color: #E2E8F0 !important;
+}
+
+html.light .divide-\[\#1E293B\] > :not([hidden]) ~ :not([hidden]),
+html.light .divide-\[\#1E293B\]\/60 > :not([hidden]) ~ :not([hidden]),
+html.light .divide-\[\#1E293B\]\/70 > :not([hidden]) ~ :not([hidden]),
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E2E8F0 !important;
+}
+
+/* Typography Hierarchy */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
+  color: #0F172A !important;
+}
+
+html.light .text-slate-100,
+html.light .text-gray-100 {
+  color: #0F172A !important;
+}
+
+html.light .text-slate-200,
+html.light .text-gray-200 {
+  color: #1E293B !important;
+}
+
+html.light .text-slate-300,
+html.light .text-gray-300 {
+  color: #334155 !important;
+}
+
+html.light .text-slate-400,
+html.light .text-gray-400 {
+  color: #64748B !important;
+}
+
+html.light .text-slate-500,
+html.light .text-gray-500 {
+  color: #94A3B8 !important;
+}
+
+/* Inputs, Textareas & Forms */
+html.light input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+html.light textarea {
+  color: #0F172A !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Secondary & Action Buttons */
+html.light .bg-slate-800,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-900,
+html.light .bg-slate-900\/60 {
+  background-color: #F1F5F9 !important;
+  color: #334155 !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* Interactive Hover States */
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800\/40:hover,
+html.light .hover\:bg-slate-800\/50:hover,
+html.light .hover\:bg-slate-800\/60:hover,
+html.light .hover\:bg-slate-700:hover,
+html.light .hover\:bg-slate-700\/80:hover,
+html.light .hover\:bg-\[\#0D1424\]:hover,
+html.light .hover\:bg-\[\#131D2E\]:hover,
+html.light .hover\:bg-\[\#152033\]:hover,
+html.light .hover\:bg-\[\#1E2E46\]:hover {
+  background-color: #F1F5F9 !important;
+}
+
+html.light .hover\:text-white:hover,
+html.light .hover\:text-slate-200:hover,
+html.light .hover\:text-gray-200:hover {
+  color: #0F172A !important;
+}
+
+html.light .hover\:border-slate-700:hover,
+html.light .hover\:border-slate-700\/80:hover {
+  border-color: #CBD5E1 !important;
+}
+
+/* Brand Mint/Emerald Enhancements for High-Contrast Light Mode */
+html.light .text-\[\#00DF81\] {
+  color: #059669 !important;
+}
+
+/* Primary Mint Buttons keep bold dark text */
+html.light .bg-\[\#00DF81\] {
+  background-color: #00DF81 !important;
+  color: #071911 !important;
+}
+
+/* Brand Badges & Light Emerald Containers */
+html.light .bg-\[\#00DF81\]\/10,
+html.light .bg-\[\#00DF81\]\/15 {
+  background-color: rgba(0, 223, 129, 0.14) !important;
+  border-color: rgba(5, 150, 105, 0.25) !important;
+  color: #047857 !important;
+}
+
+/* Status Colors in Light Mode for Accessibility */
+html.light .text-sky-300,
+html.light .text-sky-400 {
+  color: #0284C7 !important;
+}
+
+html.light .text-indigo-300,
+html.light .text-indigo-400 {
+  color: #4F46E5 !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+html.light .text-red-400 {
+  color: #DC2626 !important;
+}
+
+html.light .text-red-300 {
+  color: #B91C1C !important;
+}
+
+html.light .text-red-200 {
+  color: #991B1B !important;
+}
+
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-orange-400 {
+  color: #EA580C !important;
+}
+
+html.light .text-pink-400 {
+  color: #DB2777 !important;
+}
+
+html.light .text-purple-400 {
+  color: #9333EA !important;
+}
+
+/* Error/Warning Alert Banners in Light Mode */
+html.light .bg-red-950\/40,
+html.light .bg-red-950\/20 {
+  background-color: #FEF2F2 !important;
+  border-color: #FECACA !important;
+  color: #991B1B !important;
+}
+
+html.light .bg-amber-500\/5 {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+html.light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.14) !important;
+}
+
+/* Scrollbars in Light Mode */
+html.light ::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
 
 /* Custom animated candy stripe pattern for progress bars */
@@ -39,7 +315,7 @@ body {
   }
 }
 
-/* Custom scrollbars */
+/* Dark mode scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -69,3 +345,4 @@ body {
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
+
