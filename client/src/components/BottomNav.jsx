@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, History, Database, Bot, Radio, Film } from 'lucide-react';
+import { Folder, History, Database, Bot, Film } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
@@ -20,13 +20,6 @@ export default function BottomNav({
       icon: Film,
       badge: 'New',
       onClick: () => setCurrentTab('discover')
-    },
-    {
-      id: 'acestream',
-      label: 'AceStream',
-      icon: Radio,
-      badge: 'Live',
-      onClick: () => setCurrentTab('acestream')
     },
     {
       id: 'recent',
