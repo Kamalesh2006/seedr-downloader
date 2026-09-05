@@ -10,7 +10,7 @@ const seedrRoutes = require('../server/src/routes/seedr');
 const telegramRoutes = require('../server/src/routes/telegram');
 const magnetsRoutes = require('../server/src/routes/magnets');
 const queueRoutes = require('../server/src/routes/queue');
-const acestreamRoutes = require('../server/src/routes/acestream');
+const mirrorRoutes = require('../server/src/routes/mirrorMovies');
 
 const app = express();
 
@@ -29,9 +29,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '50kb' }));
 
-// Ace Stream streaming endpoints
-app.use('/api/acestream', acestreamRoutes);
-
 app.use('/api', apiLimiter);
 
 app.use('/api/search', searchRoutes);
@@ -39,6 +36,7 @@ app.use('/api/seedr', seedrRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/magnets', magnetsRoutes);
 app.use('/api/queue', queueRoutes);
+app.use('/api/mirror', mirrorRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });

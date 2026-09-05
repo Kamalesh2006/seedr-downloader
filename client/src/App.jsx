@@ -23,7 +23,6 @@ import CompletedFiles from './components/CompletedFiles';
 import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import RecentLinksView from './components/RecentLinksView';
-import AceStreamView from './components/AceStreamView';
 import MirrorMoviesView from './components/MirrorMoviesView';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
@@ -65,7 +64,6 @@ function App() {
   } = useQueue();
   
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [aceStreamId, setAceStreamId] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/seedr_download_bot');
@@ -84,12 +82,6 @@ function App() {
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
-  };
-
-  const handleOpenAceStream = (id) => {
-    setAceStreamId(id || '');
-    setCurrentTab('acestream');
-    showToast(`Opening Ace Stream ${id ? id.substring(0, 10) + '...' : ''}`, 'info');
   };
 
   const handleSearch = (query) => {
@@ -257,7 +249,6 @@ function App() {
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
-                onOpenAceStream={handleOpenAceStream}
               />
 
               {/* Storage Capacity Card */}
@@ -336,7 +327,6 @@ function App() {
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
                 onAddToQueue={handleAddToQueue}
-                onOpenAceStream={handleOpenAceStream}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -424,14 +414,6 @@ function App() {
             <MirrorMoviesView 
               onAddMagnet={handleAddMagnet}
               onAddToQueue={handleAddToQueue}
-              onOpenAceStream={handleOpenAceStream}
-              onShowToast={(msg, type) => showToast(msg, type)}
-            />
-          )}
-
-          {currentTab === 'acestream' && (
-            <AceStreamView 
-              initialId={aceStreamId}
               onShowToast={(msg, type) => showToast(msg, type)}
             />
           )}
