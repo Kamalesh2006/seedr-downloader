@@ -76,7 +76,7 @@ function App() {
       const saved = localStorage.getItem('seedr_theme');
       if (saved) return saved === 'dark';
     } catch (e) {}
-    return true;
+    return false; // Light mode is default
   });
 
   useEffect(() => {
