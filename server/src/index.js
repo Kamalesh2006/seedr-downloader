@@ -11,6 +11,7 @@ const seedrRoutes = require('./routes/seedr');
 const telegramRoutes = require('./routes/telegram');
 const magnetsRoutes = require('./routes/magnets');
 const queueRoutes = require('./routes/queue');
+const acestreamRoutes = require('./routes/acestream');
 const telegramBot = require('./bot/telegramBot');
 const torrentWatchdog = require('./services/torrentWatchdogService');
 const downloadQueue = require('./services/downloadQueueService');
@@ -31,9 +32,12 @@ app.use(helmet({
 app.use(cors({
   origin: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range']
 }));
 app.use(express.json({ limit: '50kb' }));
+
+// Ace Stream streaming endpoints (exempt from general rate limits for smooth HLS chunk delivery)
+app.use('/api/acestream', acestreamRoutes);
 
 // 3. Global API Rate Limiter
 app.use('/api', apiLimiter);
@@ -57,6 +61,7 @@ app.listen(PORT, () => {
   console.log(`- Search API: http://localhost:${PORT}/api/search`);
   console.log(`- Seedr API: http://localhost:${PORT}/api/seedr`);
   console.log(`- Queue API: http://localhost:${PORT}/api/queue`);
+  console.log(`- AceStream API: http://localhost:${PORT}/api/acestream`);
   console.log(`- Telegram API: http://localhost:${PORT}/api/telegram`);
 
   // Start background auto-cleanup watchdog for stalled (2m) and long-running (1h) torrents

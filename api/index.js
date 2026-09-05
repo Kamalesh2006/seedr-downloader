@@ -10,6 +10,7 @@ const seedrRoutes = require('../server/src/routes/seedr');
 const telegramRoutes = require('../server/src/routes/telegram');
 const magnetsRoutes = require('../server/src/routes/magnets');
 const queueRoutes = require('../server/src/routes/queue');
+const acestreamRoutes = require('../server/src/routes/acestream');
 
 const app = express();
 
@@ -23,10 +24,13 @@ app.use(helmet({
 app.use(cors({
   origin: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range']
 }));
 
 app.use(express.json({ limit: '50kb' }));
+
+// Ace Stream streaming endpoints
+app.use('/api/acestream', acestreamRoutes);
 
 app.use('/api', apiLimiter);
 

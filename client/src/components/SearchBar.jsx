@@ -20,6 +20,7 @@ export default function SearchBar({
   recentCount = 0,
   queueCount = 0,
   onOpenRecent,
+  onOpenAceStream,
   prefilledMagnet = null,
   prefilledName = null
 }) {
@@ -54,7 +55,7 @@ export default function SearchBar({
     }
   }, [magnet]);
 
-  // Auto-detect if user pastes magnet in search input
+  // Auto-detect if user pastes magnet or Ace Stream ID in search input
   const handleQueryChange = (e) => {
     const val = e.target.value;
     setQuery(val);
@@ -65,8 +66,23 @@ export default function SearchBar({
     }
   };
 
+  const isAceStreamInput = (text) => {
+    const trimmed = (text || '').trim();
+    return trimmed.toLowerCase().startsWith('acestream://') || /^[a-fA-F0-9]{40}$/.test(trimmed);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    const currentInput = mode === 'magnet' ? magnet.trim() : query.trim();
+
+    // If an Ace Stream ID is submitted in either mode, route to Ace Stream player
+    if (isAceStreamInput(currentInput) && onOpenAceStream) {
+      onOpenAceStream(currentInput);
+      setMagnet('');
+      setQuery('');
+      return;
+    }
+
     if (mode === 'magnet' && magnet.trim()) {
       const finalName = customName.trim() || detectedName || 'Magnet Download';
       onAddMagnet(magnet.trim(), finalName);
