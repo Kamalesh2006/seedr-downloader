@@ -5,7 +5,6 @@ import {
   RefreshCw, 
   Download, 
   ListOrdered, 
-  Radio, 
   Copy, 
   Check, 
   ExternalLink, 
@@ -25,7 +24,6 @@ import { isOversizedForSeedr } from '../utils/magnet';
 export default function MirrorMoviesView({
   onAddMagnet,
   onAddToQueue,
-  onOpenAceStream,
   onShowToast
 }) {
   const [movies, setMovies] = useState([]);
@@ -522,17 +520,6 @@ export default function MirrorMoviesView({
                       >
                         <ListOrdered className="w-3.5 h-3.5" />
                       </button>
-
-                      {/* Ace Stream Live Player */}
-                      {onOpenAceStream && (
-                        <button
-                          onClick={() => onOpenAceStream(movie.infoHash || movie.magnet)}
-                          className="px-2.5 py-2 rounded-xl text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-colors"
-                          title="Stream via Ace Stream"
-                        >
-                          <Radio className="w-3.5 h-3.5" />
-                        </button>
-                      )}
 
                       {/* Copy Magnet Link */}
                       <button

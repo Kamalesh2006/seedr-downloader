@@ -30,9 +30,9 @@
   "seedrBaseUrl": "https://www.seedr.cc/rest",
   "mirrorDiscovery": {
     "enabled": true,
-    "keyword": "",
+    "keyword": "1tamilmv",
     "searchEngine": "bing",
-    "fallbackDomain": "",
+    "fallbackDomain": "https://www.1tamilmv.meme",
     "cacheTtlMinutes": 360,
     "maxMovies": 50,
     "timeoutMs": 12000

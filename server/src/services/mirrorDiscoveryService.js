@@ -223,6 +223,32 @@ class MirrorDiscoveryService {
       throw new Error('No search keyword configured. Please specify DISCOVERY_KEYWORD in .env or server/config.json');
     }
 
+    // Direct check for known official redirector domains if keyword matches
+    const kwLower = cfg.keyword.toLowerCase();
+    if (kwLower.includes('tamilmv')) {
+      try {
+        console.log('[MirrorDiscovery] Checking official TamilMV redirector: https://www.1tamilmv.fi');
+        const check = await this.validateDomain('https://www.1tamilmv.fi');
+        if (check.ok && check.finalUrl) {
+          const resolved = this.cleanDomain(check.finalUrl);
+          if (resolved) {
+            const cachePayload = {
+              domain: resolved,
+              fullUrl: check.finalUrl,
+              keyword: cfg.keyword,
+              discoveredAt: new Date().toISOString(),
+              engine: 'official-redirector',
+              lastTestedOk: true
+            };
+            this.saveCache(cachePayload);
+            return { cached: false, ...cachePayload };
+          }
+        }
+      } catch (e) {
+        console.warn('[MirrorDiscovery] Redirector check failed, continuing to search:', e.message);
+      }
+    }
+
     let candidates = [];
     let usedEngine = cfg.searchEngine;
 

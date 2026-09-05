@@ -56,7 +56,7 @@ class MovieScraperService {
 
   extractQuality(text) {
     if (!text) return 'HD';
-    const match = text.match(/\b(2160p|4K|UHD|1080p|720p|480p|WEB-DL|BluRay|HDTC|DVDRip|HDR|CAMRip|HQ|PreDVD)\b/i);
+    const match = text.match(/\b(2160p|4K\s*UHD|4K|UHD|1080p|720p|480p|WEB-DL|BluRay|HDTC|DVDRip|HDR|CAMRip|HQ|PreDVD)\b/i);
     return match ? match[1].toUpperCase() : 'HD';
   }
 
@@ -66,10 +66,29 @@ class MovieScraperService {
     return match ? `${match[1]} ${match[2].toUpperCase()}` : null;
   }
 
+  cleanTitle(raw) {
+    if (!raw) return '';
+    return raw
+      .replace(/\b(Forums|Tamil Language|Telugu Language|Hindi Language|Malayalam Language|WEB-HD|iTunes-HD|BluRay)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   resolveUrl(relativeOrAbsolute, baseUrl) {
     if (!relativeOrAbsolute) return '';
     try {
-      return new URL(relativeOrAbsolute, baseUrl).href;
+      const baseParsed = new URL(baseUrl);
+      const resolved = new URL(relativeOrAbsolute, baseUrl);
+
+      // Normalize www mismatch (e.g. site uses 1tamilmv.garden but link has www.1tamilmv.garden)
+      if (baseParsed.hostname && !baseParsed.hostname.startsWith('www.') && resolved.hostname.startsWith('www.')) {
+        if (resolved.hostname.replace(/^www\./, '') === baseParsed.hostname) {
+          resolved.hostname = baseParsed.hostname;
+          resolved.protocol = baseParsed.protocol;
+        }
+      }
+
+      return resolved.href;
     } catch (e) {
       return relativeOrAbsolute;
     }
@@ -87,7 +106,6 @@ class MovieScraperService {
         validateStatus: (status) => status < 500
       });
 
-      // Check for Cloudflare interstitial
       const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
       const isCloudflare = html.includes('cf-browser-verification') || 
                            html.includes('Just a moment...') || 
@@ -128,15 +146,11 @@ class MovieScraperService {
       seenMagnets.add(magnet);
 
       const magnetMeta = this.parseMagnetMetadata(magnet);
-
-      // Find closest container that encapsulates this movie item
       const container = $(el).closest('tr, article, .item, .card, .movie, .torrent, .post, .topic, .film, li, div[class*="row"], div[class*="card"]');
       const containerText = container.length ? container.text() : '';
 
-      // Determine movie title
       let title = $(el).attr('title') || $(el).text().trim();
       if (!title || title.toLowerCase().includes('magnet') || title.toLowerCase().includes('download') || title.length < 3) {
-        // Try finding a heading in container
         const heading = container.find('h1, h2, h3, h4, .title, .name, a[class*="title"]').first();
         if (heading.length && heading.text().trim()) {
           title = heading.text().trim();
@@ -147,7 +161,6 @@ class MovieScraperService {
         }
       }
 
-      // Poster image
       let poster = '';
       const imgEl = container.find('img').first();
       if (imgEl.length) {
@@ -155,13 +168,9 @@ class MovieScraperService {
         poster = this.resolveUrl(rawSrc, baseUrl);
       }
 
-      // Size
-      let size = this.extractSize(containerText) || (magnetMeta.sizeBytes ? `${(magnetMeta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : null);
-
-      // Quality
+      const size = this.extractSize(containerText) || (magnetMeta.sizeBytes ? `${(magnetMeta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : null);
       const quality = this.extractQuality(`${title} ${containerText}`);
 
-      // Seeders / Peers
       let seeds = 0;
       let leeches = 0;
       const seedMatch = containerText.match(/seeds?[:\s]*(\d+)/i) || container.find('.seeds, .green, [class*="seed"]').first().text().match(/(\d+)/);
@@ -170,7 +179,6 @@ class MovieScraperService {
       const leechMatch = containerText.match(/leech(?:ers?)?[:\s]*(\d+)/i) || container.find('.leeches, .red, [class*="leech"]').first().text().match(/(\d+)/);
       if (leechMatch) leeches = parseInt(leechMatch[1], 10);
 
-      // Detail link
       let detailUrl = '';
       const detailLinkEl = container.find('a[href]:not([href^="magnet:"])').first();
       if (detailLinkEl.length) {
@@ -179,7 +187,7 @@ class MovieScraperService {
 
       movies.push({
         id: magnetMeta.infoHash || `movie-${idx}-${Date.now()}`,
-        title: title.replace(/\s+/g, ' ').trim(),
+        title: this.cleanTitle(title),
         magnet,
         infoHash: magnetMeta.infoHash || '',
         poster,
@@ -192,41 +200,95 @@ class MovieScraperService {
       });
     });
 
-    // Strategy 2: If no direct magnet links were found on the main page,
-    // look for movie post cards that link to detail pages
+    // Strategy 1.5: Invision Power Board / IPS Forum Topics (e.g. 1tamilmv.meme)
     if (movies.length === 0) {
-      $('article, .item, .card, .movie-card, .movie, .film, .post-item, .entry').each((idx, el) => {
-        if (movies.length >= 20) return false;
+      $('a[href*="/forums/topic/"]').each((idx, el) => {
+        if (movies.length >= this.maxMovies) return false;
+        const href = $(el).attr('href');
+        if (!href || href.includes('/topic/183-0') || href.includes('#')) return;
 
-        const container = $(el);
-        const linkEl = container.find('a[href]').first();
-        if (!linkEl.length) return;
+        const parent = $(el).closest('strong, p, li, div');
+        const fullText = parent.text().replace(/\s+/g, ' ').trim();
+        let title = $(el).text().trim();
+        if (!title || title.startsWith('[') || title.length < 3) {
+          const parts = fullText.split(/[-–—\[]/);
+          title = parts[0].trim();
+        }
 
-        const href = linkEl.attr('href');
+        title = this.cleanTitle(title);
+        if (!title || title.length < 3 || seenTitles.has(title)) return;
+        seenTitles.add(title);
+        seenMagnets.add(href);
+
+        const size = this.extractSize(fullText);
+        const quality = this.extractQuality(fullText);
+
+        movies.push({
+          id: `topic-${idx}-${Date.now()}`,
+          title,
+          magnet: null,
+          poster: '',
+          size: size || 'Multi Quality',
+          quality,
+          seeds: 0,
+          leeches: 0,
+          detailUrl: this.resolveUrl(href, baseUrl),
+          discoveredFrom: baseUrl,
+          hasDetailPending: true
+        });
+      });
+    }
+
+    // Strategy 2: If no direct magnets found on front page, extract movie post entries
+    if (movies.length === 0) {
+      // Find candidate links that look like movie posts or detail pages
+      $('a[href]').each((idx, el) => {
+        if (movies.length >= this.maxMovies) return false;
+
+        const href = $(el).attr('href');
+        if (!href) return;
+
+        const isPostLink = href.endsWith('.html') || 
+                           /\/(?:202\d|movie|torrent|view|topic|thread|details)\//i.test(href);
+
+        if (!isPostLink) return;
+
         const detailUrl = this.resolveUrl(href, baseUrl);
-        if (!detailUrl || detailUrl === baseUrl || detailUrl.includes('javascript:')) return;
+        if (!detailUrl || detailUrl === baseUrl || detailUrl.includes('javascript:') || detailUrl.includes('/search/label/')) return;
 
-        let title = container.find('h1, h2, h3, h4, .title, .entry-title').first().text().trim() || linkEl.text().trim();
-        if (!title || seenTitles.has(title)) return;
+        const container = $(el).closest('article, .item, .card, .movie-card, .movie, .film, .post-item, .entry, .post, tr, div[class*="post"]');
+        
+        let title = '';
+        if (container.length) {
+          title = container.find('h1, h2, h3, h4, .title, .entry-title').first().text().trim();
+        }
+        if (!title) {
+          title = $(el).text().trim();
+        }
+
+        title = this.cleanTitle(title);
+        if (!title || title.length < 3 || seenTitles.has(title)) return;
         seenTitles.add(title);
 
         let poster = '';
-        const imgEl = container.find('img').first();
-        if (imgEl.length) {
-          const rawSrc = imgEl.attr('data-src') || imgEl.attr('data-original') || imgEl.attr('src');
-          poster = this.resolveUrl(rawSrc, baseUrl);
+        if (container.length) {
+          const imgEl = container.find('img').first();
+          if (imgEl.length) {
+            const rawSrc = imgEl.attr('data-src') || imgEl.attr('data-original') || imgEl.attr('src');
+            poster = this.resolveUrl(rawSrc, baseUrl);
+          }
         }
 
-        const containerText = container.text();
+        const containerText = container.length ? container.text() : '';
         const quality = this.extractQuality(`${title} ${containerText}`);
         const size = this.extractSize(containerText);
 
         movies.push({
-          id: `entry-${idx}`,
-          title: title.replace(/\s+/g, ' ').trim(),
-          magnet: null, // Needs detail fetch or click
+          id: `entry-${idx}-${Date.now()}`,
+          title,
+          magnet: null,
           poster,
-          size: size || 'Check Details',
+          size: size || 'Multi Quality',
           quality,
           seeds: 0,
           leeches: 0,
@@ -254,27 +316,48 @@ class MovieScraperService {
 
     $('a[href^="magnet:"]').each((_, el) => {
       const magnet = $(el).attr('href');
-      if (magnet) {
-        const text = $(el).text().trim() || $(el).attr('title') || 'Magnet Link';
-        const meta = this.parseMagnetMetadata(magnet);
-        magnetLinks.push({
-          magnet,
-          label: text,
-          infoHash: meta.infoHash,
-          title: meta.title
-        });
-      }
+      if (!magnet) return;
+
+      const meta = this.parseMagnetMetadata(magnet);
+      const parent = $(el).closest('tr, p, div, li');
+      const parentText = parent.length ? parent.text().replace(/\s+/g, ' ').trim() : '';
+
+      const quality = this.extractQuality(parentText) || this.extractQuality(meta.title);
+      const size = this.extractSize(parentText) || (meta.sizeBytes ? `${(meta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : '');
+
+      let label = `${quality}${size ? ` • ${size}` : ''}`;
+      if (!quality && !size) label = $(el).text().trim() || meta.title || 'Magnet Link';
+
+      magnetLinks.push({
+        magnet,
+        label,
+        quality,
+        size,
+        infoHash: meta.infoHash,
+        title: meta.title
+      });
     });
 
-    const poster = $('img').first().attr('src');
-    const resolvedPoster = poster ? this.resolveUrl(poster, detailUrl) : '';
+    let poster = '';
+    const imgEl = $('img').first();
+    if (imgEl.length) {
+      const rawSrc = imgEl.attr('data-src') || imgEl.attr('src');
+      poster = this.resolveUrl(rawSrc, detailUrl);
+    }
+
+    // Default magnet: pick 1080p, 720p, or first available
+    let primaryMagnet = null;
+    if (magnetLinks.length > 0) {
+      const preferred = magnetLinks.find(m => m.quality === '1080P' || m.quality === '720P') || magnetLinks[0];
+      primaryMagnet = preferred.magnet;
+    }
 
     return {
       detailUrl,
-      title: $('h1, h2, .title').first().text().trim() || 'Movie Details',
+      title: $('h1, h2, .title, .entry-title').first().text().trim() || 'Movie Details',
       magnets: magnetLinks,
-      poster: resolvedPoster,
-      magnet: magnetLinks.length > 0 ? magnetLinks[0].magnet : null
+      poster,
+      magnet: primaryMagnet
     };
   }
 
@@ -282,7 +365,6 @@ class MovieScraperService {
    * Main entry point: Discovers active domain and retrieves movies list
    */
   async getMovies(forceRediscover = false) {
-    // 1. Resolve active mirror domain
     const discoveryResult = await mirrorDiscovery.discover(forceRediscover);
     const targetUrl = discoveryResult.fullUrl || discoveryResult.domain;
 
@@ -291,8 +373,6 @@ class MovieScraperService {
     }
 
     console.log(`[MovieScraper] Fetching movies from active mirror: ${targetUrl}`);
-
-    // 2. Fetch page HTML
     const fetchResult = await this.fetchHtml(targetUrl);
 
     if (!fetchResult.ok) {
@@ -307,7 +387,6 @@ class MovieScraperService {
         };
       }
 
-      // If fetching the domain failed, try forcing a rediscovery once
       if (!forceRediscover) {
         console.log('[MovieScraper] Primary domain failed, forcing re-discovery...');
         return this.getMovies(true);
@@ -316,19 +395,22 @@ class MovieScraperService {
       throw new Error(`Failed to access mirror at ${targetUrl}: ${fetchResult.error || `HTTP ${fetchResult.status}`}`);
     }
 
-    // 3. Parse movie listings and magnet links
     const movies = this.parseMoviesFromHtml(fetchResult.html, targetUrl);
 
-    // If movies have detail pages and no magnets on the front page, resolve the first 4 in parallel
-    const pendingWithDetail = movies.filter(m => m.hasDetailPending).slice(0, 4);
+    // If movies have detail pages, auto-resolve magnets for the first 8 items in parallel
+    const pendingWithDetail = movies.filter(m => m.hasDetailPending).slice(0, 8);
     if (pendingWithDetail.length > 0) {
       await Promise.allSettled(pendingWithDetail.map(async (item) => {
         try {
           const detailData = await this.fetchMovieDetail(item.detailUrl);
           if (detailData.magnet) {
             item.magnet = detailData.magnet;
+            item.magnets = detailData.magnets || [];
             item.hasDetailPending = false;
             if (detailData.poster && !item.poster) item.poster = detailData.poster;
+            if (detailData.magnets?.[0]?.size && item.size === 'Multi Quality') {
+              item.size = detailData.magnets[0].size;
+            }
           }
         } catch (e) {
           // Keep item as is
