@@ -191,9 +191,15 @@ class MirrorDiscoveryService {
         },
         timeout: 7000,
         maxRedirects: 5,
-        validateStatus: (status) => status < 500 // Accept 200, 301, 302, 403 (even 403 may have dynamic site behind Cloudflare)
+        validateStatus: (status) => status < 500
       });
-      return { ok: true, status: res.status, finalUrl: res.request?.res?.responseUrl || domainUrl };
+      const html = typeof res.data === 'string' ? res.data.toLowerCase() : '';
+      const hasContent = html.includes('tamilmv') || html.includes('forums') || html.includes('topic') || html.includes('magnet:') || html.includes('banger');
+      return { 
+        ok: res.status < 400 && hasContent, 
+        status: res.status, 
+        finalUrl: res.request?.res?.responseUrl || domainUrl 
+      };
     } catch (e) {
       return { ok: false, error: e.message };
     }

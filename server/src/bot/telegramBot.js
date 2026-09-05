@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const searchService = require('../services/searchService');
 const seedrService = require('../services/seedrService');
 const downloadQueue = require('../services/downloadQueueService');
+const magnetStorage = require('../services/magnetStorageService');
 const config = require('../../config.json');
 
 // In-memory cache for action data (to circumvent Telegram's 64-byte callback_data limit)
@@ -616,6 +617,13 @@ class SeedrTelegramBot {
       const transferId = result.id || result.transfer_id;
       const finalTitle = result.title || title;
 
+      // Register active magnet
+      magnetStorage.registerActiveMagnet({
+        magnet,
+        name: finalTitle,
+        id: transferId
+      });
+
       await this.bot.editMessageText(
         `✅ <b>Added to Seedr!</b>\n\n` +
         `🎬 <b>Name:</b> ${escapeHtml(finalTitle)}\n` +
@@ -1014,6 +1022,12 @@ class SeedrTelegramBot {
       } else {
         await seedrService.deleteFile(id);
       }
+
+      // Archive into 30-day deleted magnets
+      await magnetStorage.addDeletedMagnet({
+        id,
+        deletedReason: `Deleted ${type} via Telegram Bot`
+      }).catch(err => console.error('[Bot] Failed to archive deleted magnet:', err.message));
 
       await this.bot.answerCallbackQuery ? this.bot.answerCallbackQuery(null) : null;
       await this.bot.sendMessage(chatId, `🗑️ <b>${type.toUpperCase()} deleted successfully from Seedr.</b>`, {

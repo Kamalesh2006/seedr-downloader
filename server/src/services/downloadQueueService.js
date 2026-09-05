@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const seedrService = require('./seedrService');
+const magnetStorage = require('./magnetStorageService');
 
 function parseSizeInGB(sizeStr) {
   if (!sizeStr) return 0;
@@ -117,6 +118,14 @@ class DownloadQueueService {
     this.saveData();
     console.log(`[Queue] ➕ Added "${newItem.name}" to upcoming schedule (Position #${this.queue.length}).`);
 
+    // Register into active magnets registry
+    magnetStorage.registerActiveMagnet({
+      magnet: newItem.magnet,
+      name: newItem.name,
+      size: newItem.size,
+      id: newItem.id
+    });
+
     // Trigger check in background
     setTimeout(() => this.processNext(), 1000);
 
@@ -124,11 +133,22 @@ class DownloadQueueService {
   }
 
   removeFromQueue(id) {
+    const itemToRemove = this.queue.find(item => item.id === id);
     const prevCount = this.queue.length;
     this.queue = this.queue.filter(item => item.id !== id);
     if (this.queue.length !== prevCount) {
       this.saveData();
       console.log(`[Queue] 🗑️ Removed item ${id} from upcoming schedule.`);
+
+      if (itemToRemove) {
+        magnetStorage.addDeletedMagnet({
+          id: itemToRemove.id,
+          name: itemToRemove.name,
+          magnet: itemToRemove.magnet,
+          size: itemToRemove.size,
+          deletedReason: 'Removed from Upcoming Queue'
+        }).catch(err => console.error('[Queue] Failed to archive removed queue magnet:', err.message));
+      }
     }
     return { success: true, remaining: this.queue.length };
   }

@@ -3,6 +3,7 @@ const router = express.Router();
 const seedrService = require('../services/seedrService');
 const torrentWatchdog = require('../services/torrentWatchdogService');
 const downloadQueue = require('../services/downloadQueueService');
+const magnetStorage = require('../services/magnetStorageService');
 const { seedrActionLimiter } = require('../middleware/rateLimiter');
 const { validateMagnet, validateIdParam } = require('../middleware/validator');
 const { sanitizeErrorMessage } = require('../middleware/errorHandler');
@@ -88,6 +89,14 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
         });
       }
     }
+
+    // Register magnet link in active registry for 30-day deletion tracking
+    magnetStorage.registerActiveMagnet({ 
+      magnet, 
+      name: (result && result.title) || name, 
+      size,
+      id: (result && (result.user_torrent_id || result.id)) || null
+    });
 
     res.json(result);
   } catch (error) {
@@ -189,7 +198,37 @@ router.get('/playlist/:fileId', validateIdParam('fileId'), async (req, res) => {
 router.delete('/file/:fileId', validateIdParam('fileId'), async (req, res) => {
   try {
     const { fileId } = req.params;
+    const bodyInfo = req.body || {};
+
+    let fileInfo = {
+      id: fileId,
+      name: bodyInfo.name,
+      size: bodyInfo.size,
+      magnet: bodyInfo.magnet,
+      hash: bodyInfo.hash
+    };
+
+    try {
+      const folderData = await seedrService.listFolder();
+      const match = (folderData.files || []).find(f => String(f.id) === String(fileId));
+      if (match) {
+        fileInfo.name = fileInfo.name || match.name;
+        fileInfo.size = fileInfo.size || match.size;
+      }
+    } catch (e) {}
+
     const result = await seedrService.deleteFile(fileId);
+
+    // Archive into 30-day deleted magnets
+    await magnetStorage.addDeletedMagnet({
+      id: fileId,
+      name: fileInfo.name,
+      size: fileInfo.size,
+      hash: fileInfo.hash,
+      magnet: fileInfo.magnet,
+      deletedReason: 'Deleted file from Seedr'
+    }).catch(err => console.error('Failed to archive deleted file:', err.message));
+
     res.json(result);
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
@@ -200,7 +239,37 @@ router.delete('/file/:fileId', validateIdParam('fileId'), async (req, res) => {
 router.delete('/folder/:folderId', validateIdParam('folderId'), async (req, res) => {
   try {
     const { folderId } = req.params;
+    const bodyInfo = req.body || {};
+
+    let folderInfo = {
+      id: folderId,
+      name: bodyInfo.name,
+      size: bodyInfo.size,
+      magnet: bodyInfo.magnet,
+      hash: bodyInfo.hash
+    };
+
+    try {
+      const folderData = await seedrService.listFolder();
+      const match = (folderData.folders || []).find(f => String(f.id) === String(folderId));
+      if (match) {
+        folderInfo.name = folderInfo.name || match.name;
+        folderInfo.size = folderInfo.size || match.size;
+      }
+    } catch (e) {}
+
     const result = await seedrService.deleteFolder(folderId);
+
+    // Archive into 30-day deleted magnets
+    await magnetStorage.addDeletedMagnet({
+      id: folderId,
+      name: folderInfo.name,
+      size: folderInfo.size,
+      hash: folderInfo.hash,
+      magnet: folderInfo.magnet,
+      deletedReason: 'Deleted folder from Seedr'
+    }).catch(err => console.error('Failed to archive deleted folder:', err.message));
+
     res.json(result);
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
@@ -211,7 +280,38 @@ router.delete('/folder/:folderId', validateIdParam('folderId'), async (req, res)
 router.delete('/torrent/:torrentId', validateIdParam('torrentId'), async (req, res) => {
   try {
     const { torrentId } = req.params;
+    const bodyInfo = req.body || {};
+
+    let torrentInfo = {
+      id: torrentId,
+      name: bodyInfo.name,
+      magnet: bodyInfo.magnet,
+      hash: bodyInfo.hash,
+      size: bodyInfo.size
+    };
+
+    try {
+      const folderData = await seedrService.listFolder();
+      const match = (folderData.torrents || []).find(t => String(t.id) === String(torrentId));
+      if (match) {
+        torrentInfo.name = torrentInfo.name || match.name;
+        torrentInfo.hash = torrentInfo.hash || match.hash;
+        torrentInfo.size = torrentInfo.size || match.size;
+      }
+    } catch (e) {}
+
     const result = await seedrService.deleteTorrent(torrentId);
+
+    // Archive into 30-day deleted magnets
+    await magnetStorage.addDeletedMagnet({
+      id: torrentId,
+      name: torrentInfo.name,
+      hash: torrentInfo.hash,
+      magnet: torrentInfo.magnet,
+      size: torrentInfo.size,
+      deletedReason: 'Deleted active torrent from Seedr'
+    }).catch(err => console.error('Failed to archive deleted torrent:', err.message));
+
     res.json(result);
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {

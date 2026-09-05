@@ -8,8 +8,6 @@ import {
   Copy, 
   Check, 
   ExternalLink, 
-  Globe, 
-  Settings2, 
   AlertCircle, 
   ShieldAlert, 
   Sparkles, 
@@ -37,13 +35,6 @@ export default function MirrorMoviesView({
   const [selectedQuality, setSelectedQuality] = useState('ALL');
   const [sortBy, setSortBy] = useState('default');
 
-  // Config / Override drawer
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [customKeyword, setCustomKeyword] = useState('');
-  const [customEngine, setCustomEngine] = useState('bing');
-  const [manualDomain, setManualDomain] = useState('');
-  const [savingConfig, setSavingConfig] = useState(false);
-
   // Detail Modal for multi-magnet or pending detail
   const [detailModal, setDetailModal] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -67,9 +58,6 @@ export default function MirrorMoviesView({
           lastUpdated: res.data.lastUpdated,
           cached: res.data.cachedDomain
         });
-        if (res.data.keyword) {
-          setCustomKeyword(res.data.keyword);
-        }
       } else {
         setError(res.data?.error || 'Failed to load movie listings');
         if (res.data?.domain) {
@@ -79,7 +67,6 @@ export default function MirrorMoviesView({
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Error fetching movies';
       setError(msg);
-      // Try to read status
       if (err.response?.data?.status) {
         const st = err.response.data.status;
         setMirrorStatus({
@@ -87,7 +74,6 @@ export default function MirrorMoviesView({
           keyword: st.configuredKeyword,
           engine: st.searchEngine
         });
-        if (st.configuredKeyword) setCustomKeyword(st.configuredKeyword);
       }
     } finally {
       setLoading(false);
@@ -98,46 +84,6 @@ export default function MirrorMoviesView({
   useEffect(() => {
     fetchMovies();
   }, []);
-
-  const handleSaveConfig = async (e) => {
-    if (e) e.preventDefault();
-    try {
-      setSavingConfig(true);
-      const res = await api.post('/mirror/config', {
-        keyword: customKeyword,
-        searchEngine: customEngine,
-        fallbackDomain: manualDomain
-      });
-
-      if (res.data?.success) {
-        onShowToast?.('Configuration saved! Discovering active domain...', 'success');
-        setIsConfigOpen(false);
-        fetchMovies(true);
-      }
-    } catch (err) {
-      onShowToast?.(err.response?.data?.error || 'Failed to update config', 'error');
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
-  const handleManualOverride = async (e) => {
-    if (e) e.preventDefault();
-    if (!manualDomain) return;
-    try {
-      setSavingConfig(true);
-      const res = await api.post('/mirror/override', { domain: manualDomain });
-      if (res.data?.success) {
-        onShowToast?.(`Mirror domain set to ${res.data.data.domain}`, 'success');
-        setIsConfigOpen(false);
-        fetchMovies(false);
-      }
-    } catch (err) {
-      onShowToast?.(err.response?.data?.error || 'Failed to set domain', 'error');
-    } finally {
-      setSavingConfig(false);
-    }
-  };
 
   const handleCopy = (magnet, id) => {
     if (!magnet) return;
@@ -232,86 +178,8 @@ export default function MirrorMoviesView({
               <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-400' : ''}`} />
               <span className="hidden sm:inline">Rediscover</span>
             </button>
-
-            <button
-              onClick={() => setIsConfigOpen(!isConfigOpen)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#00DF81]/10 hover:bg-[#00DF81]/20 text-[#00DF81] border border-[#00DF81]/30 transition-all"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              <span>Keyword & Config</span>
-            </button>
           </div>
         </div>
-
-        {/* Expandable Configuration Drawer */}
-        {isConfigOpen && (
-          <div className="mt-5 pt-5 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Search className="w-3.5 h-3.5 text-emerald-400" />
-                Search Discovery Keyword
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Enter the name or keyword of the site. When saved, the server searches Google/Bing and follows the first organic link.
-              </p>
-              <form onSubmit={handleSaveConfig} className="space-y-3">
-                <div>
-                  <input
-                    type="text"
-                    value={customKeyword}
-                    onChange={(e) => setCustomKeyword(e.target.value)}
-                    placeholder="e.g. 1337x, tamilmv, piratebay"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="text-[11px] text-slate-400">Engine:</label>
-                  <select
-                    value={customEngine}
-                    onChange={(e) => setCustomEngine(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none"
-                  >
-                    <option value="bing">Bing (Fastest & Resilient)</option>
-                    <option value="google">Google</option>
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={savingConfig || !customKeyword.trim()}
-                    className="ml-auto px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950 disabled:opacity-50 transition-colors"
-                  >
-                    {savingConfig ? 'Saving...' : 'Save & Discover'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-sky-400" />
-                Manual Domain Override / Fallback
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                If search is throttled or the mirror requires a specific URL, you can enter it directly:
-              </p>
-              <form onSubmit={handleManualOverride} className="flex gap-2 items-center">
-                <input
-                  type="url"
-                  value={manualDomain}
-                  onChange={(e) => setManualDomain(e.target.value)}
-                  placeholder="https://your-mirror.to"
-                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={savingConfig || !manualDomain.trim()}
-                  className="px-3.5 py-2 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-600 text-slate-950 disabled:opacity-50 transition-colors shrink-0"
-                >
-                  Set Domain
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Filter & Search Controls */}
@@ -393,27 +261,28 @@ export default function MirrorMoviesView({
         </div>
       )}
 
-      {/* Empty / Unconfigured State */}
+      {/* Empty State */}
       {!loading && movies.length === 0 && (
         <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
             <Film className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-white">No Movies Found Yet</h3>
+            <h3 className="text-base sm:text-lg font-bold text-white">No Top Releases Found</h3>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              {mirrorStatus?.keyword
-                ? `No magnet links could be extracted from "${mirrorStatus.domain}". The domain might have changed or bot protection is active.`
-                : 'No search keyword has been set in configuration yet. Set your keyword to start discovering mirrors!'}
+              {error || (mirrorStatus?.domain
+                ? `Unable to load top releases from "${mirrorStatus.domain}". The domain might have changed or is temporarily unreachable.`
+                : 'Searching for active mirror and top releases...')}
             </p>
           </div>
 
           <button
-            onClick={() => setIsConfigOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all"
+            onClick={() => fetchMovies(true)}
+            disabled={rediscovering}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
           >
-            <Settings2 className="w-4 h-4" />
-            <span>Configure Search Keyword</span>
+            <RefreshCw className={`w-4 h-4 ${rediscovering ? 'animate-spin' : ''}`} />
+            <span>{rediscovering ? 'Rediscovering...' : 'Refresh Top Releases'}</span>
           </button>
         </div>
       )}

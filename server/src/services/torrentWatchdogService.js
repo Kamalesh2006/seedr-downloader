@@ -1,4 +1,5 @@
 const seedrService = require('./seedrService');
+const magnetStorage = require('./magnetStorageService');
 const config = require('../../config.json');
 
 class TorrentWatchdogService {
@@ -73,6 +74,7 @@ class TorrentWatchdogService {
           tracked = {
             id,
             name,
+            hash: torrent.hash || '',
             size,
             firstSeenAt: now,
             lastProgress: progress,
@@ -114,6 +116,9 @@ class TorrentWatchdogService {
 
   async autoDeleteTorrent(torrentId, name, size, reason) {
     try {
+      const tracked = this.trackedTorrents.get(String(torrentId));
+      const hash = (tracked && tracked.hash) || '';
+
       await seedrService.deleteTorrent(torrentId);
       this.trackedTorrents.delete(String(torrentId));
       
@@ -121,12 +126,22 @@ class TorrentWatchdogService {
         id: torrentId,
         name,
         size,
+        hash,
         reason,
         deletedAt: new Date().toISOString()
       };
 
       this.cleanedHistory = [record, ...this.cleanedHistory].slice(0, 20);
       console.log(`[Watchdog] ✅ Successfully cleaned up torrent "${name}" from Seedr storage (${reason}).`);
+
+      // Archive into 30-day deleted magnet storage
+      await magnetStorage.addDeletedMagnet({
+        id: torrentId,
+        name,
+        size,
+        hash,
+        deletedReason: `Watchdog auto-delete: ${reason}`
+      }).catch(err => console.error('[Watchdog] Failed to archive deleted magnet:', err.message));
 
       // Notify download queue to immediately process the next scheduled item
       try {
