@@ -254,8 +254,8 @@ function App() {
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark bg-[#070B14] text-slate-100' : 'light bg-[#F8FAFC] text-slate-900'} font-sans flex antialiased selection:bg-[#00DF81]/30 transition-colors duration-200`}>
       
-      {/* Desktop Left Sidebar */}
-      <div className="hidden md:block">
+      {/* Desktop Left Sidebar (Fixed / Sticky at top of viewport) */}
+      <div className="hidden md:block sticky top-0 h-screen z-40 shrink-0">
         <Sidebar 
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}

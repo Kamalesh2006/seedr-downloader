@@ -72,7 +72,7 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="w-64 bg-[#070D18] border-r border-slate-800/80 flex flex-col justify-between shrink-0 min-h-screen select-none">
+    <aside className="w-64 bg-[#070D18] border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full overflow-y-auto select-none">
       {/* Top Section */}
       <div>
         {/* Storage Account Header Card */}
