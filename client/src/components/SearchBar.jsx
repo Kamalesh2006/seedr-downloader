@@ -8,8 +8,11 @@ import {
   CheckCircle2, 
   Sparkles, 
   X,
-  ListOrdered
+  ListOrdered,
+  Flame,
+  Plus
 } from 'lucide-react';
+import api from '../api/client';
 import { extractMagnetName, isValidMagnet } from '../utils/magnet';
 
 export default function SearchBar({ 
@@ -28,6 +31,28 @@ export default function SearchBar({
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
   const [detectedName, setDetectedName] = useState('');
+  const [topReleases, setTopReleases] = useState([]);
+  const [loadingTop, setLoadingTop] = useState(false);
+
+  // Fetch top releases once for search suggestions
+  useEffect(() => {
+    let isMounted = true;
+    const loadTopReleases = async () => {
+      try {
+        setLoadingTop(true);
+        const res = await api.get('/mirror/movies');
+        if (isMounted && res.data?.success && Array.isArray(res.data.movies)) {
+          setTopReleases(res.data.movies.slice(0, 16));
+        }
+      } catch (e) {
+        // Silently fail if mirror is unreachable
+      } finally {
+        if (isMounted) setLoadingTop(false);
+      }
+    };
+    loadTopReleases();
+    return () => { isMounted = false; };
+  }, []);
 
   // Handle prefilled magnet link
   useEffect(() => {
@@ -82,6 +107,12 @@ export default function SearchBar({
         onSearch(query.trim());
       }
     }
+  };
+
+  const handleSelectTopRelease = (movie) => {
+    const term = movie.title || '';
+    setQuery(term);
+    onSearch(term);
   };
 
   const handleScheduleInQueue = (e) => {
@@ -216,36 +247,103 @@ export default function SearchBar({
             </div>
           </div>
         ) : (
-          <div className="flex gap-2">
-            <div className="relative flex-1 bg-[#090F1C] border border-[#1E293B] rounded-xl flex items-center focus-within:border-[#00DF81] focus-within:ring-1 focus-within:ring-[#00DF81]/30 transition-all overflow-hidden">
-              <Search className="w-5 h-5 text-slate-400 ml-3.5 shrink-0" />
-              <input
-                type="text"
-                placeholder="Search movies, TV series, anime, software..."
-                className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-sm sm:text-base px-3 py-3 sm:py-3.5 focus:outline-none"
-                value={query}
-                onChange={handleQueryChange}
-                disabled={loading}
-                autoFocus
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="p-1.5 text-slate-400 hover:text-slate-200 mr-2 rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <div className="relative flex-1 bg-[#090F1C] border border-[#1E293B] rounded-xl flex items-center focus-within:border-[#00DF81] focus-within:ring-1 focus-within:ring-[#00DF81]/30 transition-all overflow-hidden">
+                <Search className="w-5 h-5 text-slate-400 ml-3.5 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search movies, TV series, anime, regional releases..."
+                  className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-sm sm:text-base px-3 py-3 sm:py-3.5 focus:outline-none"
+                  value={query}
+                  onChange={handleQueryChange}
+                  disabled={loading}
+                  autoFocus
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="p-1.5 text-slate-400 hover:text-slate-200 mr-2 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !query.trim()}
+                className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center min-w-[80px] sm:min-w-[100px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95 text-sm"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
+              </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center min-w-[80px] sm:min-w-[100px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95 text-sm"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
-            </button>
+            {/* Top Releases in Search Torrents */}
+            <div className="pt-2 border-t border-[#1E293B]/70 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                  </span>
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-400" />
+                    Top Releases This Week
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    1TamilMV
+                  </span>
+                </div>
+                {loadingTop && (
+                  <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                    <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                    <span>Loading...</span>
+                  </div>
+                )}
+              </div>
+
+              {topReleases.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1 max-h-[160px] overflow-y-auto pr-1">
+                  {topReleases.map((movie, idx) => (
+                    <div
+                      key={movie.id || idx}
+                      onClick={() => handleSelectTopRelease(movie)}
+                      className="group inline-flex items-center gap-1.5 bg-[#090F1C] hover:bg-[#141F32] border border-[#1E293B] hover:border-[#00DF81]/50 rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer select-none"
+                      title={`Search for "${movie.title}"`}
+                    >
+                      <span className="text-slate-200 group-hover:text-[#00DF81] font-medium truncate max-w-[190px] sm:max-w-[240px]">
+                        {movie.title}
+                      </span>
+                      {movie.quality && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          {movie.quality}
+                        </span>
+                      )}
+                      {movie.size && movie.size !== 'Multi Quality' && (
+                        <span className="text-[10px] text-emerald-400 font-mono">
+                          {movie.size}
+                        </span>
+                      )}
+                      {movie.magnet && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddMagnet(movie.magnet, movie.title, movie.size);
+                          }}
+                          className="p-1 rounded hover:bg-[#00DF81]/20 text-[#00DF81] opacity-70 group-hover:opacity-100 transition-opacity"
+                          title="Quick Add to Seedr"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </form>

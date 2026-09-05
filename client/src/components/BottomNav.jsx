@@ -16,9 +16,9 @@ export default function BottomNav({
     },
     {
       id: 'discover',
-      label: 'Discover',
+      label: 'Top Releases',
       icon: Film,
-      badge: 'New',
+      badge: 'Hot',
       onClick: () => setCurrentTab('discover')
     },
     {

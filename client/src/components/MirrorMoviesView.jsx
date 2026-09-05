@@ -191,14 +191,14 @@ export default function MirrorMoviesView({
                 <Film className="w-5 h-5" />
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Discover Movies & Mirrors
+                Top Releases • 1TamilMV
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                PROXIED
+                PROXIED TOP RELEASES
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Dynamically searches for the latest active mirror domain, derives magnet links, and enables one-click Seedr cloud streaming.
+              Curated top movie & series releases of the week from the active mirror, with one-click Seedr cloud downloading and streaming.
             </p>
           </div>
 

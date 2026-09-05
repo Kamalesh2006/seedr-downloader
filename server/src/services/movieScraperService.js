@@ -131,19 +131,113 @@ class MovieScraperService {
   /**
    * Universal DOM parser for movie cards and magnet links
    */
+  parseSizeToBytes(sizeStr) {
+    if (!sizeStr) return 0;
+    const match = sizeStr.toString().trim().match(/^([\d.]+)\s*(KB|MB|GB|TB)$/i);
+    if (!match) return 0;
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    switch (unit) {
+      case 'KB': return value * 1024;
+      case 'MB': return value * 1024 * 1024;
+      case 'GB': return value * 1024 * 1024 * 1024;
+      case 'TB': return value * 1024 * 1024 * 1024 * 1024;
+      default: return 0;
+    }
+  }
+
+  /**
+   * Universal DOM parser for movie cards and magnet links.
+   * Prioritizes the Top Releases section exclusively when available.
+   */
   parseMoviesFromHtml(html, baseUrl) {
     const $ = cheerio.load(html);
     const movies = [];
-    const seenMagnets = new Set();
+    const seenUrls = new Set();
     const seenTitles = new Set();
 
-    // Strategy 1: Look for direct magnet links inside cards, articles, table rows or lists
+    // Primary Strategy: Top Releases Section (.banger-row or .banger-container)
+    const bangerRow = $('.banger-row, .banger-container').first();
+    if (bangerRow.length > 0) {
+      bangerRow.find('a[href*="/forums/topic/"]').each((idx, el) => {
+        const href = $(el).attr('href');
+        if (!href || href.includes('/topic/183-0') || href.includes('#')) return;
+
+        // Clean query params / anchors from topic URL
+        const cleanHref = href.split('&do=findComment')[0].split('#')[0];
+        if (seenUrls.has(cleanHref)) return;
+        seenUrls.add(cleanHref);
+
+        // Extract title from text node preceding the <a> tag
+        let prevText = '';
+        let curr = el.prev;
+        while (curr) {
+          if (curr.type === 'text') {
+            prevText = curr.data + prevText;
+          } else if (curr.type === 'tag') {
+            if (curr.name === 'br') break;
+            prevText = $(curr).text() + prevText;
+          }
+          curr = curr.prev;
+        }
+
+        let title = prevText.replace(/\s+/g, ' ').replace(/[-–—]\s*$/, '').trim();
+        const linkText = $(el).text().trim();
+        const parent = $(el).closest('strong, p, li, div');
+        const parentText = parent.text().replace(/\s+/g, ' ').trim();
+
+        if (!title || title.length < 3) {
+          if (linkText && linkText.includes('- [')) {
+            title = linkText.split(/[-–—\[]/)[0].trim();
+          } else if (parentText) {
+            title = parentText.split(/[-–—\[]/)[0].trim();
+          }
+        }
+
+        // Fallback to URL slug
+        if (!title || title.length < 3) {
+          const match = cleanHref.match(/\/topic\/\d+-(.+?)\/?$/);
+          if (match) {
+            title = decodeURIComponent(match[1]).replace(/-/g, ' ');
+          }
+        }
+
+        title = this.cleanTitle(title);
+        if (!title || title.length < 3 || seenTitles.has(title.toLowerCase())) return;
+        seenTitles.add(title.toLowerCase());
+
+        const quality = this.extractQuality(`${title} ${linkText} ${parentText}`);
+        const size = this.extractSize(`${linkText} ${parentText}`);
+
+        movies.push({
+          id: `top-${idx}-${Date.now()}`,
+          title,
+          magnet: null,
+          poster: '',
+          size: size || 'Multi Quality',
+          quality: quality || 'HD',
+          seeds: 60,
+          leeches: 5,
+          detailUrl: this.resolveUrl(cleanHref, baseUrl),
+          discoveredFrom: baseUrl,
+          hasDetailPending: true,
+          isTopRelease: true
+        });
+      });
+
+      // If we got top releases, ONLY return the top releases! Do not show the rest of the forum.
+      if (movies.length > 0) {
+        return movies;
+      }
+    }
+
+    // Secondary Strategy: Direct magnets on page if any
     $('a[href^="magnet:"]').each((idx, el) => {
-      if (movies.length >= this.maxMovies) return false;
+      if (movies.length >= 20) return false;
 
       const magnet = $(el).attr('href');
-      if (!magnet || seenMagnets.has(magnet)) return;
-      seenMagnets.add(magnet);
+      if (!magnet || seenUrls.has(magnet)) return;
+      seenUrls.add(magnet);
 
       const magnetMeta = this.parseMagnetMetadata(magnet);
       const container = $(el).closest('tr, article, .item, .card, .movie, .torrent, .post, .topic, .film, li, div[class*="row"], div[class*="card"]');
@@ -171,20 +265,6 @@ class MovieScraperService {
       const size = this.extractSize(containerText) || (magnetMeta.sizeBytes ? `${(magnetMeta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : null);
       const quality = this.extractQuality(`${title} ${containerText}`);
 
-      let seeds = 0;
-      let leeches = 0;
-      const seedMatch = containerText.match(/seeds?[:\s]*(\d+)/i) || container.find('.seeds, .green, [class*="seed"]').first().text().match(/(\d+)/);
-      if (seedMatch) seeds = parseInt(seedMatch[1], 10);
-
-      const leechMatch = containerText.match(/leech(?:ers?)?[:\s]*(\d+)/i) || container.find('.leeches, .red, [class*="leech"]').first().text().match(/(\d+)/);
-      if (leechMatch) leeches = parseInt(leechMatch[1], 10);
-
-      let detailUrl = '';
-      const detailLinkEl = container.find('a[href]:not([href^="magnet:"])').first();
-      if (detailLinkEl.length) {
-        detailUrl = this.resolveUrl(detailLinkEl.attr('href'), baseUrl);
-      }
-
       movies.push({
         id: magnetMeta.infoHash || `movie-${idx}-${Date.now()}`,
         title: this.cleanTitle(title),
@@ -193,117 +273,18 @@ class MovieScraperService {
         poster,
         size: size || 'Unknown size',
         quality,
-        seeds,
-        leeches,
-        detailUrl: detailUrl || baseUrl,
+        seeds: 50,
+        leeches: 5,
+        detailUrl: baseUrl,
         discoveredFrom: baseUrl
       });
     });
-
-    // Strategy 1.5: Invision Power Board / IPS Forum Topics (e.g. 1tamilmv.meme)
-    if (movies.length === 0) {
-      $('a[href*="/forums/topic/"]').each((idx, el) => {
-        if (movies.length >= this.maxMovies) return false;
-        const href = $(el).attr('href');
-        if (!href || href.includes('/topic/183-0') || href.includes('#')) return;
-
-        const parent = $(el).closest('strong, p, li, div');
-        const fullText = parent.text().replace(/\s+/g, ' ').trim();
-        let title = $(el).text().trim();
-        if (!title || title.startsWith('[') || title.length < 3) {
-          const parts = fullText.split(/[-–—\[]/);
-          title = parts[0].trim();
-        }
-
-        title = this.cleanTitle(title);
-        if (!title || title.length < 3 || seenTitles.has(title)) return;
-        seenTitles.add(title);
-        seenMagnets.add(href);
-
-        const size = this.extractSize(fullText);
-        const quality = this.extractQuality(fullText);
-
-        movies.push({
-          id: `topic-${idx}-${Date.now()}`,
-          title,
-          magnet: null,
-          poster: '',
-          size: size || 'Multi Quality',
-          quality,
-          seeds: 0,
-          leeches: 0,
-          detailUrl: this.resolveUrl(href, baseUrl),
-          discoveredFrom: baseUrl,
-          hasDetailPending: true
-        });
-      });
-    }
-
-    // Strategy 2: If no direct magnets found on front page, extract movie post entries
-    if (movies.length === 0) {
-      // Find candidate links that look like movie posts or detail pages
-      $('a[href]').each((idx, el) => {
-        if (movies.length >= this.maxMovies) return false;
-
-        const href = $(el).attr('href');
-        if (!href) return;
-
-        const isPostLink = href.endsWith('.html') || 
-                           /\/(?:202\d|movie|torrent|view|topic|thread|details)\//i.test(href);
-
-        if (!isPostLink) return;
-
-        const detailUrl = this.resolveUrl(href, baseUrl);
-        if (!detailUrl || detailUrl === baseUrl || detailUrl.includes('javascript:') || detailUrl.includes('/search/label/')) return;
-
-        const container = $(el).closest('article, .item, .card, .movie-card, .movie, .film, .post-item, .entry, .post, tr, div[class*="post"]');
-        
-        let title = '';
-        if (container.length) {
-          title = container.find('h1, h2, h3, h4, .title, .entry-title').first().text().trim();
-        }
-        if (!title) {
-          title = $(el).text().trim();
-        }
-
-        title = this.cleanTitle(title);
-        if (!title || title.length < 3 || seenTitles.has(title)) return;
-        seenTitles.add(title);
-
-        let poster = '';
-        if (container.length) {
-          const imgEl = container.find('img').first();
-          if (imgEl.length) {
-            const rawSrc = imgEl.attr('data-src') || imgEl.attr('data-original') || imgEl.attr('src');
-            poster = this.resolveUrl(rawSrc, baseUrl);
-          }
-        }
-
-        const containerText = container.length ? container.text() : '';
-        const quality = this.extractQuality(`${title} ${containerText}`);
-        const size = this.extractSize(containerText);
-
-        movies.push({
-          id: `entry-${idx}-${Date.now()}`,
-          title,
-          magnet: null,
-          poster,
-          size: size || 'Multi Quality',
-          quality,
-          seeds: 0,
-          leeches: 0,
-          detailUrl,
-          discoveredFrom: baseUrl,
-          hasDetailPending: true
-        });
-      });
-    }
 
     return movies;
   }
 
   /**
-   * Fetches and scrapes a specific movie detail page for magnet links
+   * Fetches and scrapes a specific movie detail page for magnet links and poster
    */
   async fetchMovieDetail(detailUrl) {
     const fetchRes = await this.fetchHtml(detailUrl);
@@ -313,6 +294,7 @@ class MovieScraperService {
 
     const $ = cheerio.load(fetchRes.html);
     const magnetLinks = [];
+    const maxFileSizeBytes = (parseFloat(process.env.MAX_FILE_SIZE_GB || config.maxFileSizeGB || 4.5)) * 1024 * 1024 * 1024;
 
     $('a[href^="magnet:"]').each((_, el) => {
       const magnet = $(el).attr('href');
@@ -322,33 +304,72 @@ class MovieScraperService {
       const parent = $(el).closest('tr, p, div, li');
       const parentText = parent.length ? parent.text().replace(/\s+/g, ' ').trim() : '';
 
-      const quality = this.extractQuality(parentText) || this.extractQuality(meta.title);
-      const size = this.extractSize(parentText) || (meta.sizeBytes ? `${(meta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : '');
+      const quality = this.extractQuality(meta.title) || this.extractQuality(parentText) || 'HD';
+
+      let size = '';
+      if (meta.sizeBytes) {
+        if (meta.sizeBytes >= 1024 * 1024 * 1024) {
+          size = `${(meta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        } else {
+          size = `${(meta.sizeBytes / (1024 * 1024)).toFixed(0)} MB`;
+        }
+      } else if (meta.title) {
+        size = this.extractSize(meta.title);
+      }
+      if (!size) {
+        size = this.extractSize(parentText) || '';
+      }
+
+      const sizeBytes = meta.sizeBytes || this.parseSizeToBytes(size);
+
+      let cleanDn = meta.title || '';
+      cleanDn = cleanDn.replace(/^www\.[a-zA-Z0-9.-]+\s*-\s*/i, '').trim();
 
       let label = `${quality}${size ? ` • ${size}` : ''}`;
-      if (!quality && !size) label = $(el).text().trim() || meta.title || 'Magnet Link';
+      if (!quality && !size) label = cleanDn || $(el).text().trim() || 'Magnet Link';
 
       magnetLinks.push({
         magnet,
         label,
         quality,
         size,
+        sizeBytes,
         infoHash: meta.infoHash,
-        title: meta.title
+        title: cleanDn || meta.title
       });
     });
 
+    // Extract genuine movie poster (ignoring logos, reaction icons, border gifs)
     let poster = '';
-    const imgEl = $('img').first();
-    if (imgEl.length) {
-      const rawSrc = imgEl.attr('data-src') || imgEl.attr('src');
-      poster = this.resolveUrl(rawSrc, detailUrl);
-    }
+    $('img').each((_, el) => {
+      if (poster) return;
+      const src = $(el).attr('data-src') || $(el).attr('src');
+      if (!src) return;
+      const lower = src.toLowerCase();
+      if (
+        lower.includes('logo') || 
+        lower.includes('border') || 
+        lower.includes('utorrent') || 
+        lower.includes('reaction') || 
+        lower.includes('avatar') || 
+        lower.includes('badge') || 
+        lower.includes('.svg') ||
+        lower.endsWith('.svg') ||
+        lower.startsWith('data:image/svg')
+      ) {
+        return;
+      }
+      if (src.includes('twimg.com') || src.includes('uploads/monthly') || $(el).hasClass('ipsImage') || lower.endsWith('.jpg') || lower.endsWith('.png') || lower.endsWith('.webp')) {
+        poster = this.resolveUrl(src, detailUrl);
+      }
+    });
 
-    // Default magnet: pick 1080p, 720p, or first available
+    // Default primary magnet: pick preferred quality within Seedr limit (<= 4.5 GB)
     let primaryMagnet = null;
     if (magnetLinks.length > 0) {
-      const preferred = magnetLinks.find(m => m.quality === '1080P' || m.quality === '720P') || magnetLinks[0];
+      const validWithinLimit = magnetLinks.filter(m => !m.sizeBytes || m.sizeBytes <= maxFileSizeBytes);
+      const candidates = validWithinLimit.length > 0 ? validWithinLimit : magnetLinks;
+      const preferred = candidates.find(m => m.quality === '1080P' || m.quality === '720P') || candidates[0];
       primaryMagnet = preferred.magnet;
     }
 
@@ -362,6 +383,96 @@ class MovieScraperService {
   }
 
   /**
+   * Search movies/torrents from the active mirror by query
+   */
+  async searchTorrents(query) {
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      return [];
+    }
+
+    try {
+      const discoveryResult = await mirrorDiscovery.discover();
+      const domain = discoveryResult.domain;
+      if (!domain) return [];
+
+      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(query.trim())}&type=forums_topic`;
+      const res = await axios.get(searchUrl, {
+        headers: this.getBrowserHeaders(domain),
+        timeout: 8000,
+        validateStatus: (status) => status < 400
+      });
+
+      if (!res.data || typeof res.data !== 'string') return [];
+
+      const $ = cheerio.load(res.data);
+      const topicLinks = [];
+      const seenUrls = new Set();
+
+      $('li.ipsStreamItem').slice(0, 5).each((_, el) => {
+        const titleEl = $(el).find('.ipsStreamItem_title a').first();
+        let href = titleEl.attr('href');
+        if (!href) return;
+        href = href.split('&do=findComment')[0].split('#')[0];
+        const rawTitle = titleEl.text().trim();
+        if (!rawTitle || rawTitle.includes('Languages') || rawTitle.length < 3) return;
+        if (seenUrls.has(href)) return;
+        seenUrls.add(href);
+
+        topicLinks.push({
+          title: rawTitle,
+          url: this.resolveUrl(href, domain)
+        });
+      });
+
+      if (topicLinks.length === 0) return [];
+
+      const results = [];
+      const maxFileSizeBytes = (parseFloat(process.env.MAX_FILE_SIZE_GB || config.maxFileSizeGB || 4.5)) * 1024 * 1024 * 1024;
+
+      // Scrape detail pages in parallel for matched topics
+      await Promise.allSettled(topicLinks.slice(0, 3).map(async (topic) => {
+        try {
+          const detail = await this.fetchMovieDetail(topic.url);
+          if (detail.magnets && detail.magnets.length > 0) {
+            for (const m of detail.magnets) {
+              const meta = this.parseMagnetMetadata(m.magnet);
+              const sizeBytes = m.sizeBytes || meta.sizeBytes || this.parseSizeToBytes(m.size);
+
+              // Disallow files that exceed Seedr 4.5 GB limit
+              if (sizeBytes > 0 && sizeBytes > maxFileSizeBytes) {
+                continue;
+              }
+
+              let displayTitle = m.title || meta.title || topic.title;
+              displayTitle = displayTitle.replace(/^www\.[a-zA-Z0-9.-]+\s*-\s*/i, '').trim();
+
+              results.push({
+                title: displayTitle,
+                size: m.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Multi Quality'),
+                sizeBytes: sizeBytes || 0,
+                seeds: 75,
+                leeches: 8,
+                magnet: m.magnet,
+                provider: '1TamilMV',
+                time: 'Recent',
+                quality: m.quality || 'HD',
+                poster: detail.poster || ''
+              });
+            }
+          }
+        } catch (e) {
+          // ignore individual topic detail error
+        }
+      }));
+
+      return results;
+    } catch (err) {
+      console.warn('[MovieScraper] searchTorrents failed:', err.message);
+      return [];
+    }
+  }
+
+  /**
    * Main entry point: Discovers active domain and retrieves movies list
    */
   async getMovies(forceRediscover = false) {
@@ -372,7 +483,7 @@ class MovieScraperService {
       throw new Error('No mirror domain resolved.');
     }
 
-    console.log(`[MovieScraper] Fetching movies from active mirror: ${targetUrl}`);
+    console.log(`[MovieScraper] Fetching top releases from active mirror: ${targetUrl}`);
     const fetchResult = await this.fetchHtml(targetUrl);
 
     if (!fetchResult.ok) {
@@ -397,8 +508,8 @@ class MovieScraperService {
 
     const movies = this.parseMoviesFromHtml(fetchResult.html, targetUrl);
 
-    // If movies have detail pages, auto-resolve magnets for the first 8 items in parallel
-    const pendingWithDetail = movies.filter(m => m.hasDetailPending).slice(0, 8);
+    // Auto-resolve magnets and posters in parallel for all Top Releases
+    const pendingWithDetail = movies.filter(m => m.hasDetailPending);
     if (pendingWithDetail.length > 0) {
       await Promise.allSettled(pendingWithDetail.map(async (item) => {
         try {

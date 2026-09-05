@@ -34,9 +34,9 @@ export default function Sidebar({
     },
     { 
       id: 'discover', 
-      label: 'Discover Movies', 
+      label: 'Top Releases', 
       icon: Film, 
-      badge: 'New',
+      badge: 'Hot',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },
     { 

@@ -20,6 +20,16 @@ router.get('/movies', async (req, res) => {
   }
 });
 
+// GET /api/mirror/top (Convenience endpoint for Top Releases)
+router.get('/top', async (req, res) => {
+  try {
+    const data = await movieScraper.getMovies(req.query.refresh === 'true');
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/mirror/rediscover
 router.post('/rediscover', async (req, res) => {
   try {
