@@ -65,6 +65,8 @@ function App() {
   } = useQueue();
   
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [dashboardMode, setDashboardMode] = useState('magnet');
+  const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -292,57 +294,93 @@ function App() {
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
+                mode={dashboardMode}
+                onModeChange={setDashboardMode}
+                searchQuery={searchQuery}
+                onSearchQueryChange={setSearchQuery}
               />
 
-              {/* Storage Capacity Card */}
-              <StorageCard 
-                storage={storage} 
-                onClickDetails={() => setCurrentTab('storage')}
-              />
+              {/* When Search Torrents is selected, render the mirror movies right here, same page as Top Releases */}
+              {dashboardMode === 'search' ? (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  <MirrorMoviesView 
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onAddMagnet={handleAddMagnet}
+                    onAddToQueue={handleAddToQueue}
+                    onShowToast={(msg, type) => showToast(msg, type)}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                  />
 
-              {searchError && (
-                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
-                  {searchError}
+                  {results.length > 0 && (
+                    <div className="pt-8 border-t border-[#1E293B] space-y-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-200">Additional Public Indexer Results</h3>
+                        <p className="text-xs text-slate-400">Torrents found from 1337x, ThePirateBay, and YTS</p>
+                      </div>
+                      <SearchResults 
+                        results={results} 
+                        onDownload={handleAddMagnet} 
+                        onAddToQueue={handleAddToQueue}
+                      />
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <>
+                  {/* Storage Capacity Card */}
+                  <StorageCard 
+                    storage={storage} 
+                    onClickDetails={() => setCurrentTab('storage')}
+                  />
+
+                  {searchError && (
+                    <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
+                      {searchError}
+                    </div>
+                  )}
+
+                  {/* Torrent Search Results */}
+                  {results.length > 0 && (
+                    <SearchResults 
+                      results={results} 
+                      onDownload={handleAddMagnet} 
+                      onAddToQueue={handleAddToQueue}
+                    />
+                  )}
+
+                  {/* Active Cloud Downloads in Seedr */}
+                  <ActiveDownloads 
+                    transfers={activeTransfers} 
+                    onCancel={(id, type) => handleDelete(id, type || 'torrent')}
+                  />
+
+                  {/* Upcoming Download Schedule / Queue Manager */}
+                  <QueueManager 
+                    queue={queue}
+                    isAutoEnabled={isAutoEnabled}
+                    onMoveItem={moveItem}
+                    onRemoveItem={removeFromQueue}
+                    onClearQueue={clearQueue}
+                    onToggleAuto={toggleAutoQueue}
+                    onSendNow={handleSendFromQueueNow}
+                  />
+
+                  {/* Completed Files in Seedr Cloud */}
+                  <CompletedFiles 
+                    files={completedFiles} 
+                    activeTorrents={cloudTorrents}
+                    storage={storage}
+                    folderContents={folderContents}
+                    loading={seedrLoading}
+                    onRefresh={refreshFiles}
+                    onFetchFolder={fetchFolderContents}
+                    onDownload={handleDownloadFile} 
+                    onDelete={handleDelete} 
+                    getDownloadUrl={getDownloadUrl}
+                  />
+                </>
               )}
-
-              {/* Torrent Search Results */}
-              <SearchResults 
-                results={results} 
-                onDownload={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
-              />
-
-              {/* Active Cloud Downloads in Seedr */}
-              <ActiveDownloads 
-                transfers={activeTransfers} 
-                onCancel={(id, type) => handleDelete(id, type || 'torrent')}
-              />
-
-              {/* Upcoming Download Schedule / Queue Manager */}
-              <QueueManager 
-                queue={queue}
-                isAutoEnabled={isAutoEnabled}
-                onMoveItem={moveItem}
-                onRemoveItem={removeFromQueue}
-                onClearQueue={clearQueue}
-                onToggleAuto={toggleAutoQueue}
-                onSendNow={handleSendFromQueueNow}
-              />
-
-              {/* Completed Files in Seedr Cloud */}
-              <CompletedFiles 
-                files={completedFiles} 
-                activeTorrents={cloudTorrents}
-                storage={storage}
-                folderContents={folderContents}
-                loading={seedrLoading}
-                onRefresh={refreshFiles}
-                onFetchFolder={fetchFolderContents}
-                onDownload={handleDownloadFile} 
-                onDelete={handleDelete} 
-                getDownloadUrl={getDownloadUrl}
-              />
             </>
           )}
 

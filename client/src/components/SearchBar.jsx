@@ -25,15 +25,29 @@ export default function SearchBar({
   onOpenRecent,
   prefilledMagnet = null,
   prefilledName = null,
-  isQueueTab = false
+  isQueueTab = false,
+  mode: propMode,
+  onModeChange,
+  searchQuery = '',
+  onSearchQueryChange
 }) {
-  const [mode, setMode] = useState('magnet'); // 'magnet' is first and default
-  const [query, setQuery] = useState('');
+  const [internalMode, setInternalMode] = useState('magnet'); // 'magnet' is first and default
+  const mode = propMode !== undefined ? propMode : internalMode;
+  const setMode = (m) => {
+    setInternalMode(m);
+    onModeChange?.(m);
+  };
+
+  const [internalQuery, setInternalQuery] = useState('');
+  const query = searchQuery !== undefined && searchQuery !== '' ? searchQuery : internalQuery;
+  const setQuery = (q) => {
+    setInternalQuery(q);
+    onSearchQueryChange?.(q);
+  };
+
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
   const [detectedName, setDetectedName] = useState('');
-  const [topReleases, setTopReleases] = useState([]);
-  const [loadingTop, setLoadingTop] = useState(false);
 
   // Fetch top releases once for search suggestions
   useEffect(() => {
@@ -322,71 +336,6 @@ export default function SearchBar({
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
               </button>
-            </div>
-
-            {/* Top Releases in Search Torrents */}
-            <div className="pt-2 border-t border-[#1E293B]/70 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                  </span>
-                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <Flame className="w-3.5 h-3.5 text-orange-400" />
-                    Top Releases This Week
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    1TamilMV
-                  </span>
-                </div>
-                {loadingTop && (
-                  <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
-                    <span>Loading...</span>
-                  </div>
-                )}
-              </div>
-
-              {topReleases.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1 max-h-[160px] overflow-y-auto pr-1">
-                  {topReleases.map((movie, idx) => (
-                    <div
-                      key={movie.id || idx}
-                      onClick={() => handleSelectTopRelease(movie)}
-                      className="group inline-flex items-center gap-1.5 bg-[#090F1C] hover:bg-[#141F32] border border-[#1E293B] hover:border-[#00DF81]/50 rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer select-none"
-                      title={`Search for "${movie.title}"`}
-                    >
-                      <span className="text-slate-200 group-hover:text-[#00DF81] font-medium truncate max-w-[190px] sm:max-w-[240px]">
-                        {movie.title}
-                      </span>
-                      {movie.quality && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                          {movie.quality}
-                        </span>
-                      )}
-                      {movie.size && movie.size !== 'Multi Quality' && (
-                        <span className="text-[10px] text-emerald-400 font-mono">
-                          {movie.size}
-                        </span>
-                      )}
-                      {movie.magnet && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddMagnet(movie.magnet, movie.title, movie.size);
-                          }}
-                          className="p-1 rounded hover:bg-[#00DF81]/20 text-[#00DF81] opacity-70 group-hover:opacity-100 transition-opacity"
-                          title="Quick Add to Seedr"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}

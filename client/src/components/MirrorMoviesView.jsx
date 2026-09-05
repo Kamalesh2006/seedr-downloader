@@ -21,7 +21,9 @@ export default function MirrorMoviesView({
   onAddMagnet,
   onAddToQueue,
   onShowToast,
-  onOpenSettings
+  onOpenSettings,
+  searchQuery = '',
+  onSearchChange = null
 }) {
   const [topReleases, setTopReleases] = useState([]);
   const [allMovies, setAllMovies] = useState([]);
@@ -226,8 +228,25 @@ export default function MirrorMoviesView({
         }
       }
     }
-    return Array.from(map.values());
-  }, [topReleases, allMovies, viewMode]);
+
+    let result = Array.from(map.values());
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(m => 
+        (m.title && m.title.toLowerCase().includes(q)) ||
+        (m.rawTitle && m.rawTitle.toLowerCase().includes(q)) ||
+        (m.year && m.year.includes(q)) ||
+        (m.languages && m.languages.some(l => l.toLowerCase().includes(q))) ||
+        (m.quality && m.quality.toLowerCase().includes(q)) ||
+        (m.magnets && m.magnets.some(link => 
+          (link.title && link.title.toLowerCase().includes(q)) ||
+          (link.quality && link.quality.toLowerCase().includes(q)) ||
+          (link.language && link.language.toLowerCase().includes(q))
+        ))
+      );
+    }
+    return result;
+  }, [topReleases, allMovies, viewMode, searchQuery]);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -343,6 +362,30 @@ export default function MirrorMoviesView({
         </div>
       </div>
 
+      {/* Active Search Query Filter Pill */}
+      {searchQuery && searchQuery.trim() && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#090F1C] border border-[#1E293B] rounded-xl text-xs text-slate-300">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Filtering mirror by:</span>
+            <span className="font-bold text-[#00DF81] bg-[#00DF81]/10 px-2 py-0.5 rounded-md border border-[#00DF81]/20">
+              "{searchQuery}"
+            </span>
+            <span className="text-slate-500">
+              ({displayedMovies.length} {displayedMovies.length === 1 ? 'match' : 'matches'})
+            </span>
+          </div>
+          {onSearchChange && (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              className="text-xs text-slate-400 hover:text-white underline ml-auto"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Error / Cloudflare Notice */}
       {error && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3">
@@ -382,22 +425,55 @@ export default function MirrorMoviesView({
             <Film className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-white">No Releases Found</h3>
+            <h3 className="text-base sm:text-lg font-bold text-white">
+              {searchQuery && searchQuery.trim() ? `No releases matching "${searchQuery}"` : 'No Releases Found'}
+            </h3>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              {error || (mirrorStatus?.domain
-                ? `Unable to load releases from "${mirrorStatus.domain}". The domain might have changed or is temporarily unreachable.`
-                : 'Searching for active mirror and top releases...')}
+              {searchQuery && searchQuery.trim() ? (
+                viewMode === 'top' 
+                  ? `No matching releases in Top Releases. Would you like to check across All Movies & Releases (${allMovies.length} total)?`
+                  : `No releases matching "${searchQuery}" found on ${mirrorStatus?.domain || 'the mirror'}.`
+              ) : (
+                error || (mirrorStatus?.domain
+                  ? `Unable to load releases from "${mirrorStatus.domain}". The domain might have changed or is temporarily unreachable.`
+                  : 'Searching for active mirror and top releases...')
+              )}
             </p>
           </div>
 
-          <button
-            onClick={() => fetchMovies(true)}
-            disabled={rediscovering}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] hover:bg-[#00c572] text-[#071911] shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${rediscovering ? 'animate-spin' : ''}`} />
-            <span>{rediscovering ? 'Rediscovering...' : 'Refresh Releases'}</span>
-          </button>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {searchQuery && searchQuery.trim() && viewMode === 'top' && (
+              <button
+                type="button"
+                onClick={() => setViewMode('all')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] text-[#071911] shadow-lg shadow-emerald-500/20"
+              >
+                <Film className="w-4 h-4" />
+                <span>Search in All Movies & Releases</span>
+              </button>
+            )}
+
+            {searchQuery && searchQuery.trim() && onSearchChange && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700"
+              >
+                <span>Clear Search</span>
+              </button>
+            )}
+
+            {(!searchQuery || !searchQuery.trim()) && (
+              <button
+                onClick={() => fetchMovies(true)}
+                disabled={rediscovering}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] hover:bg-[#00c572] text-[#071911] shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${rediscovering ? 'animate-spin' : ''}`} />
+                <span>{rediscovering ? 'Rediscovering...' : 'Refresh Releases'}</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
