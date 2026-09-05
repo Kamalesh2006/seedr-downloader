@@ -24,7 +24,8 @@ export default function SearchBar({
   queueCount = 0,
   onOpenRecent,
   prefilledMagnet = null,
-  prefilledName = null
+  prefilledName = null,
+  isQueueTab = false
 }) {
   const [mode, setMode] = useState('magnet'); // 'magnet' is first and default
   const [query, setQuery] = useState('');
@@ -94,7 +95,11 @@ export default function SearchBar({
     e.preventDefault();
     if (mode === 'magnet' && magnet.trim()) {
       const finalName = customName.trim() || detectedName || 'Magnet Download';
-      onAddMagnet(magnet.trim(), finalName);
+      if (isQueueTab && onAddToQueue) {
+        onAddToQueue(magnet.trim(), finalName);
+      } else {
+        onAddMagnet(magnet.trim(), finalName);
+      }
       setMagnet('');
       setCustomName('');
       setDetectedName('');
@@ -171,10 +176,14 @@ export default function SearchBar({
               <div className="flex items-start gap-2.5">
                 <LinkIcon className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
                 <textarea
-                  placeholder="Paste magnet link (magnet:?xt=urn:btih:...)..."
-                  className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-xs sm:text-sm font-mono focus:outline-none min-h-[85px] resize-y placeholder:font-sans"
+                  rows={3}
                   value={magnet}
                   onChange={(e) => setMagnet(e.target.value)}
+                  placeholder={isQueueTab 
+                    ? "Paste or copy magnet link here to schedule in upcoming queue (magnet:?xt=urn:btih:...)..."
+                    : "Paste magnet link (magnet:?xt=urn:btih:...)..."
+                  }
+                  className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-xs sm:text-sm p-3.5 focus:outline-none resize-none font-mono"
                   disabled={loading}
                   autoFocus
                 />
@@ -225,24 +234,59 @@ export default function SearchBar({
               </div>
               
               <div className="flex items-center gap-2.5 ml-auto">
-                <button
-                  type="button"
-                  onClick={handleScheduleInQueue}
-                  disabled={loading || !magnet.trim()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all disabled:opacity-40 active:scale-95"
-                  title="Schedule in upcoming download queue"
-                >
-                  <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Schedule Queue</span>
-                </button>
+                {isQueueTab ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (magnet.trim()) {
+                          onAddMagnet(magnet.trim(), customName.trim() || detectedName || 'Magnet Download');
+                          setMagnet('');
+                          setCustomName('');
+                          setDetectedName('');
+                        }
+                      }}
+                      disabled={loading || !magnet.trim()}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all disabled:opacity-40"
+                      title="Direct download in Seedr immediately"
+                    >
+                      <span>Direct Seedr</span>
+                    </button>
 
-                <button
-                  type="submit"
-                  disabled={loading || !magnet.trim()}
-                  className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
-                </button>
+                    <button
+                      type="button"
+                      onClick={handleScheduleInQueue}
+                      disabled={loading || !magnet.trim()}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 min-w-[170px] disabled:opacity-40 shadow-md shadow-indigo-500/25 active:scale-95"
+                      title="Add to upcoming download queue"
+                    >
+                      <ListOrdered className="w-4 h-4" />
+                      <span>Add to Upcoming Queue</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleScheduleInQueue}
+                      disabled={loading || !magnet.trim()}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all disabled:opacity-40 active:scale-95"
+                      title="Schedule in upcoming download queue"
+                    >
+                      <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Schedule Queue</span>
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !magnet.trim()}
+                      className="bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-[130px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

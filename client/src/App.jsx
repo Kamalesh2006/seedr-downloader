@@ -351,17 +351,12 @@ function App() {
                 </p>
               </div>
 
-              <QueueManager 
-                queue={queue}
-                isAutoEnabled={isAutoEnabled}
-                onMoveItem={moveItem}
-                onRemoveItem={removeFromQueue}
-                onClearQueue={clearQueue}
-                onToggleAuto={toggleAutoQueue}
-                onSendNow={handleSendFromQueueNow}
-              />
+              {/* Active Cloud Downloads if any torrent is currently downloading in Seedr */}
+              {activeTransfers.length > 0 && (
+                <ActiveDownloads transfers={activeTransfers} onCancel={handleCancelTransfer} />
+              )}
 
-              {/* Search Bar for quickly adding to queue */}
+              {/* Input for pasting or adding magnet links to the upcoming queue */}
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
@@ -370,13 +365,28 @@ function App() {
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
+                isQueueTab={true}
               />
 
-              <SearchResults 
-                results={results} 
-                onDownload={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
+              {/* Upcoming Download Queue List (Always visible) */}
+              <QueueManager 
+                queue={queue}
+                isAutoEnabled={isAutoEnabled}
+                onMoveItem={moveItem}
+                onRemoveItem={removeFromQueue}
+                onClearQueue={clearQueue}
+                onToggleAuto={toggleAutoQueue}
+                onSendNow={handleSendFromQueueNow}
+                onShowToast={(msg, type) => showToast(msg, type)}
               />
+
+              {results.length > 0 && (
+                <SearchResults 
+                  results={results} 
+                  onDownload={handleAddMagnet} 
+                  onAddToQueue={handleAddToQueue}
+                />
+              )}
             </div>
           )}
 
