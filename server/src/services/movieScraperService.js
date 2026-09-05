@@ -152,7 +152,8 @@ class MovieScraperService {
    */
   parseMoviesFromHtml(html, baseUrl) {
     const $ = cheerio.load(html);
-    const movies = [];
+    const topReleases = [];
+    const extraMovies = [];
     const seenUrls = new Set();
     const seenTitles = new Set();
 
@@ -209,7 +210,7 @@ class MovieScraperService {
         const quality = this.extractQuality(`${title} ${linkText} ${parentText}`);
         const size = this.extractSize(`${linkText} ${parentText}`);
 
-        movies.push({
+        topReleases.push({
           id: `top-${idx}-${Date.now()}`,
           title,
           magnet: null,
@@ -224,63 +225,60 @@ class MovieScraperService {
           isTopRelease: true
         });
       });
-
-      // If we got top releases, ONLY return the top releases! Do not show the rest of the forum.
-      if (movies.length > 0) {
-        return movies;
-      }
     }
 
-    // Secondary Strategy: Direct magnets on page if any
-    $('a[href^="magnet:"]').each((idx, el) => {
-      if (movies.length >= 20) return false;
+    // Secondary Strategy: Additional latest forum releases across the page
+    $('a[href*="/forums/topic/"]').each((idx, el) => {
+      if (extraMovies.length >= 60) return false;
+      const href = $(el).attr('href');
+      if (!href || href.includes('/topic/183-0') || href.includes('#')) return;
 
-      const magnet = $(el).attr('href');
-      if (!magnet || seenUrls.has(magnet)) return;
-      seenUrls.add(magnet);
+      const cleanHref = href.split('&do=findComment')[0].split('#')[0];
+      if (seenUrls.has(cleanHref)) return;
+      seenUrls.add(cleanHref);
 
-      const magnetMeta = this.parseMagnetMetadata(magnet);
-      const container = $(el).closest('tr, article, .item, .card, .movie, .torrent, .post, .topic, .film, li, div[class*="row"], div[class*="card"]');
-      const containerText = container.length ? container.text() : '';
+      const parent = $(el).closest('strong, p, li, div');
+      const parentText = parent.text().replace(/\s+/g, ' ').trim();
+      let title = $(el).text().trim();
+      if (!title || title.startsWith('[') || title.length < 3) {
+        title = parentText.split(/[-–—\[]/)[0].trim();
+      }
 
-      let title = $(el).attr('title') || $(el).text().trim();
-      if (!title || title.toLowerCase().includes('magnet') || title.toLowerCase().includes('download') || title.length < 3) {
-        const heading = container.find('h1, h2, h3, h4, .title, .name, a[class*="title"]').first();
-        if (heading.length && heading.text().trim()) {
-          title = heading.text().trim();
-        } else if (magnetMeta.title) {
-          title = magnetMeta.title;
-        } else {
-          title = 'Movie ' + (idx + 1);
+      if (!title || title.length < 3) {
+        const match = cleanHref.match(/\/topic\/\d+-(.+?)\/?$/);
+        if (match) {
+          title = decodeURIComponent(match[1]).replace(/-/g, ' ');
         }
       }
 
-      let poster = '';
-      const imgEl = container.find('img').first();
-      if (imgEl.length) {
-        const rawSrc = imgEl.attr('data-src') || imgEl.attr('data-original') || imgEl.attr('src');
-        poster = this.resolveUrl(rawSrc, baseUrl);
-      }
+      title = this.cleanTitle(title);
+      if (!title || title.length < 3 || seenTitles.has(title.toLowerCase())) return;
+      seenTitles.add(title.toLowerCase());
 
-      const size = this.extractSize(containerText) || (magnetMeta.sizeBytes ? `${(magnetMeta.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : null);
-      const quality = this.extractQuality(`${title} ${containerText}`);
+      const quality = this.extractQuality(`${title} ${parentText}`);
+      const size = this.extractSize(`${title} ${parentText}`);
 
-      movies.push({
-        id: magnetMeta.infoHash || `movie-${idx}-${Date.now()}`,
-        title: this.cleanTitle(title),
-        magnet,
-        infoHash: magnetMeta.infoHash || '',
-        poster,
-        size: size || 'Unknown size',
-        quality,
-        seeds: 50,
-        leeches: 5,
-        detailUrl: baseUrl,
-        discoveredFrom: baseUrl
+      extraMovies.push({
+        id: `extra-${idx}-${Date.now()}`,
+        title,
+        magnet: null,
+        poster: '',
+        size: size || 'Multi Quality',
+        quality: quality || 'HD',
+        seeds: 35,
+        leeches: 4,
+        detailUrl: this.resolveUrl(cleanHref, baseUrl),
+        discoveredFrom: baseUrl,
+        hasDetailPending: true,
+        isTopRelease: false
       });
     });
 
-    return movies;
+    return {
+      topReleases,
+      allMovies: [...topReleases, ...extraMovies],
+      extraMovies
+    };
   }
 
   /**
@@ -506,10 +504,12 @@ class MovieScraperService {
       throw new Error(`Failed to access mirror at ${targetUrl}: ${fetchResult.error || `HTTP ${fetchResult.status}`}`);
     }
 
-    const movies = this.parseMoviesFromHtml(fetchResult.html, targetUrl);
+    const { topReleases, allMovies } = this.parseMoviesFromHtml(fetchResult.html, targetUrl);
+    const resolvedTop = topReleases || [];
+    const resolvedAll = allMovies || resolvedTop;
 
     // Auto-resolve magnets and posters in parallel for all Top Releases
-    const pendingWithDetail = movies.filter(m => m.hasDetailPending);
+    const pendingWithDetail = resolvedTop.filter(m => m.hasDetailPending);
     if (pendingWithDetail.length > 0) {
       await Promise.allSettled(pendingWithDetail.map(async (item) => {
         try {
@@ -537,8 +537,11 @@ class MovieScraperService {
       searchEngine: discoveryResult.engine,
       cachedDomain: discoveryResult.cached || false,
       discoveredAt: discoveryResult.discoveredAt,
-      movies,
-      count: movies.length,
+      topReleases: resolvedTop,
+      movies: resolvedTop,
+      allMovies: resolvedAll,
+      count: resolvedTop.length,
+      totalCount: resolvedAll.length,
       lastUpdated: new Date().toISOString()
     };
   }

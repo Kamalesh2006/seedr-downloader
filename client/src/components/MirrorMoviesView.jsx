@@ -14,7 +14,9 @@ import {
   Play, 
   X,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Flame,
+  ChevronDown
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr } from '../utils/magnet';
@@ -24,7 +26,9 @@ export default function MirrorMoviesView({
   onAddToQueue,
   onShowToast
 }) {
-  const [movies, setMovies] = useState([]);
+  const [topReleases, setTopReleases] = useState([]);
+  const [allMovies, setAllMovies] = useState([]);
+  const [viewMode, setViewMode] = useState('top'); // 'top' | 'all'
   const [loading, setLoading] = useState(true);
   const [rediscovering, setRediscovering] = useState(false);
   const [error, setError] = useState(null);
@@ -50,7 +54,10 @@ export default function MirrorMoviesView({
 
       const res = await api.get(`/mirror/movies${refresh ? '?refresh=true' : ''}`);
       if (res.data?.success) {
-        setMovies(res.data.movies || []);
+        const top = res.data.topReleases || res.data.movies || [];
+        const all = res.data.allMovies || top;
+        setTopReleases(top);
+        setAllMovies(all);
         setMirrorStatus({
           domain: res.data.domain,
           keyword: res.data.keyword,
@@ -111,7 +118,8 @@ export default function MirrorMoviesView({
 
   // Client-side filtering & sorting
   const filteredMovies = useMemo(() => {
-    return movies
+    const baseList = searchTerm ? allMovies : (viewMode === 'top' ? topReleases : allMovies);
+    return baseList
       .filter(movie => {
         const matchesSearch = !searchTerm || movie.title?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesQuality = selectedQuality === 'ALL' || movie.quality?.toUpperCase().includes(selectedQuality);
@@ -121,7 +129,7 @@ export default function MirrorMoviesView({
         if (sortBy === 'seeds') return (b.seeds || 0) - (a.seeds || 0);
         return 0;
       });
-  }, [movies, searchTerm, selectedQuality, sortBy]);
+  }, [topReleases, allMovies, viewMode, searchTerm, selectedQuality, sortBy]);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -182,49 +190,97 @@ export default function MirrorMoviesView({
         </div>
       </div>
 
-      {/* Filter & Search Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#111927] p-3 rounded-xl border border-[#1E293B]">
-        {/* Search input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Filter discovered movies by title..."
-            className="w-full bg-[#0A0F1D] border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-          />
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-[11px] text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-            <SlidersHorizontal className="w-3 h-3" />
-            Quality:
-          </span>
-          {['ALL', '2160P', '1080P', '720P'].map((q) => (
+      {/* View Mode & Filter Controls */}
+      <div className="space-y-3">
+        {/* View Mode Switcher: Top Releases vs All Movies */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111927] p-2.5 sm:p-3 rounded-2xl border border-[#1E293B]">
+          <div className="flex items-center gap-2">
             <button
-              key={q}
-              onClick={() => setSelectedQuality(q)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 ${
-                selectedQuality === q
-                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+              onClick={() => { setViewMode('top'); setSearchTerm(''); }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'top' && !searchTerm
+                  ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
+                  : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
               }`}
             >
-              {q}
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span>Top Releases</span>
+              {topReleases.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
+                  {topReleases.length}
+                </span>
+              )}
             </button>
-          ))}
 
-          {/* Sort Selector */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="bg-[#0A0F1D] border border-slate-800 text-xs text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none shrink-0 ml-1"
-          >
-            <option value="default">Default Order</option>
-            <option value="seeds">Most Seeders</option>
-          </select>
+            <button
+              onClick={() => { setViewMode('all'); setSearchTerm(''); }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'all' && !searchTerm
+                  ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
+                  : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
+              }`}
+            >
+              <Film className="w-3.5 h-3.5 text-emerald-400" />
+              <span>All Movies & Releases</span>
+              {allMovies.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
+                  {allMovies.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate-400 hidden sm:block">
+            {viewMode === 'top' && !searchTerm
+              ? `Displaying ${topReleases.length} curated top releases`
+              : `Showing ${filteredMovies.length} latest releases across all categories`}
+          </div>
+        </div>
+
+        {/* Filter & Search Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#111927] p-3 rounded-xl border border-[#1E293B]">
+          {/* Search input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search across all movies, titles, languages..."
+              className="w-full bg-[#0A0F1D] border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <span className="text-[11px] text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+              <SlidersHorizontal className="w-3 h-3" />
+              Quality:
+            </span>
+            {['ALL', '2160P', '1080P', '720P'].map((q) => (
+              <button
+                key={q}
+                onClick={() => setSelectedQuality(q)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                  selectedQuality === q
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {q}
+              </button>
+            ))}
+
+            {/* Sort Selector */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-[#0A0F1D] border border-slate-800 text-xs text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none shrink-0 ml-1"
+            >
+              <option value="default">Default Order</option>
+              <option value="seeds">Most Seeders</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -238,7 +294,7 @@ export default function MirrorMoviesView({
               {error}
             </p>
             <p className="text-[11px] text-slate-400 mt-1">
-              Tip: Click <strong>"Keyword & Config"</strong> above to adjust the search keyword or specify a direct fallback domain.
+              Tip: Click <strong>"Rediscover"</strong> above to refresh and query the latest mirror domain.
             </p>
           </div>
         </div>
@@ -413,6 +469,33 @@ export default function MirrorMoviesView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Load More / Show All Button when in Top Releases view */}
+      {!loading && viewMode === 'top' && allMovies.length > topReleases.length && !searchTerm && (
+        <div className="pt-2 text-center">
+          <button
+            onClick={() => setViewMode('all')}
+            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-[#111927] hover:bg-[#162134] text-[#00DF81] border border-emerald-500/30 hover:border-emerald-500/60 shadow-lg shadow-black/20 transition-all active:scale-95 group"
+          >
+            <Film className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span>Load More / Show All Latest Movies ({allMovies.length - topReleases.length} more)</span>
+            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:translate-y-0.5 transition-transform" />
+          </button>
+        </div>
+      )}
+
+      {/* Switch back to Top Releases button when in All Movies view */}
+      {!loading && viewMode === 'all' && !searchTerm && (
+        <div className="pt-2 text-center">
+          <button
+            onClick={() => setViewMode('top')}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-[#111927] hover:bg-[#162134] text-slate-300 border border-slate-700 transition-all active:scale-95"
+          >
+            <Flame className="w-4 h-4 text-orange-400" />
+            <span>Show Top Releases Only ({topReleases.length})</span>
+          </button>
         </div>
       )}
 

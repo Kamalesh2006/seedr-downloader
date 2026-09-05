@@ -1,3 +1,5 @@
 node_modules/
 .env
-data/mirror_cache.json
+data/
+deleted_magnets_data.json
+
