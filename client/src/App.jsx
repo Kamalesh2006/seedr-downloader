@@ -358,16 +358,18 @@ function App() {
                     onCancel={(id, type) => handleDelete(id, type || 'torrent')}
                   />
 
-                  {/* Upcoming Download Schedule / Queue Manager */}
-                  <QueueManager 
-                    queue={queue}
-                    isAutoEnabled={isAutoEnabled}
-                    onMoveItem={moveItem}
-                    onRemoveItem={removeFromQueue}
-                    onClearQueue={clearQueue}
-                    onToggleAuto={toggleAutoQueue}
-                    onSendNow={handleSendFromQueueNow}
-                  />
+                  {/* Upcoming Download Schedule / Queue Manager - Only visible on main dashboard when items are queued */}
+                  {queue.length > 0 && (
+                    <QueueManager 
+                      queue={queue}
+                      isAutoEnabled={isAutoEnabled}
+                      onMoveItem={moveItem}
+                      onRemoveItem={removeFromQueue}
+                      onClearQueue={clearQueue}
+                      onToggleAuto={toggleAutoQueue}
+                      onSendNow={handleSendFromQueueNow}
+                    />
+                  )}
 
                   {/* Completed Files in Seedr Cloud */}
                   <CompletedFiles 
