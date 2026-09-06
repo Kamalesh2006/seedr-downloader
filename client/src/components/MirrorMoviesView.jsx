@@ -12,17 +12,27 @@ import {
   Layers,
   Sparkles,
   Settings,
-  Loader2
+  Loader2,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr } from '../utils/magnet';
+
+function extractMagnetHash(magnet) {
+  if (!magnet) return '';
+  const match = magnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
 
 export default function MirrorMoviesView({
   onAddMagnet,
   onShowToast,
   onOpenSettings,
   searchQuery = '',
-  onSearchChange = null
+  onSearchChange = null,
+  queue = [],
+  activeTransfers = []
 }) {
   const [topReleases, setTopReleases] = useState([]);
   const [allMovies, setAllMovies] = useState([]);
@@ -31,6 +41,54 @@ export default function MirrorMoviesView({
   const [rediscovering, setRediscovering] = useState(false);
   const [error, setError] = useState(null);
   const [mirrorStatus, setMirrorStatus] = useState(null);
+
+  // Per-magnet addition tracking & visual queued state
+  const [addingMagnet, setAddingMagnet] = useState(null);
+  const [localQueuedHashes, setLocalQueuedHashes] = useState(new Set());
+  const [localAddedHashes, setLocalAddedHashes] = useState(new Set());
+
+  // Compute set of all queued hashes (from queue prop + local additions)
+  const queuedHashSet = useMemo(() => {
+    const s = new Set(localQueuedHashes);
+    (queue || []).forEach(q => {
+      const h = extractMagnetHash(q.magnet);
+      if (h) s.add(h);
+    });
+    return s;
+  }, [queue, localQueuedHashes]);
+
+  // Compute set of active download hashes
+  const activeHashSet = useMemo(() => {
+    const s = new Set(localAddedHashes);
+    (activeTransfers || []).forEach(t => {
+      const h = (t.hash || extractMagnetHash(t.magnet) || '').toLowerCase();
+      if (h) s.add(h);
+    });
+    return s;
+  }, [activeTransfers, localAddedHashes]);
+
+  const handleAddMagnetClick = async (link, magnetTitle) => {
+    if (addingMagnet) return;
+    const hash = extractMagnetHash(link.magnet);
+    setAddingMagnet(link.magnet);
+
+    try {
+      const res = await onAddMagnet(link.magnet, magnetTitle, link.size);
+      if (res && res.autoQueued) {
+        if (hash) {
+          setLocalQueuedHashes(prev => new Set([...prev, hash]));
+        }
+      } else if (res) {
+        if (hash) {
+          setLocalAddedHashes(prev => new Set([...prev, hash]));
+        }
+      }
+    } catch (err) {
+      console.warn('Add magnet error:', err.message);
+    } finally {
+      setAddingMagnet(null);
+    }
+  };
 
   // Per-movie loading state for fetching links on demand (e.g. for forum topics)
   const [loadingLinksMap, setLoadingLinksMap] = useState({});
@@ -643,10 +701,21 @@ export default function MirrorMoviesView({
                         const magnetTitle = link.title || movie.title;
                         const displaySize = link.size || 'Direct';
 
+                        const linkHash = extractMagnetHash(link.magnet);
+                        const isAddingThis = addingMagnet === link.magnet;
+                        const isQueued = queuedHashSet.has(linkHash);
+                        const isDownloading = activeHashSet.has(linkHash);
+
                         return (
                           <div
                             key={lIdx}
-                            className="p-2.5 rounded-xl bg-[#090F1C] border border-[#1E293B] hover:border-slate-700/80 transition-all space-y-2"
+                            className={`p-2.5 rounded-xl bg-[#090F1C] border transition-all space-y-2 ${
+                              isQueued 
+                                ? 'border-amber-500/40 bg-amber-950/10' 
+                                : isDownloading
+                                  ? 'border-emerald-500/40 bg-emerald-950/10'
+                                  : 'border-[#1E293B] hover:border-slate-700/80'
+                            }`}
                           >
                             {/* Top row: Quality, Size, Audio, and Oversized notice */}
                             <div className="flex items-center justify-between gap-2">
@@ -668,6 +737,20 @@ export default function MirrorMoviesView({
                                     {link.language}
                                   </span>
                                 )}
+
+                                {isQueued && (
+                                  <span className="text-[9px] font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-amber-400" />
+                                    Upcoming Queue
+                                  </span>
+                                )}
+
+                                {isDownloading && (
+                                  <span className="text-[9px] font-bold text-[#00DF81] bg-[#00DF81]/15 px-1.5 py-0.5 rounded border border-[#00DF81]/30 flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 text-[#00DF81]" />
+                                    Downloading
+                                  </span>
+                                )}
                               </div>
 
                               {isOversized && (
@@ -680,7 +763,17 @@ export default function MirrorMoviesView({
                             {/* Bottom row: File description & Action buttons */}
                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
                               <div className="min-w-0 flex-1">
-                                {link.title && link.title !== movie.title ? (
+                                {isQueued ? (
+                                  <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                                    Scheduled in Upcoming Queue (auto-starts when space frees)
+                                  </span>
+                                ) : isDownloading ? (
+                                  <span className="text-[10px] text-[#00DF81] font-semibold flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-[#00DF81] shrink-0" />
+                                    Active in Seedr Cloud
+                                  </span>
+                                ) : link.title && link.title !== movie.title ? (
                                   <p className="text-[10px] text-slate-500 truncate" title={link.title}>
                                     {link.title}
                                   </p>
@@ -692,19 +785,45 @@ export default function MirrorMoviesView({
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
-                                  disabled={isOversized}
-                                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    isOversized
-                                      ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
-                                      : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
-                                  }`}
-                                  title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
-                                >
-                                  <CloudDownload className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Seedr</span>
-                                </button>
+                                {isAddingThis ? (
+                                  <button
+                                    disabled
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-[#00DF81] border border-emerald-500/30"
+                                  >
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Adding...</span>
+                                  </button>
+                                ) : isQueued ? (
+                                  <span 
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                    title="Currently scheduled in Upcoming Queue. Will start automatically once space is freed."
+                                  >
+                                    <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                    <span>In Queue</span>
+                                  </span>
+                                ) : isDownloading ? (
+                                  <span 
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-[#00DF81] border border-emerald-500/30"
+                                    title="Downloading or ready in Seedr"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#00DF81] shrink-0" />
+                                    <span>In Seedr</span>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleAddMagnetClick(link, magnetTitle)}
+                                    disabled={isOversized}
+                                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                      isOversized
+                                        ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
+                                        : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
+                                    }`}
+                                    title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
+                                  >
+                                    <CloudDownload className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Seedr</span>
+                                  </button>
+                                )}
 
                                 <button
                                   onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}

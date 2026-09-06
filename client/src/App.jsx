@@ -122,7 +122,7 @@ function App() {
     try {
       const res = await addMagnet(magnet, name, size);
       if (res && res.autoQueued) {
-        showToast(`Seedr is currently occupied. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
+        showToast(`Seedr is currently full. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
         fetchQueue();
       } else {
         showToast('Added to Seedr cloud! Fetching progress...', 'success');
@@ -130,6 +130,7 @@ function App() {
           setIsMagnetsOpen(true);
         }
       }
+      return res;
     } catch (err) {
       const errDetail = err.response?.data?.error || err.message || '';
       if (err.response?.data?.isOversized || errDetail.includes('4.5 GB') || errDetail.includes('file_too_big')) {
@@ -137,6 +138,7 @@ function App() {
       } else {
         showToast(errDetail || 'Failed to add to Seedr', 'error');
       }
+      throw err;
     }
   };
 
@@ -309,6 +311,8 @@ function App() {
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
                     onAddMagnet={handleAddMagnet} 
+                    queue={queue}
+                    activeTransfers={activeTransfers}
                     onShowToast={(msg, type) => showToast(msg, type)}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                   />
@@ -493,6 +497,8 @@ function App() {
           {currentTab === 'discover' && (
             <MirrorMoviesView 
               onAddMagnet={handleAddMagnet}
+              queue={queue}
+              activeTransfers={activeTransfers}
               onShowToast={(msg, type) => showToast(msg, type)}
               onOpenSettings={() => setIsSettingsOpen(true)}
             />

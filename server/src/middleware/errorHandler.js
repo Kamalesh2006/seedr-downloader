@@ -8,14 +8,20 @@
 function sanitizeErrorMessage(error) {
   if (!error) return 'An unexpected error occurred.';
 
-  // If it's an Axios error, extract only safe error text without config/headers
-  if (error.response?.data) {
-    const data = error.response.data;
-    if (typeof data === 'string') return data;
-    if (data.error && typeof data.error === 'string') return data.error;
-    if (data.reason_phrase && typeof data.reason_phrase === 'string') return data.reason_phrase;
-    if (data.message && typeof data.message === 'string') return data.message;
-    if (data.result && typeof data.result === 'string') return data.result;
+  // If error is an object, check response.data or direct properties
+  if (typeof error === 'object') {
+    if (error.response?.data) {
+      const data = error.response.data;
+      if (typeof data === 'string') return data;
+      if (data.error && typeof data.error === 'string') return data.error;
+      if (data.reason_phrase && typeof data.reason_phrase === 'string') return data.reason_phrase;
+      if (data.message && typeof data.message === 'string') return data.message;
+      if (data.result && typeof data.result === 'string') return data.result;
+    }
+    if (error.reason_phrase && typeof error.reason_phrase === 'string') return error.reason_phrase;
+    if (error.error && typeof error.error === 'string') return error.error;
+    if (error.message && typeof error.message === 'string') return error.message;
+    if (error.result && typeof error.result === 'string') return error.result;
   }
 
   let msg = typeof error === 'string' ? error : (error.message || 'Operation failed');

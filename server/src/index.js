@@ -19,6 +19,7 @@ const mirrorRoutes = require('./routes/mirrorMovies');
 const telegramBot = require('./bot/telegramBot');
 const torrentWatchdog = require('./services/torrentWatchdogService');
 const downloadQueue = require('./services/downloadQueueService');
+const vlcService = require('./utils/vlcService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -71,6 +72,9 @@ app.listen(PORT, () => {
 
   // Start download queue scheduler for automated order-wise processing
   downloadQueue.start();
+
+  // Ensure VLC protocol handler is active on macOS
+  vlcService.ensureVlcProtocolHandlerMac();
 
   // Initialize Telegram Bot in polling mode if token exists
   if (process.env.TELEGRAM_BOT_TOKEN) {

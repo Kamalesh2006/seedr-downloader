@@ -29,7 +29,7 @@ export function getDeviceInfo() {
  * @param {string} streamUrl Direct HTTP/HTTPS stream URL
  * @param {string} fileName Optional filename
  */
-export function openInVLC(streamUrl, fileName = 'video') {
+export async function openInVLC(streamUrl, fileName = 'video') {
   if (!streamUrl) return false;
 
   const device = getDeviceInfo();
@@ -62,7 +62,26 @@ export function openInVLC(streamUrl, fileName = 'video') {
   }
 
   // Desktop (macOS / Windows / Linux)
-  window.location.href = `vlc://${streamUrl}`;
+  // 1. Direct native launch via local backend API bridge
+  try {
+    const res = await fetch('/api/seedr/open-vlc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: streamUrl })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        return true;
+      }
+    }
+  } catch (e) {
+    // Backend API not reachable or remote server, continue to scheme handler
+  }
+
+  // 2. Custom vlc:// protocol handler
+  const cleanUrl = streamUrl.replace(/^vlc:\/\//, '');
+  window.location.href = `vlc://${cleanUrl}`;
   return true;
 }
 

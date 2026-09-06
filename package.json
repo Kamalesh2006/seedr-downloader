@@ -5,7 +5,8 @@
   "description": "Torrent search & download via Seedr.cc cloud",
   "scripts": {
     "build": "cd client && npm run build",
-    "start": "node server/src/index.js"
+    "start": "node server/src/index.js",
+    "setup:vlc": "./scripts/setup-vlc-mac.sh"
   },
   "dependencies": {
     "axios": "^1.6.0",

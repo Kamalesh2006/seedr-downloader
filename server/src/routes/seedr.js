@@ -8,6 +8,7 @@ const magnetStorage = require('../services/magnetStorageService');
 const { seedrActionLimiter } = require('../middleware/rateLimiter');
 const { validateMagnet, validateIdParam } = require('../middleware/validator');
 const { sanitizeErrorMessage } = require('../middleware/errorHandler');
+const vlcService = require('../utils/vlcService');
 
 function parseSizeInGB(sizeStr) {
   if (!sizeStr) return 0;
@@ -57,14 +58,17 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
 
     const hasExistingFiles = completedFolders.length > 0 || completedFiles.length > 0;
     const hasActiveDownloads = activeTorrents.length > 0 || activeTasks.length > 0;
+    const sizeInBytes = sizeInGB * 1024 * 1024 * 1024;
 
-    // If there is already an active download or existing files occupying Seedr space:
+    // If there is already an active download or free space cannot fit this torrent:
     // Automatically schedule in Upcoming Queue!
-    if (hasActiveDownloads || (hasExistingFiles && freeSpaceBytes < 800 * 1024 * 1024)) {
+    const notEnoughSpace = (sizeInBytes > 0 && freeSpaceBytes < sizeInBytes) || (hasExistingFiles && freeSpaceBytes < 600 * 1024 * 1024);
+
+    if (hasActiveDownloads || notEnoughSpace) {
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
         autoQueued: true,
-        message: 'Existing files detected in Seedr. Automatically scheduled in Upcoming Queue! (Will auto-start once space is freed)',
+        message: 'Insufficient free space in Seedr. Automatically scheduled in Upcoming Queue! (Will auto-start once space is freed)',
         queueItem
       });
     }
@@ -81,7 +85,14 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
         });
       }
 
-      if (result.result === 'not_enough_space' || result.result === 'free_user_limit' || result.result === false || result.result === 'user_torrent_limit') {
+      if (
+        result.result === 'not_enough_space' || 
+        result.result === 'free_user_limit' || 
+        result.result === false || 
+        result.result === 'user_torrent_limit' ||
+        result.reason_phrase?.includes('space') ||
+        result.reason_phrase?.includes('wishlist')
+      ) {
         const queueItem = downloadQueue.addToQueue({ magnet, name, size });
         return res.json({
           autoQueued: true,
@@ -101,16 +112,33 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
 
     res.json(result);
   } catch (error) {
+    const rawReason = String(
+      error?.reason_phrase || 
+      error?.response?.data?.reason_phrase || 
+      error?.error || 
+      error?.response?.data?.error || 
+      error?.message || 
+      ''
+    ).toLowerCase();
+
     const errorMsg = sanitizeErrorMessage(error);
+    const combinedMsg = `${errorMsg} ${rawReason}`.toLowerCase();
     
-    if (errorMsg.includes('file_too_big')) {
+    if (combinedMsg.includes('file_too_big')) {
       return res.status(400).json({
         error: 'This file exceeds Seedr total 4.5 GB storage capacity limit.',
         isOversized: true
       });
     }
 
-    if (errorMsg.includes('not_enough_space') || errorMsg.includes('free_user_limit') || errorMsg.includes('user_torrent_limit') || errorMsg.includes('wishlist')) {
+    if (
+      combinedMsg.includes('not_enough_space') || 
+      combinedMsg.includes('free_user_limit') || 
+      combinedMsg.includes('user_torrent_limit') || 
+      combinedMsg.includes('wishlist') ||
+      combinedMsg.includes('space') ||
+      combinedMsg.includes('queue')
+    ) {
       const { magnet, name, size } = req.body;
       const queueItem = downloadQueue.addToQueue({ magnet, name, size });
       return res.json({
@@ -415,6 +443,26 @@ router.delete('/task/:taskId', validateIdParam('taskId'), async (req, res) => {
     setTimeout(() => downloadQueue.processNext(), 2000);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete task' });
+  }
+});
+
+// Launch VLC media player directly on desktop
+router.post('/open-vlc', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Valid stream URL is required' });
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return res.status(400).json({ error: 'Only HTTP/HTTPS URLs are allowed' });
+    }
+
+    await vlcService.launchVlcApp(url);
+    res.json({ success: true, message: 'VLC app launched successfully' });
+  } catch (error) {
+    console.error('Failed to launch VLC app:', error.message);
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to launch VLC player' });
   }
 });
 
