@@ -678,21 +678,19 @@ class SeedrTelegramBot {
         result?.result === 'not_enough_space';
 
       if (isSpaceError) {
-        const qCacheId = storeActionData({ magnet, title });
+        downloadQueue.addToQueue({ magnet, name: title });
         return this.bot.editMessageText(
-          `⚠️ <b>Not Enough Seedr Storage Space</b>\n\n` +
-          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n\n` +
-          `Your Seedr account does not have enough free space to download this file right now.\n\n` +
-          `💡 <b>Options:</b>\n` +
-          `• Tap <b>"⏳ Schedule in Queue"</b> below to automatically download this as soon as space is freed!\n` +
-          `• Or use <code>/files</code> to view and delete completed files.`,
+          `⏳ <b>Seedr Storage Occupied — Automatically Queued!</b>\n\n` +
+          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n` +
+          `📋 <b>Position in Queue:</b> #${downloadQueue.queue.length}\n\n` +
+          `<i>Seedr storage is currently full. This torrent has been automatically added to your Upcoming Queue and will start downloading as soon as space is freed!</i>`,
           {
             chat_id: chatId,
             message_id: statusMsg.message_id,
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '⏳ Schedule in Download Queue', callback_data: `queue_add:${qCacheId}` }],
+                [{ text: '📋 View Upcoming Queue', callback_data: 'cmd_queue' }],
                 [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
                 [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
               ]
@@ -749,21 +747,19 @@ class SeedrTelegramBot {
       const isSpace = typeof reason === 'string' && (reason.includes('space') || reason.includes('wishlist'));
 
       if (isSpace) {
-        const qCacheId = storeActionData({ magnet, title });
+        downloadQueue.addToQueue({ magnet, name: title });
         return this.bot.editMessageText(
-          `⚠️ <b>Not Enough Seedr Storage Space</b>\n\n` +
-          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n\n` +
-          `Your Seedr account does not have enough free space to download this right now.\n\n` +
-          `💡 <b>Options:</b>\n` +
-          `• Tap <b>"⏳ Schedule in Queue"</b> below to automatically download this as soon as space is freed!\n` +
-          `• Or use <code>/files</code> to delete completed files from your Seedr cloud.`,
+          `⏳ <b>Seedr Storage Occupied — Automatically Queued!</b>\n\n` +
+          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n` +
+          `📋 <b>Position in Queue:</b> #${downloadQueue.queue.length}\n\n` +
+          `<i>Seedr storage is currently full. This torrent has been automatically added to your Upcoming Queue and will start downloading as soon as space is freed!</i>`,
           {
             chat_id: chatId,
             message_id: statusMsg.message_id,
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '⏳ Schedule in Download Queue', callback_data: `queue_add:${qCacheId}` }],
+                [{ text: '📋 View Upcoming Queue', callback_data: 'cmd_queue' }],
                 [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
                 [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
               ]

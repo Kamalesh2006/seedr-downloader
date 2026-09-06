@@ -349,7 +349,7 @@ html.light ::-webkit-scrollbar-thumb:hover {
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
-  z-index: 50 !important;
+  z-index: 40 !important;
   -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;

@@ -11,8 +11,7 @@ import {
   Archive,
   History,
   Calendar,
-  Clock,
-  Layers
+  Clock
 } from 'lucide-react';
 import { extractMagnetName, formatBytes } from '../utils/magnet';
 
@@ -66,8 +65,7 @@ export default function RecentMagnetsModal({
   onRemove, 
   onClearAll,
   onRetry,
-  onAddMagnet,
-  onAddToQueue
+  onAddMagnet
 }) {
   const [copiedId, setCopiedId] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -240,16 +238,6 @@ export default function RecentMagnetsModal({
                     </button>
 
                     <div className="flex items-center gap-1.5">
-                      {onAddToQueue && (
-                        <button
-                          onClick={() => onAddToQueue(m.magnet, displayName, m.size)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1"
-                        >
-                          <Layers className="w-3 h-3 text-indigo-400" />
-                          Queue
-                        </button>
-                      )}
-
                       {(onAddMagnet || onRetry) && (
                         <button
                           disabled={isRestoring}

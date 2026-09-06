@@ -3,7 +3,6 @@ import {
   Film, 
   RefreshCw, 
   CloudDownload, 
-  ListOrdered, 
   Copy, 
   Check, 
   AlertCircle, 
@@ -20,7 +19,6 @@ import { isOversizedForSeedr } from '../utils/magnet';
 
 export default function MirrorMoviesView({
   onAddMagnet,
-  onAddToQueue,
   onShowToast,
   onOpenSettings,
   searchQuery = '',
@@ -688,41 +686,25 @@ export default function MirrorMoviesView({
                                   </p>
                                 ) : (
                                   <span className="text-[10px] text-slate-500">
-                                    {isOversized ? 'Requires queue schedule' : 'Direct Cloud Download'}
+                                    {isOversized ? 'Exceeds 4.5 GB Limit' : 'Cloud Download (Auto-queues if full)'}
                                   </span>
                                 )}
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
-                                {isOversized ? (
-                                  <button
-                                    onClick={() => onAddToQueue(link.magnet, magnetTitle, link.size)}
-                                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20 active:scale-95 transition-all"
-                                    title="File exceeds 4.5 GB — Schedule in Queue"
-                                  >
-                                    <ListOrdered className="w-3.5 h-3.5" />
-                                    <span>Queue</span>
-                                  </button>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
-                                      title="Add directly to Seedr Cloud"
-                                    >
-                                      <CloudDownload className="w-3.5 h-3.5 shrink-0" />
-                                      <span>Seedr</span>
-                                    </button>
-
-                                    <button
-                                      onClick={() => onAddToQueue(link.magnet, magnetTitle, link.size)}
-                                      className="p-1.5 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-colors active:scale-95"
-                                      title="Schedule in Queue"
-                                    >
-                                      <ListOrdered className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
+                                <button
+                                  onClick={() => onAddMagnet(link.magnet, magnetTitle, link.size)}
+                                  disabled={isOversized}
+                                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    isOversized
+                                      ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
+                                      : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
+                                  }`}
+                                  title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
+                                >
+                                  <CloudDownload className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Seedr</span>
+                                </button>
 
                                 <button
                                   onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}

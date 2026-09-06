@@ -3,7 +3,8 @@ import {
   Sun, 
   Moon,
   Bell, 
-  Settings
+  Settings,
+  Send
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -11,7 +12,8 @@ export default function Navbar({
   setCurrentTab,
   isDarkMode = true,
   onToggleTheme,
-  onOpenSettings
+  onOpenSettings,
+  telegramUrl = 'https://t.me/seedr_download_bot'
 }) {
   return (
     <header className="h-14 sm:h-16 bg-[#070B14]/90 backdrop-blur-md border-b border-[#1E293B] px-3.5 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none">
@@ -39,7 +41,25 @@ export default function Navbar({
       </div>
 
       {/* Right: Action Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2.5">
+      <div className="flex items-center gap-1 sm:gap-2">
+        {/* Telegram Bot Link */}
+        {telegramUrl && (
+          <a
+            href={telegramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`p-2 rounded-xl transition-all active:scale-95 ${
+              isDarkMode 
+                ? 'text-slate-400 hover:text-sky-400 hover:bg-slate-800/60' 
+                : 'text-slate-500 hover:text-sky-600 hover:bg-slate-100'
+            }`}
+            title="Open Telegram Bot"
+            aria-label="Telegram Bot"
+          >
+            <Send className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
+          </a>
+        )}
+
         {/* Theme Toggle (Moon / Sun Icon) */}
         <button
           onClick={onToggleTheme}

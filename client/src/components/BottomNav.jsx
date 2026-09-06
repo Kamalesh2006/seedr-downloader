@@ -1,25 +1,33 @@
 import React from 'react';
-import { Folder, History, Database, Bot, Film } from 'lucide-react';
+import { Folder, History, Database, Film, ListOrdered } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
   setCurrentTab, 
   telegramUrl = 'https://t.me/seedr_download_bot',
-  recentCount = 0
+  recentCount = 0,
+  queueCount = 0
 }) {
   const tabs = [
     {
       id: 'dashboard',
-      label: 'All Files',
+      label: 'Files',
       icon: Folder,
       onClick: () => setCurrentTab('dashboard')
     },
     {
       id: 'discover',
-      label: 'Top Releases',
+      label: 'Releases',
       icon: Film,
       badge: 'Hot',
       onClick: () => setCurrentTab('discover')
+    },
+    {
+      id: 'queue',
+      label: 'Queue',
+      icon: ListOrdered,
+      badge: queueCount > 0 ? queueCount : null,
+      onClick: () => setCurrentTab('queue')
     },
     {
       id: 'recent',
@@ -33,12 +41,6 @@ export default function BottomNav({
       label: 'Storage',
       icon: Database,
       onClick: () => setCurrentTab('storage')
-    },
-    {
-      id: 'bot',
-      label: 'Bot',
-      icon: Bot,
-      href: telegramUrl || 'https://t.me/seedr_download_bot'
     }
   ];
 

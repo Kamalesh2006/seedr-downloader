@@ -13,14 +13,14 @@ export default function StorageCard({ storage = { spaceUsed: 0, spaceMax: 0 }, o
 
   return (
     <div 
-      className={`bg-[#111927] border border-[#1E293B] rounded-2xl p-5 shadow-lg shadow-black/20 mb-6 transition-all ${
-        onClickDetails ? 'cursor-pointer hover:border-slate-700/80 hover:bg-[#131D2E]' : ''
+      className={`bg-[#111927] border border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-lg shadow-black/20 mb-5 sm:mb-6 transition-all ${
+        onClickDetails ? 'cursor-pointer hover:border-slate-700/80 hover:bg-[#131D2E] active:scale-[0.99]' : ''
       }`}
       onClick={onClickDetails}
     >
-      <div className="flex items-start justify-between mb-3.5">
+      <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Storage</h3>
+          <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">Storage</h3>
           <p className="text-xs sm:text-sm text-slate-400 font-medium mt-0.5">
             {formattedUsed} of {formattedMax} used
           </p>
@@ -37,7 +37,7 @@ export default function StorageCard({ storage = { spaceUsed: 0, spaceMax: 0 }, o
       </div>
 
       {/* Progress Track */}
-      <div className="w-full bg-[#0A101D] h-3 sm:h-3.5 rounded-full overflow-hidden border border-[#1E293B]/70 p-0.5">
+      <div className="w-full bg-[#0A101D] h-2.5 sm:h-3 rounded-full overflow-hidden border border-[#1E293B]/70 p-0.5">
         <div 
           className="h-full rounded-full bg-striped-mint transition-all duration-700 ease-out shadow-sm"
           style={{ width: `${Math.min(100, Math.max(usedPercentage, used > 0 ? 3 : 0))}%` }}

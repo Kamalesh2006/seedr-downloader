@@ -54,15 +54,15 @@ export default function QueueManager({
   return (
     <div className="bg-[#111927] rounded-2xl shadow-lg shadow-black/20 border border-[#1E293B] overflow-hidden mb-6 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-[#1E293B] bg-[#111927] flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
-            <ListOrdered className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-bold text-white">Upcoming Queue</h3>
-              <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${
+      <div className="p-4 sm:px-5 sm:py-4 border-b border-[#1E293B] bg-[#111927]">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 shrink-0">
+              <ListOrdered className="w-4 h-4 sm:w-5 h-5" />
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-white truncate">Upcoming Queue</h3>
+              <span className={`px-2 py-0.5 text-[11px] sm:text-xs font-bold rounded-full border shrink-0 ${
                 queue.length > 0 
                   ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' 
                   : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -70,61 +70,65 @@ export default function QueueManager({
                 {queue.length} Queued
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-400">Downloads start automatically when space is available.</p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Auto-Schedule Switch */}
+            <button
+              onClick={() => onToggleAuto?.(!isAutoEnabled)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                isAutoEnabled 
+                  ? 'bg-[#00DF81]/10 border-[#00DF81]/30 text-[#00DF81]' 
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+              title={isAutoEnabled ? 'Auto-dispatcher is active' : 'Auto-dispatcher is paused'}
+            >
+              {isAutoEnabled ? <ToggleRight className="w-4 h-4 text-[#00DF81]" /> : <ToggleLeft className="w-4 h-4" />}
+              <span className="text-xs">{isAutoEnabled ? 'Auto: ON' : 'Paused'}</span>
+            </button>
+
+            {/* Clear Queue Button (if queue > 0) */}
+            {queue.length > 0 && (
+              !showClearConfirm ? (
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  className="text-xs text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20"
+                >
+                  Clear All
+                </button>
+              ) : (
+                <div className="flex items-center gap-1 bg-red-950/40 border border-red-800/60 px-2 py-1 rounded-lg text-xs">
+                  <span className="text-red-300 text-[11px]">Clear?</span>
+                  <button
+                    onClick={() => {
+                      onClearQueue?.();
+                      setShowClearConfirm(false);
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-medium text-[11px]"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => setShowClearConfirm(false)}
+                    className="text-slate-400 px-1 hover:text-white text-[11px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Auto-Schedule Switch */}
-          <button
-            onClick={() => onToggleAuto?.(!isAutoEnabled)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-              isAutoEnabled 
-                ? 'bg-[#00DF81]/10 border-[#00DF81]/30 text-[#00DF81]' 
-                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-            title={isAutoEnabled ? 'Auto-dispatcher is active' : 'Auto-dispatcher is paused'}
-          >
-            {isAutoEnabled ? <ToggleRight className="w-4 h-4 text-[#00DF81]" /> : <ToggleLeft className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isAutoEnabled ? 'Auto-Schedule ON' : 'Paused'}</span>
-          </button>
-
-          {/* Clear Queue Button (if queue > 0) */}
-          {queue.length > 0 && (
-            !showClearConfirm ? (
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="text-xs text-slate-400 hover:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20"
-              >
-                Clear All
-              </button>
-            ) : (
-              <div className="flex items-center gap-1 bg-red-950/40 border border-red-800/60 px-2 py-1 rounded-lg text-xs">
-                <span className="text-red-300 text-[11px]">Clear?</span>
-                <button
-                  onClick={() => {
-                    onClearQueue?.();
-                    setShowClearConfirm(false);
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-medium text-[11px]"
-                >
-                  Yes
-                </button>
-                <button
-                  onClick={() => setShowClearConfirm(false)}
-                  className="text-slate-400 px-1 hover:text-white text-[11px]"
-                >
-                  ✕
-                </button>
-              </div>
-            )
-          )}
-        </div>
+        {/* Subtitle description */}
+        <p className="text-[11px] sm:text-xs text-slate-400 mt-2 pl-8 sm:pl-10">
+          Downloads start automatically when space is available.
+        </p>
       </div>
 
       {/* Queue Items List OR Empty State */}
       {queue.length === 0 ? (
-        <div className="p-8 text-center space-y-3 bg-[#090F1C]/40">
+        <div className="p-6 sm:p-8 text-center space-y-3 bg-[#090F1C]/40">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
             <ListOrdered className="w-5 h-5 opacity-80" />
           </div>
@@ -133,7 +137,7 @@ export default function QueueManager({
               Your queue is empty
             </h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Paste a magnet link above or queue a release while browsing movies.
+              Torrents start immediately in Seedr, and will automatically wait here if storage is occupied.
             </p>
           </div>
         </div>
@@ -193,61 +197,63 @@ export default function QueueManager({
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-end sm:self-auto pt-1 sm:pt-0">
+                <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-[#1E293B]/50">
                   {/* Send Now Button */}
                   <button
                     onClick={() => handleSendNow(item)}
                     disabled={isSending}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-[#00DF81]/15 hover:bg-[#00DF81]/25 text-[#00DF81] rounded-xl border border-[#00DF81]/30 transition-all disabled:opacity-50 active:scale-95 shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#00DF81]/15 hover:bg-[#00DF81]/25 text-[#00DF81] rounded-xl border border-[#00DF81]/30 transition-all disabled:opacity-50 active:scale-95 shadow-sm"
                     title="Start download in Seedr immediately"
                   >
                     {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                     <span>Send Now</span>
                   </button>
 
-                  {/* Copy Magnet Link */}
-                  {item.magnet && (
-                    <button
-                      onClick={() => handleCopy(item.magnet, item.id)}
-                      className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700"
-                      title="Copy full magnet link"
-                    >
-                      {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {/* Copy Magnet Link */}
+                    {item.magnet && (
+                      <button
+                        onClick={() => handleCopy(item.magnet, item.id)}
+                        className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700 active:scale-95"
+                        title="Copy full magnet link"
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
 
-                  {/* Move Up */}
-                  {index > 0 && onMoveItem && (
-                    <button
-                      onClick={() => onMoveItem(index, index - 1)}
-                      className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700"
-                      title="Move up in queue order"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    {/* Move Up */}
+                    {index > 0 && onMoveItem && (
+                      <button
+                        onClick={() => onMoveItem(index, index - 1)}
+                        className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700 active:scale-95"
+                        title="Move up in queue order"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
-                  {/* Move Down */}
-                  {index < queue.length - 1 && onMoveItem && (
-                    <button
-                      onClick={() => onMoveItem(index, index + 1)}
-                      className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700"
-                      title="Move down in queue order"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    {/* Move Down */}
+                    {index < queue.length - 1 && onMoveItem && (
+                      <button
+                        onClick={() => onMoveItem(index, index + 1)}
+                        className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700 active:scale-95"
+                        title="Move down in queue order"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
-                  {/* Remove */}
-                  {onRemoveItem && (
-                    <button
-                      onClick={() => onRemoveItem(item.id)}
-                      className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-slate-700 hover:border-red-500/30"
-                      title="Remove from queue"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    {/* Remove */}
+                    {onRemoveItem && (
+                      <button
+                        onClick={() => onRemoveItem(item.id)}
+                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-slate-700 hover:border-red-500/30 active:scale-95"
+                        title="Remove from queue"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

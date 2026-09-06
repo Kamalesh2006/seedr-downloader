@@ -197,11 +197,11 @@ export default function CompletedFiles({
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 border border-[#1E293B] transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 border border-[#1E293B] transition-all disabled:opacity-50 active:scale-95"
             title="Refresh files"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#00DF81]' : ''}`} />
-            <span className="hidden sm:inline">{loading ? 'Syncing...' : 'Refresh'}</span>
+            <span className="text-xs font-medium">{loading ? 'Syncing...' : 'Refresh'}</span>
           </button>
         )}
       </div>
@@ -209,8 +209,8 @@ export default function CompletedFiles({
       {/* Files List Container */}
       <div className="bg-[#111927] rounded-2xl border border-[#1E293B] overflow-hidden shadow-lg shadow-black/20">
         {totalItemsCount === 0 ? (
-          <div className="p-10 sm:p-12 text-center text-slate-500 flex flex-col items-center justify-center">
-            <div className="p-4 bg-[#141D2E] rounded-2xl mb-3 border border-[#1E293B]">
+          <div className="p-6 sm:p-10 text-center text-slate-500 flex flex-col items-center justify-center">
+            <div className="p-3.5 bg-[#141D2E] rounded-2xl mb-3 border border-[#1E293B]">
               <Folder className="w-8 h-8 sm:w-10 sm:h-10 text-slate-600" />
             </div>
             <h4 className="text-sm sm:text-base font-semibold text-slate-300">Your Seedr cloud is empty</h4>

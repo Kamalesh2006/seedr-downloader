@@ -570,6 +570,13 @@ class MovieScraperService {
   }
 
   /**
+   * Alias for getMovies to support both naming conventions
+   */
+  async fetchMovies(forceRediscover = false) {
+    return this.getMovies(forceRediscover);
+  }
+
+  /**
    * Main entry point: Discovers active domain and retrieves movies list
    */
   async getMovies(forceRediscover = false) {

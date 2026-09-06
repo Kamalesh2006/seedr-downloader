@@ -275,13 +275,14 @@ function App() {
           {/* Top Navbar */}
           <Navbar 
             currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          onOpenRecent={() => setIsMagnetsOpen(true)}
-          queueCount={queue.length}
-          isDarkMode={isDarkMode}
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
+            setCurrentTab={setCurrentTab}
+            onOpenRecent={() => setIsMagnetsOpen(true)}
+            queueCount={queue.length}
+            isDarkMode={isDarkMode}
+            onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            telegramUrl={telegramUrl}
+          />
 
         {/* Page Body */}
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-4xl lg:max-w-5xl w-full mx-auto pb-28 md:pb-12">
@@ -291,7 +292,6 @@ function App() {
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -308,8 +308,7 @@ function App() {
                   <MirrorMoviesView 
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
-                    onAddMagnet={handleAddMagnet}
-                    onAddToQueue={handleAddToQueue}
+                    onAddMagnet={handleAddMagnet} 
                     onShowToast={(msg, type) => showToast(msg, type)}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                   />
@@ -323,7 +322,6 @@ function App() {
                       <SearchResults 
                         results={results} 
                         onDownload={handleAddMagnet} 
-                        onAddToQueue={handleAddToQueue}
                       />
                     </div>
                   )}
@@ -347,7 +345,6 @@ function App() {
                     <SearchResults 
                       results={results} 
                       onDownload={handleAddMagnet} 
-                      onAddToQueue={handleAddToQueue}
                     />
                   )}
 
@@ -397,7 +394,6 @@ function App() {
               <SearchBar 
                 onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
-                onAddToQueue={handleAddToQueue}
                 loading={searchLoading} 
                 queueCount={queue.length}
                 recentCount={recentMagnets.length}
@@ -421,7 +417,6 @@ function App() {
                 <SearchResults 
                   results={results} 
                   onDownload={handleAddMagnet} 
-                  onAddToQueue={handleAddToQueue}
                 />
               )}
             </div>
@@ -491,7 +486,6 @@ function App() {
               onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
               onSearch={handleSearch}
               onAddMagnet={handleAddMagnet}
-              onAddToQueue={handleAddToQueue}
               searchLoading={searchLoading}
             />
           )}
@@ -499,7 +493,6 @@ function App() {
           {currentTab === 'discover' && (
             <MirrorMoviesView 
               onAddMagnet={handleAddMagnet}
-              onAddToQueue={handleAddToQueue}
               onShowToast={(msg, type) => showToast(msg, type)}
               onOpenSettings={() => setIsSettingsOpen(true)}
             />
@@ -527,7 +520,6 @@ function App() {
         onClearAll={clearRecentMagnets}
         onRetry={(magnet, name, size) => handleAddMagnet(magnet, name, size)}
         onAddMagnet={handleAddMagnet}
-        onAddToQueue={handleAddToQueue}
       />
 
       {/* Settings Modal */}

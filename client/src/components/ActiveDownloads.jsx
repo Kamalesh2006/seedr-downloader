@@ -21,25 +21,26 @@ export default function ActiveDownloads({ transfers = [], onCancel }) {
 
   return (
     <div className="bg-[#111927] rounded-2xl shadow-lg shadow-black/20 p-4 sm:p-5 mb-6 border border-[#1E293B] animate-in fade-in duration-200">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20">
+      <div className="flex items-center justify-between gap-2 mb-3.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-2 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20 shrink-0">
             <Activity className="w-5 h-5 animate-pulse" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              Active Cloud Downloads
-              <span className="text-xs font-normal text-slate-400">
+              <span className="truncate">Active Downloads</span>
+              <span className="text-xs font-normal text-slate-400 shrink-0">
                 ({transfers.length})
               </span>
             </h3>
-            <p className="text-[11px] sm:text-xs text-slate-400">Torrents currently downloading in your Seedr cloud</p>
+            <p className="text-[11px] sm:text-xs text-slate-400 truncate">Torrents downloading in Seedr</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#090F1C] border border-[#1E293B] text-[11px] text-slate-400">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#090F1C] border border-[#1E293B] text-[11px] text-slate-400 shrink-0">
           <Shield className="w-3.5 h-3.5 text-[#00DF81]" />
-          <span>Auto-cleans stalled</span>
+          <span className="hidden sm:inline">Auto-cleans stalled</span>
+          <span className="sm:hidden">Auto-clean</span>
         </div>
       </div>
       

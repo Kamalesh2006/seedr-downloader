@@ -11,7 +11,6 @@ import {
   History,
   Search,
   Calendar,
-  Layers,
   PlusCircle,
   ExternalLink,
   ShieldCheck,
@@ -67,8 +66,7 @@ export default function RecentLinksView({
   onRemove, 
   onClearAll, 
   onRetry,
-  onAddMagnet,
-  onAddToQueue
+  onAddMagnet
 }) {
   const [copiedId, setCopiedId] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -298,17 +296,6 @@ export default function RecentLinksView({
 
                   {/* Restore Actions */}
                   <div className="flex items-center gap-2">
-                    {onAddToQueue && (
-                      <button
-                        onClick={() => onAddToQueue(m.magnet, displayName, m.size)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all active:scale-95"
-                        title="Schedule in Upcoming Queue"
-                      >
-                        <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>Add to Queue</span>
-                      </button>
-                    )}
-
                     {(onAddMagnet || onRetry) && (
                       <button
                         disabled={isRestoring}
