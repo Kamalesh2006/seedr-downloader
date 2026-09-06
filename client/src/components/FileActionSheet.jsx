@@ -79,13 +79,13 @@ export default function FileActionSheet({
     }
   };
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center md:hidden animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-end justify-center md:hidden animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
-        className="w-full bg-[#111927] border-t border-[#1E293B] rounded-t-3xl p-5 pb-8 shadow-2xl animate-in slide-in-from-bottom duration-250 safe-bottom"
+        className="w-full bg-[#111927] border-t border-[#1E293B] rounded-t-3xl p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-250 safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Grab bar */}
@@ -217,6 +217,7 @@ export default function FileActionSheet({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

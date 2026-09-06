@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
+import api from '../api/client';
 import { 
   X, 
   Download, 
@@ -37,6 +38,9 @@ export default function MediaPreviewModal({
   const [copied, setCopied] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [isHlsPlaying, setIsHlsPlaying] = useState(false);
+  const [streamBuffering, setStreamBuffering] = useState(false);
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [isRefreshingStream, setIsRefreshingStream] = useState(false);
   const [isVlcModalOpen, setIsVlcModalOpen] = useState(false);
   const [vlcCopied, setVlcCopied] = useState(false);
   
@@ -52,114 +56,190 @@ export default function MediaPreviewModal({
   const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(ext);
   const isText = ['txt', 'srt', 'vtt', 'nfo', 'log', 'json', 'md'].includes(ext);
 
-  // Fetch download and stream URLs
+  // Function to fetch or refresh stream information
+  const fetchStreamInfo = async (silent = false) => {
+    if (!file || !file.id) return;
+    if (!silent) setLoadingUrl(true);
+    setUrlError(null);
+
+    try {
+      // 1. Fetch metadata & fresh HLS URL from backend
+      const res = await api.get(`/seedr/stream-info/${file.id}`);
+      const info = res.data;
+      if (info) {
+        if (info.downloadUrl) setDownloadUrl(info.downloadUrl);
+        if (info.hlsUrl) {
+          setHlsUrl(info.hlsUrl);
+          setIsTranscoding(false);
+        } else if (ext === 'mkv' || ext === 'avi' || ext === 'mov') {
+          setIsTranscoding(true);
+        }
+      }
+    } catch (err) {
+      console.warn('stream-info fetch error:', err.message);
+      if (getDownloadUrl) {
+        try {
+          const url = await getDownloadUrl(file.id);
+          if (url) setDownloadUrl(url);
+        } catch (e) {
+          setUrlError(e.response?.data?.error || e.message || 'Failed to fetch streaming URL');
+        }
+      }
+    } finally {
+      setLoadingUrl(false);
+      setIsRefreshingStream(false);
+    }
+  };
+
+  // Initial load when modal opens
   useEffect(() => {
     if (isOpen && file && file.id) {
-      setLoadingUrl(true);
-      setUrlError(null);
       setVideoError(false);
       setCopied(false);
       setVlcCopied(false);
       setIsHlsPlaying(false);
+      setIsTranscoding(false);
 
       // Check if file already has an HLS stream from folder listing
       const existingHls = file.hlsUrl || file.presentation_urls?.video?.hls || '';
       if (existingHls) {
         setHlsUrl(existingHls);
+        fetchStreamInfo(true);
       } else {
         setHlsUrl('');
+        fetchStreamInfo(false);
       }
-
-      getDownloadUrl(file.id)
-        .then(url => {
-          setDownloadUrl(url);
-          setLoadingUrl(false);
-        })
-        .catch(err => {
-          console.error('Failed to get download URL for preview', err);
-          setUrlError(err.response?.data?.error || err.message || 'Failed to fetch direct streaming URL');
-          setLoadingUrl(false);
-        });
     } else {
       setDownloadUrl('');
       setHlsUrl('');
       setLoadingUrl(false);
       setIsVlcModalOpen(false);
+      setIsHlsPlaying(false);
+      setStreamBuffering(false);
+      setIsTranscoding(false);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     }
-  }, [isOpen, file, getDownloadUrl]);
+  }, [isOpen, file?.id]);
 
-  // Attach HLS stream to video element
+  // Attach HLS stream or native stream to video element
   useEffect(() => {
     if (!isOpen || !isVideo || !videoRef.current) return;
 
     const videoEl = videoRef.current;
+    let isDestroyed = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+
     videoEl.removeAttribute('src');
     videoEl.load();
     setVideoError(false);
+    setStreamBuffering(true);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
-    if (hlsUrl && Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 90
-      });
+    if (hlsUrl) {
+      // Seedr HLS master playlist lacks CORS headers, so proxy it through backend
+      const proxiedHlsUrl = `/api/seedr/hls-manifest?url=${encodeURIComponent(hlsUrl)}`;
 
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(videoEl);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsHlsPlaying(true);
-        videoEl.play().catch(() => {
-          // Autoplay was prevented, wait for user interaction
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90,
+          manifestLoadingTimeOut: 15000,
+          manifestLoadingMaxRetry: 3,
+          levelLoadingTimeOut: 15000,
+          fragLoadingTimeOut: 20000
         });
-      });
 
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.warn('HLS Stream error:', data);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              hls.destroy();
-              setIsHlsPlaying(false);
-              // Fallback to direct URL if available
-              if (downloadUrl) {
-                videoEl.src = downloadUrl;
-              } else {
-                setVideoError(true);
-              }
-              break;
+        hls.loadSource(proxiedHlsUrl);
+        hls.attachMedia(videoEl);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (isDestroyed) return;
+          setIsHlsPlaying(true);
+          setStreamBuffering(false);
+          setVideoError(false);
+          videoEl.play().catch(() => {
+            // Autoplay blocked by browser policy, awaiting user action
+          });
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (isDestroyed) return;
+          console.warn('HLS Event error:', data.type, data.details, data.fatal);
+
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  console.log(`Retrying HLS network load (${retryCount}/${maxRetries})...`);
+                  setTimeout(() => {
+                    if (!isDestroyed && hlsRef.current) {
+                      hls.startLoad();
+                    }
+                  }, 1500 * retryCount);
+                } else {
+                  console.error('HLS fatal network error: Retries exhausted');
+                  hls.destroy();
+                  setIsHlsPlaying(false);
+                  setStreamBuffering(false);
+                  if (downloadUrl && (ext === 'mp4' || ext === 'webm')) {
+                    videoEl.src = downloadUrl;
+                  } else {
+                    setVideoError(true);
+                  }
+                }
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('HLS media error, attempting recovery...');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                setIsHlsPlaying(false);
+                setStreamBuffering(false);
+                if (downloadUrl && (ext === 'mp4' || ext === 'webm')) {
+                  videoEl.src = downloadUrl;
+                } else {
+                  setVideoError(true);
+                }
+                break;
+            }
           }
-        }
-      });
+        });
 
-      hlsRef.current = hls;
-    } else if (hlsUrl && videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Safari HLS
-      videoEl.src = hlsUrl;
-      setIsHlsPlaying(true);
-      videoEl.play().catch(() => {});
+        hlsRef.current = hls;
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native Safari HLS
+        videoEl.src = proxiedHlsUrl;
+        setIsHlsPlaying(true);
+        setStreamBuffering(false);
+        videoEl.play().catch(() => {});
+      }
     } else if (downloadUrl) {
-      // Direct video stream
-      videoEl.src = downloadUrl;
-      setIsHlsPlaying(false);
+      // Direct stream for native browser containers (mp4, webm)
+      if (ext === 'mp4' || ext === 'webm') {
+        videoEl.src = downloadUrl;
+        setIsHlsPlaying(false);
+        setStreamBuffering(false);
+      } else {
+        // MKV / AVI cannot be demuxed natively by HTML5 video without HLS
+        setIsHlsPlaying(false);
+        setStreamBuffering(false);
+        setVideoError(true);
+      }
     }
 
     return () => {
+      isDestroyed = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -304,26 +384,77 @@ export default function MediaPreviewModal({
                 {isVideo && (
                   <div className="w-full flex flex-col items-center">
                     <div className="w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-800 aspect-video flex items-center justify-center relative group">
+                      {streamBuffering && !videoError && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs pointer-events-none z-10 gap-2">
+                          <Loader2 className="w-9 h-9 text-[#00DF81] animate-spin" />
+                          <span className="text-xs font-semibold text-slate-300">
+                            {isHlsPlaying ? 'Buffering stream...' : 'Connecting to Seedr cloud stream...'}
+                          </span>
+                        </div>
+                      )}
                       <video 
                         ref={videoRef}
                         controls 
                         playsInline
-                        preload="metadata"
+                        preload="auto"
                         className="w-full h-full max-h-[58vh] object-contain"
-                        onError={() => setVideoError(true)}
+                        onWaiting={() => setStreamBuffering(true)}
+                        onPlaying={() => setStreamBuffering(false)}
+                        onCanPlay={() => setStreamBuffering(false)}
+                        onError={() => {
+                          setStreamBuffering(false);
+                          setVideoError(true);
+                        }}
                       >
                         Your browser does not support HTML5 video streaming.
                       </video>
                     </div>
 
+                    {/* Transcoding in progress banner */}
+                    {isTranscoding && !hlsUrl && (
+                      <div className="mt-3 w-full p-4 bg-indigo-950/40 border border-indigo-700/50 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-200">
+                        <div className="flex items-start gap-2.5">
+                          <Loader2 className="w-5 h-5 shrink-0 mt-0.5 animate-spin text-indigo-400" />
+                          <div>
+                            <p className="font-bold text-indigo-300">
+                              Seedr Cloud Transcoding in Progress
+                            </p>
+                            <p className="text-indigo-200/80 text-[11px] mt-0.5">
+                              Seedr is preparing the adaptive web stream for this {ext?.toUpperCase()} video. You can wait a moment or stream immediately in VLC!
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                          <button
+                            onClick={() => {
+                              setIsRefreshingStream(true);
+                              fetchStreamInfo(false);
+                            }}
+                            disabled={isRefreshingStream}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-[0.98]"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingStream ? 'animate-spin' : ''}`} />
+                            <span>Check Status</span>
+                          </button>
+                          <button
+                            onClick={handleDirectLaunchVLC}
+                            className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-orange-950/40 transition-all active:scale-[0.98]"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>Play in VLC</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Codec Warning Banner (if browser playback fails) */}
-                    {videoError && (
+                    {videoError && !isTranscoding && (
                       <div className="mt-3 w-full p-4 bg-orange-950/40 border border-orange-700/50 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-orange-200">
                         <div className="flex items-start gap-2.5">
                           <VlcIcon className="w-5 h-5 shrink-0 mt-0.5" />
                           <div>
                             <p className="font-bold text-orange-300">
-                              Browser format unsupported (MKV / AC3 / HEVC codec)
+                              Browser format unsupported ({ext?.toUpperCase()} / AC3 / HEVC codec)
                             </p>
                             <p className="text-orange-200/80 text-[11px] mt-0.5">
                               This video format requires VLC Media Player for hardware-accelerated playback with full audio.
@@ -491,11 +622,13 @@ export default function MediaPreviewModal({
           {(downloadUrl || hlsUrl) && (
             <div className="px-4 sm:px-5 py-3.5 border-t border-[#1E293B] bg-[#111927] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-1 min-w-0 bg-[#080E1A] px-3 py-1.5 rounded-xl border border-[#182335] text-xs font-mono text-gray-400">
-                <span className="text-gray-500 select-none shrink-0">Stream URL:</span>
+                <span className="text-gray-500 select-none shrink-0">
+                  {hlsUrl ? 'HLS Stream:' : 'Download URL:'}
+                </span>
                 <input 
                   type="text" 
                   readOnly 
-                  value={downloadUrl || hlsUrl} 
+                  value={hlsUrl || downloadUrl} 
                   className="bg-transparent text-gray-300 w-full focus:outline-none truncate select-all" 
                 />
               </div>

@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 const seedrService = require('../services/seedrService');
 const torrentWatchdog = require('../services/torrentWatchdogService');
@@ -159,6 +160,93 @@ router.get('/download/:fileId', validateIdParam('fileId'), async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to get download URL' });
+  }
+});
+
+// Comprehensive stream metadata endpoint (both direct download & HLS stream)
+router.get('/stream-info/:fileId', validateIdParam('fileId'), async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const info = await seedrService.getFileStreamInfo(fileId);
+    res.json(info);
+  } catch (error) {
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to get stream info' });
+  }
+});
+
+// Helper function to resolve relative playlist URIs
+function resolveM3u8Urls(content, baseUrl) {
+  return content.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+
+    // Handle URI attributes in tags like #EXT-X-MEDIA:...,URI="relative.m3u8"
+    if (trimmed.startsWith('#') && trimmed.includes('URI="')) {
+      return line.replace(/URI="([^"]+)"/g, (match, uri) => {
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+          return match;
+        }
+        try {
+          return `URI="${new URL(uri, baseUrl).href}"`;
+        } catch (e) {
+          return match;
+        }
+      });
+    }
+
+    // Handle playlist / segment URLs on their own line
+    if (!trimmed.startsWith('#')) {
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return line;
+      }
+      try {
+        return new URL(trimmed, baseUrl).href;
+      } catch (e) {
+        return line;
+      }
+    }
+
+    return line;
+  }).join('\n');
+}
+
+// Proxy HLS master playlist with CORS headers for in-browser playback
+router.get('/hls-manifest', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ error: 'Missing url query parameter' });
+    }
+
+    // Security: Only allow seedr.cc domains
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.hostname.endsWith('.seedr.cc') && parsedUrl.hostname !== 'seedr.cc') {
+      return res.status(403).json({ error: 'Forbidden domain' });
+    }
+
+    const response = await axios.get(url, {
+      timeout: 12000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*'
+      }
+    });
+
+    let manifest = response.data;
+    if (typeof manifest !== 'string') {
+      manifest = String(manifest);
+    }
+
+    const resolvedManifest = resolveM3u8Urls(manifest, url);
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.send(resolvedManifest);
+  } catch (error) {
+    console.error('Failed to proxy HLS manifest:', error.message);
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to fetch HLS manifest' });
   }
 });
 

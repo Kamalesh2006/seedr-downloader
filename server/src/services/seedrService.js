@@ -9,6 +9,7 @@ class SeedrService {
     this.tokenUrl = 'https://www.seedr.cc/oauth_test/token.php';
     this.accessToken = null;
     this.tokenExpiresAt = 0;
+    this.fileMetadataCache = new Map();
   }
 
   async getAccessToken(forceRefresh = false) {
@@ -130,6 +131,21 @@ class SeedrService {
         };
       });
 
+      // Cache file info for fast stream info resolution
+      for (const f of files) {
+        this.fileMetadataCache.set(String(f.id), {
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          isVideo: f.isVideo,
+          isAudio: f.isAudio,
+          hlsUrl: f.hlsUrl,
+          thumb: f.thumb,
+          parentFolderId: folderId,
+          cachedAt: Date.now()
+        });
+      }
+
       const torrents = (data.torrents || []).map(t => ({
         ...t,
         id: t.id,
@@ -186,6 +202,49 @@ class SeedrService {
       }
       throw error.response ? error.response.data : error;
     }
+  }
+
+  async getFileStreamInfo(fileId) {
+    const sId = String(fileId);
+    let downloadResult = null;
+    try {
+      downloadResult = await this.getDownloadUrl(fileId);
+    } catch (e) {
+      console.warn(`Could not get download URL for file ${fileId}:`, e.message);
+    }
+
+    let meta = this.fileMetadataCache.get(sId);
+    // If not cached or cached without hlsUrl, refresh folders
+    if (!meta || (!meta.hlsUrl && Date.now() - (meta.cachedAt || 0) > 10000)) {
+      try {
+        const rootData = await this.listFolder();
+        meta = this.fileMetadataCache.get(sId);
+        if (!meta && rootData.folders && rootData.folders.length > 0) {
+          for (const folder of rootData.folders) {
+            await this.listFolder(folder.id);
+            meta = this.fileMetadataCache.get(sId);
+            if (meta) break;
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed searching folders for stream info ${fileId}:`, err.message);
+      }
+    }
+
+    const fileName = meta?.name || downloadResult?.name || 'File';
+    const isVideo = meta?.isVideo !== undefined ? meta.isVideo : !!fileName.match(/\.(mp4|mkv|avi|webm|mov|m4v|flv)$/i);
+    const isAudio = meta?.isAudio !== undefined ? meta.isAudio : !!fileName.match(/\.(mp3|wav|flac|aac|m4a|ogg)$/i);
+
+    return {
+      id: fileId,
+      name: fileName,
+      size: meta?.size || 0,
+      downloadUrl: downloadResult?.url || null,
+      hlsUrl: meta?.hlsUrl || null,
+      isVideo,
+      isAudio,
+      thumb: meta?.thumb || null
+    };
   }
 
   async deleteFile(fileId) {

@@ -137,9 +137,9 @@ class SeedrTelegramBot {
     const mainKeyboard = {
       reply_markup: {
         keyboard: [
-          [{ text: '🔥 Top Releases' }, { text: '🔍 Search Torrents' }],
-          [{ text: '📁 Seedr Files' }, { text: '⚡ Active Transfers' }],
-          [{ text: '📋 Queue' }, { text: '💾 Storage Quota' }],
+          [{ text: '🎬 Latest Movies' }, { text: '🔍 Search Torrents' }],
+          [{ text: '📁 Seedr Files' }, { text: '🗑️ Delete Files' }],
+          [{ text: '⚡ Active Transfers' }, { text: '💾 Storage Quota' }],
           [{ text: '🌐 View Website' }, { text: '❓ Help' }]
         ],
         resize_keyboard: true,
@@ -165,12 +165,13 @@ class SeedrTelegramBot {
 
       const welcomeText = 
         `👋 <b>Welcome to Seedr Torrent & Movie Bot!</b>\n\n` +
-        `Browse Top Releases, search torrents, convert magnet links into direct cloud downloads, and stream completed media directly from Telegram or Web App.\n\n` +
+        `Browse Latest Movies, search torrents, convert magnet links into direct cloud downloads, and stream or download completed media directly from Telegram or Web App.\n\n` +
         `⚡ <b>Quick Actions:</b>\n` +
-        `• 🔥 <b>Top Releases:</b> Type <code>/top</code> or click button below\n` +
+        `• 🎬 <b>Latest Movies:</b> Type <code>/movies</code> or <code>/latest</code>\n` +
         `• 🔍 <b>Search:</b> Type <code>/search &lt;query&gt;</code> or click below\n` +
         `• 🧲 <b>Convert Link:</b> Paste any <code>magnet:?xt=...</code> or <b>1TamilMV topic URL</b>\n` +
-        `• 📁 <b>Files:</b> Use <code>/files</code> to view cloud storage & direct links\n` +
+        `• 📁 <b>Files:</b> Use <code>/files</code> to browse cloud files & direct download links\n` +
+        `• 🗑️ <b>Delete Files:</b> Use <code>/delete</code> to free up space anytime\n` +
         `• ⚡ <b>Transfers:</b> Use <code>/transfers</code> for active downloads\n` +
         `• 📋 <b>Queue:</b> Use <code>/queue</code> to view scheduled downloads\n` +
         `• 🌐 <b>Web App:</b> <a href="${this.websiteUrl}">${this.websiteUrl}</a>\n\n` +
@@ -179,15 +180,15 @@ class SeedrTelegramBot {
       const inlineKeyboard = {
         inline_keyboard: [
           [
-            { text: '🔥 Top Releases (1TamilMV)', callback_data: 'cmd_top:0' },
+            { text: '🎬 Latest Movies', callback_data: 'cmd_top:0' },
             { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }
           ],
           [
             { text: '📁 My Seedr Files', callback_data: 'nav_folder:root' },
-            { text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }
+            { text: '🗑️ Delete Files (Free Space)', callback_data: 'cmd_delete_list' }
           ],
           [
-            { text: '📋 Queue', callback_data: 'cmd_queue' },
+            { text: '⚡ Active Transfers', callback_data: 'cmd_transfers' },
             { text: '💾 Storage Quota', callback_data: 'cmd_quota' }
           ],
           [
@@ -213,13 +214,14 @@ class SeedrTelegramBot {
       
       const helpText = 
         `📖 <b>Seedr Bot Command Guide:</b>\n\n` +
-        `• <code>/top</code> or <code>/movies</code> - Browse Top Releases with 1-click cloud convert\n` +
+        `• <code>/movies</code> or <code>/latest</code> - Browse latest movies & convert with 1-click\n` +
         `• <code>/search &lt;query&gt;</code> - Search across 1TamilMV, 1337x, ThePirateBay, YTS\n` +
         `• <code>/convert &lt;link or magnet&gt;</code> - Convert magnet link or 1TamilMV topic URL\n` +
+        `• <code>/files</code> or <code>/myfiles</code> - Browse cloud files & generate direct download links\n` +
+        `• <code>/delete</code> or <code>/clean</code> - Manage & delete files to free up Seedr storage\n` +
+        `• <code>/transfers</code> - Monitor currently downloading torrents\n` +
         `• <code>/mirror</code> or <code>/status</code> - Check active mirror status & domain\n` +
         `• <code>/rediscover</code> - Re-scan & find newest working 1TamilMV mirror\n` +
-        `• <code>/files</code> or <code>/myfiles</code> - Browse cloud files & generate direct download links\n` +
-        `• <code>/transfers</code> - Monitor currently downloading torrents\n` +
         `• <code>/queue</code> - Manage scheduled download queue\n` +
         `• <code>/quota</code> - Check Seedr account storage usage\n` +
         `• <code>/help</code> - Show this command reference\n\n` +
@@ -228,11 +230,18 @@ class SeedrTelegramBot {
       await this.bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'HTML', ...mainKeyboard });
     });
 
-    // /top or /movies command
-    this.bot.onText(/^\/(?:top|movies|topreleases)/, async (msg) => {
+    // /top or /movies or /latest command
+    this.bot.onText(/^\/(?:top|movies|latest|latestmovies|topreleases|movie)/, async (msg) => {
       if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
       this.userStates.delete(msg.chat.id);
       await this.displayTopReleases(msg.chat.id, 0);
+    });
+
+    // /delete or /clean or /del command
+    this.bot.onText(/^\/(?:delete|clean|del|deletefiles|remove)/, async (msg) => {
+      if (!this.isUserAllowed(msg)) return sendUnauthorized(msg.chat.id, msg.from);
+      this.userStates.delete(msg.chat.id);
+      await this.displayDeleteFileList(msg.chat.id);
     });
 
     // /mirror or /status command
@@ -335,9 +344,13 @@ class SeedrTelegramBot {
       const text = msg.text.trim();
 
       // Handle main reply keyboard buttons
-      if (text === '🔥 Top Releases') {
+      if (text === '🎬 Latest Movies' || text === '🔥 Top Releases' || text === 'Latest Movies' || text === 'Top Releases') {
         this.userStates.delete(msg.chat.id);
         return this.displayTopReleases(msg.chat.id, 0);
+      }
+      if (text === '🗑️ Delete Files' || text === 'Delete Files' || text === 'Clean Storage') {
+        this.userStates.delete(msg.chat.id);
+        return this.displayDeleteFileList(msg.chat.id);
       }
       if (text === '🔍 Search Torrents') {
         this.userStates.set(msg.chat.id, 'waiting_for_search');
@@ -409,7 +422,7 @@ class SeedrTelegramBot {
       }
 
       try {
-        // Navigation: Top Releases
+        // Navigation: Top Releases / Latest Movies
         if (data.startsWith('cmd_top:')) {
           const page = parseInt(data.replace('cmd_top:', ''), 10) || 0;
           await this.bot.answerCallbackQuery(query.id);
@@ -428,6 +441,42 @@ class SeedrTelegramBot {
           const cacheId = data.replace('convert_mag:', '');
           await this.bot.answerCallbackQuery(query.id, { text: 'Starting conversion...' });
           return this.handleConvertMagnet(chatId, cacheId, messageId);
+        }
+
+        // Manage delete list
+        if (data === 'cmd_delete_list') {
+          await this.bot.answerCallbackQuery(query.id);
+          return this.displayDeleteFileList(chatId, messageId);
+        }
+
+        // Quick delete item (from /delete list)
+        if (data.startsWith('del_quick:')) {
+          const parts = data.split(':');
+          const type = parts[1];
+          const id = parts[2];
+          await this.bot.answerCallbackQuery(query.id, { text: 'Deleting...' });
+          return this.handleQuickDelete(chatId, type, id, messageId);
+        }
+
+        // Delete item to free space for pending movie download (Case 1)
+        if (data.startsWith('del_space:')) {
+          const parts = data.split(':');
+          const type = parts[1];
+          const id = parts[2];
+          const qCacheId = parts[3];
+          await this.bot.answerCallbackQuery(query.id, { text: 'Deleting file to free space...' });
+          return this.handleSpaceDelete(chatId, type, id, qCacheId, messageId);
+        }
+
+        // Retry adding pending movie after space freed
+        if (data.startsWith('retry_add:')) {
+          const qCacheId = data.replace('retry_add:', '');
+          const cached = getActionData(qCacheId);
+          if (!cached || !cached.magnet) {
+            return this.bot.answerCallbackQuery(query.id, { text: '⚠️ Request expired. Please select the movie again from /movies.', show_alert: true });
+          }
+          await this.bot.answerCallbackQuery(query.id, { text: 'Retrying cloud download...' });
+          return this.handleAddTorrent(chatId, cached.magnet, cached.title, messageId);
         }
 
         // Mirror status: cmd_mirror_status
@@ -662,12 +711,29 @@ class SeedrTelegramBot {
   }
 
   // 3. Add torrent to Seedr and start polling
-  async handleAddTorrent(chatId, magnet, title) {
-    const statusMsg = await this.bot.sendMessage(
-      chatId,
-      `⏳ Adding <b>${escapeHtml(title)}</b> to Seedr cloud...`,
-      { parse_mode: 'HTML' }
-    );
+  async handleAddTorrent(chatId, magnet, title, messageId = null) {
+    let statusMsg;
+    if (messageId) {
+      statusMsg = { message_id: messageId };
+      try {
+        await this.bot.editMessageText(
+          `⏳ Adding <b>${escapeHtml(title)}</b> to Seedr cloud...`,
+          { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+        );
+      } catch (e) {
+        statusMsg = await this.bot.sendMessage(
+          chatId,
+          `⏳ Adding <b>${escapeHtml(title)}</b> to Seedr cloud...`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    } else {
+      statusMsg = await this.bot.sendMessage(
+        chatId,
+        `⏳ Adding <b>${escapeHtml(title)}</b> to Seedr cloud...`,
+        { parse_mode: 'HTML' }
+      );
+    }
 
     try {
       const result = await seedrService.addMagnet(magnet);
@@ -675,28 +741,11 @@ class SeedrTelegramBot {
       const isSpaceError = 
         result?.reason_phrase === 'not_enough_space_added_to_wishlist' ||
         result?.reason_phrase === 'not_enough_space' ||
-        result?.result === 'not_enough_space';
+        result?.result === 'not_enough_space' ||
+        (typeof result?.error === 'string' && (result.error.includes('space') || result.error.includes('wishlist')));
 
       if (isSpaceError) {
-        downloadQueue.addToQueue({ magnet, name: title });
-        return this.bot.editMessageText(
-          `⏳ <b>Seedr Storage Occupied — Automatically Queued!</b>\n\n` +
-          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n` +
-          `📋 <b>Position in Queue:</b> #${downloadQueue.queue.length}\n\n` +
-          `<i>Seedr storage is currently full. This torrent has been automatically added to your Upcoming Queue and will start downloading as soon as space is freed!</i>`,
-          {
-            chat_id: chatId,
-            message_id: statusMsg.message_id,
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📋 View Upcoming Queue', callback_data: 'cmd_queue' }],
-                [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
-                [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
-              ]
-            }
-          }
-        );
+        return this.handleSpaceFull(chatId, magnet, title, statusMsg.message_id);
       }
 
       if (result.result === false || (result.result !== true && result.result !== 'success' && !result.id)) {
@@ -722,7 +771,7 @@ class SeedrTelegramBot {
         `✅ <b>Added to Seedr!</b>\n\n` +
         `🎬 <b>Name:</b> ${escapeHtml(finalTitle)}\n` +
         `🆔 <b>Transfer ID:</b> <code>${transferId}</code>\n` +
-        `⏳ <i>Tracking download progress...</i>`,
+        `⏳ <i>Downloading in Seedr cloud & preparing direct link...</i>`,
         {
           chat_id: chatId,
           message_id: statusMsg.message_id,
@@ -747,25 +796,7 @@ class SeedrTelegramBot {
       const isSpace = typeof reason === 'string' && (reason.includes('space') || reason.includes('wishlist'));
 
       if (isSpace) {
-        downloadQueue.addToQueue({ magnet, name: title });
-        return this.bot.editMessageText(
-          `⏳ <b>Seedr Storage Occupied — Automatically Queued!</b>\n\n` +
-          `🎬 <b>Torrent:</b> <code>${escapeHtml(title)}</code>\n` +
-          `📋 <b>Position in Queue:</b> #${downloadQueue.queue.length}\n\n` +
-          `<i>Seedr storage is currently full. This torrent has been automatically added to your Upcoming Queue and will start downloading as soon as space is freed!</i>`,
-          {
-            chat_id: chatId,
-            message_id: statusMsg.message_id,
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📋 View Upcoming Queue', callback_data: 'cmd_queue' }],
-                [{ text: '📁 Manage Seedr Files', callback_data: 'nav_folder:root' }],
-                [{ text: '⚡ Active Transfers', callback_data: 'cmd_transfers' }]
-              ]
-            }
-          }
-        );
+        return this.handleSpaceFull(chatId, magnet, title, statusMsg.message_id);
       }
 
       const errMsg = rawErr?.reason_phrase || rawErr?.error || rawErr?.message || error?.message || 'Failed to add magnet link.';
@@ -774,6 +805,178 @@ class SeedrTelegramBot {
         message_id: statusMsg.message_id,
         parse_mode: 'HTML'
       });
+    }
+  }
+
+  // Handle Case 1: Seedr storage full when adding movie / torrent
+  async handleSpaceFull(chatId, magnet, title, messageId = null) {
+    const qCacheId = storeActionData({ magnet, title });
+    let rootData = { space_used: 0, space_max: 1, folders: [], files: [] };
+    try {
+      rootData = await seedrService.listFolder(null);
+    } catch (e) {
+      console.error('Failed to list folder in handleSpaceFull:', e.message);
+    }
+
+    const used = rootData.space_used || 0;
+    const max = rootData.space_max || 1;
+    const percent = Math.min(100, (used / max) * 100);
+    const free = Math.max(0, max - used);
+
+    const folders = rootData.folders || [];
+    const files = rootData.files || [];
+
+    let text = 
+      `⚠️ <b>Seedr Cloud Storage is Full!</b>\n\n` +
+      `🎬 <b>Requested Movie:</b> <code>${escapeHtml(title)}</code>\n` +
+      `💾 <b>Used Space:</b> ${formatBytes(used)} / ${formatBytes(max)} (${percent.toFixed(1)}% full)\n` +
+      `📊 ${renderProgressBar(percent)}\n` +
+      `🆓 <b>Available Free Space:</b> ${formatBytes(free)}\n\n` +
+      `❌ <b>Your Seedr storage does not have enough space to download this movie.</b>\n\n` +
+      `🗑️ <b>Kindly delete completed files below to free up space and continue:</b>`;
+
+    const inlineKeyboard = [];
+
+    // Add delete buttons for folders taking space
+    folders.slice(0, 4).forEach((f) => {
+      const label = `📁🗑️ Delete Folder: ${f.name} (${formatBytes(f.size)})`;
+      inlineKeyboard.push([
+        {
+          text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+          callback_data: `del_space:folder:${f.id}:${qCacheId}`
+        }
+      ]);
+    });
+
+    // Add delete buttons for root files taking space
+    files.slice(0, 6).forEach((f) => {
+      const label = `📄🗑️ Delete File: ${f.name} (${formatBytes(f.size)})`;
+      inlineKeyboard.push([
+        {
+          text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+          callback_data: `del_space:file:${f.id}:${qCacheId}`
+        }
+      ]);
+    });
+
+    if (folders.length === 0 && files.length === 0) {
+      text += `\n\n<i>No completed files found in root storage. Try checking active transfers or upcoming queue.</i>`;
+    }
+
+    // Action buttons: Retry, View Files, Queue
+    inlineKeyboard.push([
+      { text: '⚡ Retry Downloading Movie Now', callback_data: `retry_add:${qCacheId}` }
+    ]);
+    inlineKeyboard.push([
+      { text: '📁 Manage All Files', callback_data: 'nav_folder:root' },
+      { text: '⏳ Schedule in Queue', callback_data: `queue_add:${qCacheId}` }
+    ]);
+    inlineKeyboard.push([
+      { text: '🎬 Back to Latest Movies', callback_data: 'cmd_top:0' }
+    ]);
+
+    if (messageId) {
+      try {
+        return await this.bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        });
+      } catch (err) {
+        // Fall back to sending new message
+      }
+    }
+    return this.bot.sendMessage(chatId, text, {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: inlineKeyboard }
+    });
+  }
+
+  // Delete item from storage-full warning, recalculate space, and prompt for retry
+  async handleSpaceDelete(chatId, type, id, qCacheId, messageId = null) {
+    try {
+      if (type === 'folder') {
+        await seedrService.deleteFolder(id);
+      } else {
+        await seedrService.deleteFile(id);
+      }
+
+      await magnetStorage.addDeletedMagnet({
+        id,
+        deletedReason: `Freed space for movie download via Telegram Bot`
+      }).catch(() => {});
+
+      // Fetch updated space quota and files
+      const rootData = await seedrService.listFolder(null);
+      const used = rootData.space_used || 0;
+      const max = rootData.space_max || 1;
+      const percent = Math.min(100, (used / max) * 100);
+      const free = Math.max(0, max - used);
+      const folders = rootData.folders || [];
+      const files = rootData.files || [];
+
+      const cached = getActionData(qCacheId) || {};
+      const movieTitle = cached.title || 'Movie';
+
+      let text = 
+        `🗑️ <b>Item Deleted Successfully!</b> Space freed in Seedr cloud.\n\n` +
+        `💾 <b>Updated Storage:</b> ${formatBytes(used)} / ${formatBytes(max)} (${percent.toFixed(1)}% full)\n` +
+        `📊 ${renderProgressBar(percent)}\n` +
+        `🆓 <b>Available Free Space:</b> ${formatBytes(free)}\n\n` +
+        `🎬 <b>Pending Movie:</b> <code>${escapeHtml(movieTitle)}</code>\n\n` +
+        `💡 <i>If you have freed enough space, tap <b>"⚡ Download Movie Now"</b> below! If more space is needed, delete another file:</i>`;
+
+      const inlineKeyboard = [
+        [{ text: '⚡ Download Movie Now!', callback_data: `retry_add:${qCacheId}` }]
+      ];
+
+      // Remaining folders
+      folders.slice(0, 3).forEach((f) => {
+        const label = `📁🗑️ Delete: ${f.name} (${formatBytes(f.size)})`;
+        inlineKeyboard.push([
+          {
+            text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+            callback_data: `del_space:folder:${f.id}:${qCacheId}`
+          }
+        ]);
+      });
+
+      // Remaining files
+      files.slice(0, 4).forEach((f) => {
+        const label = `📄🗑️ Delete: ${f.name} (${formatBytes(f.size)})`;
+        inlineKeyboard.push([
+          {
+            text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+            callback_data: `del_space:file:${f.id}:${qCacheId}`
+          }
+        ]);
+      });
+
+      inlineKeyboard.push([
+        { text: '📁 View All Files', callback_data: 'nav_folder:root' },
+        { text: '🎬 Latest Movies', callback_data: 'cmd_top:0' }
+      ]);
+
+      if (messageId) {
+        return this.bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineKeyboard }
+        });
+      }
+      return this.bot.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
+    } catch (error) {
+      console.error('handleSpaceDelete error:', error);
+      const errMsg = `❌ Failed to delete item: ${escapeHtml(error.message || '')}`;
+      if (messageId) {
+        return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+      }
+      return this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
     }
   }
 
@@ -802,7 +1005,7 @@ class SeedrTelegramBot {
           if (directInfo && directInfo.downloadUrl) {
             return this.bot.sendMessage(
               chatId,
-              `🎉 <b>Torrent Download Complete & Ready!</b>\n\n` +
+              `🎉 <b>Movie Ready to Download & Stream!</b>\n\n` +
               `🎬 <b>File:</b> <code>${escapeHtml(directInfo.fileName || title)}</code>\n` +
               (directInfo.fileSize ? `📦 <b>Size:</b> ${directInfo.fileSize}\n\n` : '\n') +
               `📋 <b>Direct Download Link:</b> <i>(Tap code box to copy)</i>\n` +
@@ -813,8 +1016,12 @@ class SeedrTelegramBot {
                 disable_web_page_preview: true,
                 reply_markup: {
                   inline_keyboard: [
-                    [{ text: '⚡ Direct Download / Stream', url: directInfo.downloadUrl }],
-                    [{ text: '📁 Open in Seedr Files', callback_data: `nav_folder:${directInfo.folderId || 'root'}` }]
+                    [{ text: '⚡ 1-Tap Download / Stream', url: directInfo.downloadUrl }],
+                    [
+                      { text: '🗑️ Delete File from Seedr', callback_data: `del_prompt:file:${directInfo.fileId}:${directInfo.folderId || 'root'}` },
+                      { text: '📁 Open in Seedr Files', callback_data: `nav_folder:${directInfo.folderId || 'root'}` }
+                    ],
+                    [{ text: '🎬 Latest Movies', callback_data: 'cmd_top:0' }]
                   ]
                 }
               }
@@ -823,14 +1030,17 @@ class SeedrTelegramBot {
 
           return this.bot.sendMessage(
             chatId,
-            `🎉 <b>Torrent Download Complete!</b>\n\n` +
+            `🎉 <b>Movie Download Complete!</b>\n\n` +
             `🎬 <b>Title:</b> ${escapeHtml(title)}\n` +
-            `☁️ Ready in your Seedr cloud storage.`,
+            `☁️ Ready in your Seedr cloud storage.\n\n` +
+            `💡 <i>Tap "📁 Open Seedr Files" below to view the file, generate a direct download link, or delete it to free space.</i>`,
             {
               parse_mode: 'HTML',
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: '📁 Open Seedr Files', callback_data: 'nav_folder:root' }]
+                  [{ text: '📁 Open Seedr Files', callback_data: 'nav_folder:root' }],
+                  [{ text: '🗑️ Delete Files (Free Space)', callback_data: 'cmd_delete_list' }],
+                  [{ text: '🎬 Latest Movies', callback_data: 'cmd_top:0' }]
                 ]
               }
             }
@@ -1347,23 +1557,35 @@ class SeedrTelegramBot {
   async resolveDirectDownloadLink(title) {
     try {
       const rootData = await seedrService.listFolder(null);
+      const stopWords = new Set([
+        'www', '1tamilmv', 'tamilmv', 'movie', 'movies', 'download', 'torrent',
+        'web', 'dl', 'rip', 'hd', 'x264', 'x265', 'hevc', '720p', '1080p',
+        '2160p', '4k', 'aac', 'esub', 'org', 'clean', 'audio', 'hindi', 'tamil',
+        'telugu', 'malayalam', 'kannada', 'english', 'multi', 'hdtc', 'dvdrip'
+      ]);
+
       const cleanWords = (title || '')
         .toLowerCase()
         .replace(/[^a-z0-9]/g, ' ')
         .split(' ')
-        .filter(w => w.length > 2);
+        .filter(w => w.length > 2 && !stopWords.has(w));
 
       // Check subfolders
       let matchedFolder = null;
       if (rootData.folders && rootData.folders.length > 0) {
         if (cleanWords.length > 0) {
-          matchedFolder = rootData.folders.find(f => {
-            const name = (f.name || '').toLowerCase();
-            return cleanWords.some(w => name.includes(w));
-          });
+          let bestScore = 0;
+          for (const f of rootData.folders) {
+            const fName = (f.name || '').toLowerCase();
+            const score = cleanWords.reduce((acc, word) => acc + (fName.includes(word) ? 1 : 0), 0);
+            if (score > bestScore) {
+              bestScore = score;
+              matchedFolder = f;
+            }
+          }
         }
         if (!matchedFolder) {
-          matchedFolder = rootData.folders[0];
+          matchedFolder = rootData.folders[rootData.folders.length - 1] || rootData.folders[0];
         }
       }
 
@@ -1371,14 +1593,18 @@ class SeedrTelegramBot {
         const folderData = await seedrService.listFolder(matchedFolder.id);
         const files = folderData.files || [];
         if (files.length > 0) {
-          const largestFile = [...files].sort((a, b) => (b.size || 0) - (a.size || 0))[0];
-          const dl = await seedrService.getDownloadUrl(largestFile.id);
+          const videoFiles = files.filter(f => f.isVideo || (f.name && f.name.match(/\.(mp4|mkv|avi|webm|mov|m4v)$/i)));
+          const targetFile = videoFiles.length > 0 
+            ? [...videoFiles].sort((a, b) => (b.size || 0) - (a.size || 0))[0]
+            : [...files].sort((a, b) => (b.size || 0) - (a.size || 0))[0];
+
+          const dl = await seedrService.getDownloadUrl(targetFile.id);
           return {
-            fileName: largestFile.name,
-            fileSize: largestFile.size ? formatBytes(largestFile.size) : '',
+            fileName: targetFile.name,
+            fileSize: targetFile.size ? formatBytes(targetFile.size) : '',
             downloadUrl: dl.url,
             folderId: matchedFolder.id,
-            fileId: largestFile.id
+            fileId: targetFile.id
           };
         }
       }
@@ -1387,13 +1613,18 @@ class SeedrTelegramBot {
       if (rootData.files && rootData.files.length > 0) {
         let matchedFile = null;
         if (cleanWords.length > 0) {
-          matchedFile = rootData.files.find(f => {
-            const name = (f.name || '').toLowerCase();
-            return cleanWords.some(w => name.includes(w));
-          });
+          let bestScore = 0;
+          for (const f of rootData.files) {
+            const fName = (f.name || '').toLowerCase();
+            const score = cleanWords.reduce((acc, word) => acc + (fName.includes(word) ? 1 : 0), 0);
+            if (score > bestScore) {
+              bestScore = score;
+              matchedFile = f;
+            }
+          }
         }
         if (!matchedFile) {
-          matchedFile = rootData.files[0];
+          matchedFile = rootData.files[rootData.files.length - 1] || rootData.files[0];
         }
         const dl = await seedrService.getDownloadUrl(matchedFile.id);
         return {
@@ -1410,7 +1641,7 @@ class SeedrTelegramBot {
     return null;
   }
 
-  // Display Top Releases from 1TamilMV
+  // Display Top Releases & Latest Movies from 1TamilMV
   async displayTopReleases(chatId, page = 0, messageId = null) {
     let statusMsg = null;
     if (!messageId) {
@@ -1420,19 +1651,20 @@ class SeedrTelegramBot {
     }
 
     try {
-      const data = await movieScraper.fetchMovies();
+      const data = await (movieScraper.fetchMovies ? movieScraper.fetchMovies() : movieScraper.getMovies());
       const movies = data.topReleases && data.topReleases.length > 0 ? data.topReleases : (data.allMovies || []);
 
       if (!movies || movies.length === 0) {
         const noMovieText = 
-          `❌ <b>No Top Releases Found</b>\n\n` +
+          `❌ <b>No Latest Movies Found</b>\n\n` +
           `Could not scrape latest releases from the active mirror.\n` +
           `Try rediscovering mirror with <code>/rediscover</code> or search with <code>/search</code>.`;
         
         const markup = {
           inline_keyboard: [
             [{ text: '🔄 Rediscover Mirror', callback_data: 'cmd_rediscover' }],
-            [{ text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }]
+            [{ text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }],
+            [{ text: '🗑️ Delete Files (Free Space)', callback_data: 'cmd_delete_list' }]
           ]
         };
 
@@ -1453,7 +1685,7 @@ class SeedrTelegramBot {
       const mirrorDomain = status.activeDomain || '1TamilMV';
 
       let text = 
-        `🔥 <b>Top Releases (1TamilMV)</b>\n` +
+        `🎬 <b>Latest Movies & Top Releases</b>\n` +
         `🌐 <i>Mirror: ${escapeHtml(mirrorDomain)}</i>\n` +
         `📄 <i>Page ${currentPage + 1} of ${totalPages} (${movies.length} releases)</i>\n\n`;
 
@@ -1494,6 +1726,10 @@ class SeedrTelegramBot {
       inlineKeyboard.push(navRow);
 
       inlineKeyboard.push([
+        { text: '🗑️ Delete Files (Free Space)', callback_data: 'cmd_delete_list' },
+        { text: '📁 Seedr Files', callback_data: 'nav_folder:root' }
+      ]);
+      inlineKeyboard.push([
         { text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' },
         { text: '🌐 Mirror Status', callback_data: 'cmd_mirror_status' }
       ]);
@@ -1508,7 +1744,7 @@ class SeedrTelegramBot {
       });
     } catch (error) {
       console.error('Error in displayTopReleases:', error);
-      const errMsg = `❌ Failed to fetch top releases: ${escapeHtml(error.message || 'Unknown error')}`;
+      const errMsg = `❌ Failed to fetch latest movies: ${escapeHtml(error.message || 'Unknown error')}`;
       const targetMsgId = messageId || statusMsg?.message_id;
       if (targetMsgId) {
         return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: targetMsgId, parse_mode: 'HTML' });
@@ -1522,7 +1758,7 @@ class SeedrTelegramBot {
   async displayMovieDetails(chatId, cacheId, messageId = null) {
     const cached = getActionData(cacheId);
     if (!cached) {
-      const expiredText = '⚠️ Movie information has expired. Please select it again from /top.';
+      const expiredText = '⚠️ Movie information has expired. Please select it again from /movies.';
       if (messageId) {
         return this.bot.editMessageText(expiredText, { chat_id: chatId, message_id: messageId });
       }
@@ -1564,14 +1800,14 @@ class SeedrTelegramBot {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [
-              [{ text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` }]
+              [{ text: '⬅️ Back to Latest Movies', callback_data: `cmd_top:${cached.page || 0}` }]
             ]
           }
         });
       }
 
       text += `⚡ <b>Available Qualities & Resolutions:</b>\n`;
-      text += `<i>Tap any button below to immediately convert into Seedr cloud download:</i>\n\n`;
+      text += `<i>Tap any button below to automatically add to Seedr and generate your direct download link:</i>\n\n`;
 
       const inlineKeyboard = [];
 
@@ -1606,7 +1842,10 @@ class SeedrTelegramBot {
       }
 
       inlineKeyboard.push([
-        { text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` },
+        { text: '🗑️ Delete Files (Free Space)', callback_data: 'cmd_delete_list' }
+      ]);
+      inlineKeyboard.push([
+        { text: '⬅️ Back to Latest Movies', callback_data: `cmd_top:${cached.page || 0}` },
         { text: '📁 Seedr Files', callback_data: 'nav_folder:root' }
       ]);
 
@@ -1626,10 +1865,130 @@ class SeedrTelegramBot {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '⬅️ Back to Top Releases', callback_data: `cmd_top:${cached.page || 0}` }]
+            [{ text: '⬅️ Back to Latest Movies', callback_data: `cmd_top:${cached.page || 0}` }]
           ]
         }
       });
+    }
+  }
+
+  // Dedicated file deletion manager for Telegram (/delete command or button)
+  async displayDeleteFileList(chatId, messageId = null) {
+    try {
+      const rootData = await seedrService.listFolder(null);
+      const used = rootData.space_used || 0;
+      const max = rootData.space_max || 1;
+      const percent = Math.min(100, (used / max) * 100);
+      const free = Math.max(0, max - used);
+      const folders = rootData.folders || [];
+      const files = rootData.files || [];
+
+      if (folders.length === 0 && files.length === 0) {
+        const emptyText = 
+          `📂 <b>Seedr Cloud Storage is Empty</b>\n\n` +
+          `💾 <b>Quota:</b> ${formatBytes(used)} / ${formatBytes(max)} (0% used)\n` +
+          `📊 ${renderProgressBar(0)}\n\n` +
+          `<i>You have no files or folders occupying space in Seedr. You have ${formatBytes(max)} of free space ready!</i>`;
+
+        const markup = {
+          inline_keyboard: [
+            [{ text: '🎬 Browse Latest Movies', callback_data: 'cmd_top:0' }],
+            [{ text: '🔍 Search Torrents', callback_data: 'cmd_search_prompt' }]
+          ]
+        };
+
+        if (messageId) {
+          return this.bot.editMessageText(emptyText, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML', reply_markup: markup });
+        }
+        return this.bot.sendMessage(chatId, emptyText, { parse_mode: 'HTML', reply_markup: markup });
+      }
+
+      let text = 
+        `🗑️ <b>Delete Files from Seedr Storage</b>\n\n` +
+        `💾 <b>Used:</b> ${formatBytes(used)} / ${formatBytes(max)} (${percent.toFixed(1)}% full)\n` +
+        `📊 ${renderProgressBar(percent)}\n` +
+        `🆓 <b>Free Space:</b> ${formatBytes(free)}\n\n` +
+        `<i>Tap any item below to immediately delete it and free up cloud storage:</i>`;
+
+      const inlineKeyboard = [];
+
+      folders.forEach((f) => {
+        const label = `📁🗑️ Delete Folder: ${f.name} (${formatBytes(f.size)})`;
+        inlineKeyboard.push([
+          {
+            text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+            callback_data: `del_quick:folder:${f.id}`
+          }
+        ]);
+      });
+
+      files.forEach((f) => {
+        const label = `📄🗑️ Delete: ${f.name} (${formatBytes(f.size)})`;
+        inlineKeyboard.push([
+          {
+            text: label.length > 38 ? label.substring(0, 38) + '…' : label,
+            callback_data: `del_quick:file:${f.id}`
+          }
+        ]);
+      });
+
+      inlineKeyboard.push([
+        { text: '📁 Browse File Explorer', callback_data: 'nav_folder:root' },
+        { text: '🔄 Refresh List', callback_data: 'cmd_delete_list' }
+      ]);
+      inlineKeyboard.push([
+        { text: '🎬 Browse Latest Movies', callback_data: 'cmd_top:0' }
+      ]);
+
+      if (messageId) {
+        try {
+          return await this.bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: inlineKeyboard }
+          });
+        } catch (e) {
+          if (e.message && e.message.includes('message is not modified')) return;
+        }
+      }
+
+      return this.bot.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
+    } catch (error) {
+      console.error('displayDeleteFileList error:', error);
+      const errMsg = `❌ Failed to list files for deletion: ${escapeHtml(error.message || '')}`;
+      if (messageId) {
+        return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+      }
+      return this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
+    }
+  }
+
+  // Quick deletion execution
+  async handleQuickDelete(chatId, type, id, messageId = null) {
+    try {
+      if (type === 'folder') {
+        await seedrService.deleteFolder(id);
+      } else {
+        await seedrService.deleteFile(id);
+      }
+
+      await magnetStorage.addDeletedMagnet({
+        id,
+        deletedReason: `Deleted ${type} via Telegram Bot Quick Delete`
+      }).catch(() => {});
+
+      return this.displayDeleteFileList(chatId, messageId);
+    } catch (error) {
+      console.error('handleQuickDelete error:', error);
+      const errMsg = `❌ Failed to delete ${type}: ${escapeHtml(error.message || '')}`;
+      if (messageId) {
+        return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' });
+      }
+      return this.bot.sendMessage(chatId, errMsg, { parse_mode: 'HTML' });
     }
   }
 
@@ -1637,14 +1996,14 @@ class SeedrTelegramBot {
   async handleConvertMagnet(chatId, cacheId, messageId = null) {
     const cached = getActionData(cacheId);
     if (!cached || !cached.magnet) {
-      const errMsg = '⚠️ Convert request expired. Please pick the movie again from /top.';
+      const errMsg = '⚠️ Convert request expired. Please pick the movie again from /movies.';
       if (messageId) {
         return this.bot.editMessageText(errMsg, { chat_id: chatId, message_id: messageId });
       }
       return this.bot.sendMessage(chatId, errMsg);
     }
 
-    return this.handleAddTorrent(chatId, cached.magnet, cached.title);
+    return this.handleAddTorrent(chatId, cached.magnet, cached.title, messageId);
   }
 
   // Convert a 1TamilMV topic URL into downloadable qualities

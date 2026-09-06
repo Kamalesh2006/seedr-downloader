@@ -531,7 +531,7 @@ function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 animate-in fade-in slide-in-from-bottom-4 max-w-sm sm:max-w-md">
+        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-[120] animate-in fade-in slide-in-from-bottom-4 max-w-sm sm:max-w-md">
           <div className={`px-4 sm:px-5 py-3 rounded-xl shadow-2xl font-medium flex items-center gap-3 text-xs sm:text-sm backdrop-blur-md ${getToastStyles(toast.type)}`}>
             {getToastIcon(toast.type)}
             <span className="flex-1">{toast.message}</span>
