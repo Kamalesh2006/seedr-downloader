@@ -60,8 +60,12 @@ html.light .bg-\[\#111927\] {
 html.light .bg-\[\#090F1C\],
 html.light .bg-\[\#0A101D\],
 html.light .bg-\[\#080E1A\],
+html.light .bg-\[\#080D17\],
+html.light .bg-\[\#0E1624\],
+html.light .bg-\[\#0B111D\],
 html.light .bg-\[\#111A29\],
 html.light .bg-\[\#131D2F\],
+html.light .bg-\[\#141D2D\],
 html.light .bg-\[\#141D2E\],
 html.light .bg-\[\#151F32\],
 html.light .bg-\[\#162032\],
@@ -69,8 +73,14 @@ html.light .bg-\[\#162238\],
 html.light .bg-\[\#172338\],
 html.light .bg-\[\#182335\],
 html.light .bg-\[\#182438\],
+html.light .bg-\[\#18263B\],
 html.light .bg-\[\#0D1424\] {
   background-color: #F1F5F9 !important;
+}
+
+/* Modal dark gradient override for light mode */
+html.light .from-\[\#172338\].via-\[\#111927\].to-\[\#1e1915\] {
+  background-image: linear-gradient(to right, rgba(255, 237, 213, 0.7), #FFFFFF, rgba(254, 243, 199, 0.6)) !important;
 }
 
 html.light .bg-\[\#090F1C\]\/90 {
