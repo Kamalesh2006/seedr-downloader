@@ -32,7 +32,11 @@ export default function MirrorMoviesView({
   searchQuery = '',
   onSearchChange = null,
   queue = [],
-  activeTransfers = []
+  activeTransfers = [],
+  publicResultsCount = 0,
+  searchLoading = false,
+  hasSearched = false,
+  onSearch = null
 }) {
   const [topReleases, setTopReleases] = useState([]);
   const [allMovies, setAllMovies] = useState([]);
@@ -487,19 +491,23 @@ export default function MirrorMoviesView({
 
       {/* Empty State */}
       {!loading && displayedMovies.length === 0 && (
-        <div className="bg-[#111927] border border-[#1E293B] rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+        <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4 shadow-sm dark:shadow-none">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center">
             <Film className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-white">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
               {searchQuery && searchQuery.trim() ? `No releases matching "${searchQuery}"` : 'No Releases Found'}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
               {searchQuery && searchQuery.trim() ? (
                 viewMode === 'top' 
                   ? `No matching releases in Top Releases. Would you like to check across All Movies & Releases (${allMovies.length} total)?`
-                  : `No releases matching "${searchQuery}" found on ${mirrorStatus?.domain || 'the mirror'}.`
+                  : publicResultsCount > 0
+                    ? `No releases found on ${mirrorStatus?.domain || '1TamilMV'}, but ${publicResultsCount} torrents were found in Public Indexers below!`
+                    : searchLoading
+                      ? `No releases found on ${mirrorStatus?.domain || '1TamilMV'}. Searching public torrent indexers below...`
+                      : `No releases matching "${searchQuery}" found on ${mirrorStatus?.domain || 'the mirror'}.`
               ) : (
                 error || (mirrorStatus?.domain
                   ? `Unable to load releases from "${mirrorStatus.domain}". The domain might have changed or is temporarily unreachable.`
@@ -508,15 +516,34 @@ export default function MirrorMoviesView({
             </p>
           </div>
 
-          <div className="flex items-center justify-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {searchQuery && searchQuery.trim() && publicResultsCount > 0 && (
+              <a
+                href="#public-indexer-results"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] text-[#071911] shadow-lg shadow-emerald-500/20 hover:bg-[#00c572] transition-all"
+              >
+                <span>View Public Torrents ({publicResultsCount})</span>
+              </a>
+            )}
+
+            {searchQuery && searchQuery.trim() && !publicResultsCount && !searchLoading && onSearch && (
+              <button
+                type="button"
+                onClick={() => onSearch(searchQuery.trim())}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] text-[#071911] shadow-lg shadow-emerald-500/20 hover:bg-[#00c572] transition-all"
+              >
+                <span>Search Public Indexers</span>
+              </button>
+            )}
+
             {searchQuery && searchQuery.trim() && viewMode === 'top' && (
               <button
                 type="button"
                 onClick={() => setViewMode('all')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] text-[#071911] shadow-lg shadow-emerald-500/20"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
               >
                 <Film className="w-4 h-4" />
-                <span>Search in All Movies & Releases</span>
+                <span>Search in All Releases</span>
               </button>
             )}
 
@@ -524,7 +551,7 @@ export default function MirrorMoviesView({
               <button
                 type="button"
                 onClick={() => onSearchChange('')}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
               >
                 <span>Clear Search</span>
               </button>

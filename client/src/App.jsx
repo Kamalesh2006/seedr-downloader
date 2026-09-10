@@ -10,7 +10,8 @@ import {
   Sparkles, 
   ExternalLink,
   RefreshCw,
-  Folder
+  Folder,
+  Loader2
 } from 'lucide-react';
 import api from './api/client';
 import Sidebar from './components/Sidebar';
@@ -32,7 +33,15 @@ import useQueue from './hooks/useQueue';
 import { isOversizedForSeedr, formatBytes } from './utils/magnet';
 
 function App() {
-  const { search, results, loading: searchLoading, error: searchError } = useSearch();
+  const { 
+    search, 
+    results, 
+    loading: searchLoading, 
+    error: searchError, 
+    hasSearched, 
+    lastQuery, 
+    clearResults 
+  } = useSearch();
   const { 
     activeTransfers, 
     cloudTorrents, 
@@ -309,25 +318,70 @@ function App() {
                 <div className="space-y-6 animate-in fade-in duration-200">
                   <MirrorMoviesView 
                     searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
+                    onSearchChange={(q) => {
+                      setSearchQuery(q);
+                      if (!q) clearResults();
+                    }}
                     onAddMagnet={handleAddMagnet} 
                     queue={queue}
                     activeTransfers={activeTransfers}
                     onShowToast={(msg, type) => showToast(msg, type)}
                     onOpenSettings={() => setIsSettingsOpen(true)}
+                    publicResultsCount={results.length}
+                    searchLoading={searchLoading}
+                    hasSearched={hasSearched}
+                    onSearch={handleSearch}
                   />
 
+                  {searchError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-2xl text-sm">
+                      {searchError}
+                    </div>
+                  )}
+
+                  {searchLoading && (
+                    <div className="pt-8 border-t border-slate-200 dark:border-[#1E293B] flex flex-col items-center justify-center gap-3 py-10 text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-2.5">
+                        <Loader2 className="w-5 h-5 animate-spin text-[#00DF81]" />
+                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          Searching public torrent indexers (ThePirateBay, 1337x, YTS)...
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">Searching global public trackers for "{lastQuery || searchQuery}"</p>
+                    </div>
+                  )}
+
                   {results.length > 0 && (
-                    <div className="pt-8 border-t border-slate-200 dark:border-[#1E293B] space-y-4">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Additional Public Indexer Results</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Torrents found from 1337x, ThePirateBay, and YTS</p>
+                    <div id="public-indexer-results" className="pt-8 border-t border-slate-200 dark:border-[#1E293B] space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
+                            <span>Public Torrent Indexer Results</span>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-[#00DF81] border border-emerald-500/20">
+                              {results.length} found
+                            </span>
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Global public torrents matching "{lastQuery || searchQuery}" from ThePirateBay, 1337x, and YTS
+                          </p>
+                        </div>
                       </div>
                       <SearchResults 
                         results={results} 
                         onDownload={handleAddMagnet} 
                         onShowToast={showToast}
                       />
+                    </div>
+                  )}
+
+                  {!searchLoading && hasSearched && results.length === 0 && (
+                    <div className="pt-8 border-t border-slate-200 dark:border-[#1E293B] text-center py-8 space-y-2">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        No public indexer torrents found for "{lastQuery || searchQuery}".
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Try searching with a slightly different keyword or check spelling.
+                      </p>
                     </div>
                   )}
                 </div>

@@ -5,12 +5,17 @@ export default function useSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [lastQuery, setLastQuery] = useState('');
 
   const search = async (query) => {
+    if (!query || !query.trim()) return;
     setLoading(true);
     setError(null);
+    setHasSearched(true);
+    setLastQuery(query.trim());
     try {
-      const response = await api.get(`/search?q=${encodeURIComponent(query)}`);
+      const response = await api.get(`/search?q=${encodeURIComponent(query.trim())}`);
       setResults(response.data.results || []);
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Search failed');
@@ -20,5 +25,12 @@ export default function useSearch() {
     }
   };
 
-  return { results, loading, error, search };
+  const clearResults = () => {
+    setResults([]);
+    setHasSearched(false);
+    setLastQuery('');
+    setError(null);
+  };
+
+  return { results, loading, error, search, hasSearched, lastQuery, clearResults };
 }
