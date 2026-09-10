@@ -175,13 +175,19 @@ export default function MirrorMoviesView({
 
   const handleFetchMovieLinks = async (movie) => {
     const urlsToFetch = movie.detailUrls?.length ? movie.detailUrls : (movie.detailUrl ? [movie.detailUrl] : []);
-    if (urlsToFetch.length === 0) return;
+    if (urlsToFetch.length === 0 && !movie.title) return;
 
     try {
       setLoadingLinksMap(prev => ({ ...prev, [movie.id]: true }));
-      const detailsList = await Promise.allSettled(
-        urlsToFetch.map(u => api.get(`/mirror/detail?url=${encodeURIComponent(u)}`))
-      );
+      let detailsList = [];
+      if (urlsToFetch.length > 0) {
+        detailsList = await Promise.allSettled(
+          urlsToFetch.map(u => api.get(`/mirror/detail?url=${encodeURIComponent(u)}&title=${encodeURIComponent(movie.title || movie.rawTitle || '')}`))
+        );
+      } else {
+        const res = await api.get(`/mirror/detail?title=${encodeURIComponent(movie.title || movie.rawTitle || '')}`);
+        detailsList = [{ status: 'fulfilled', value: res }];
+      }
 
       const combinedMagnets = [...(movie.magnets || [])];
       let resolvedPoster = movie.poster;
@@ -193,7 +199,7 @@ export default function MirrorMoviesView({
           if (Array.isArray(d.magnets)) {
             for (const m of d.magnets) {
               const exists = combinedMagnets.some(x => 
-                (m.infoHash && x.infoHash === m.infoHash) || (m.magnet && x.magnet === m.magnet)
+                (m.infoHash && x.infoHash && m.infoHash === x.infoHash) || (m.magnet && x.magnet === m.magnet)
               );
               if (!exists) combinedMagnets.push(m);
             }
@@ -201,13 +207,25 @@ export default function MirrorMoviesView({
         }
       }
 
+      const foundCount = combinedMagnets.length;
+      if (foundCount > 0) {
+        onShowToast?.(`Loaded ${foundCount} download ${foundCount === 1 ? 'option' : 'options'} for ${movie.title}!`, 'success');
+      } else {
+        onShowToast?.(`Download links not posted yet by provider for "${movie.title}".`, 'info');
+      }
+
       const updater = (m) => {
-        if (m.id === movie.id || (m.title && m.title === movie.title)) {
+        const matches = m.id === movie.id || 
+                        (m.title && m.title === movie.title) || 
+                        (m.rawTitle && m.rawTitle === movie.rawTitle);
+        if (matches) {
           return {
             ...m,
-            poster: resolvedPoster,
+            poster: resolvedPoster || m.poster,
             magnets: combinedMagnets,
-            hasDetailPending: false
+            hasDetailPending: false,
+            linksChecked: true,
+            noLinksFound: combinedMagnets.length === 0
           };
         }
         return m;
@@ -253,11 +271,24 @@ export default function MirrorMoviesView({
           rawTitle: item.title,
           year,
           languages: item.languages?.length ? [...item.languages] : (language ? [language] : []),
-          magnets: [...(item.magnets || [])]
+          magnets: [...(item.magnets || [])],
+          detailUrls: item.detailUrls ? [...item.detailUrls] : (item.detailUrl ? [item.detailUrl] : []),
+          linksChecked: !!item.linksChecked,
+          noLinksFound: !!item.noLinksFound
         });
       } else {
         const group = map.get(groupKey);
         if (!group.poster && item.poster) group.poster = item.poster;
+        if (item.linksChecked) group.linksChecked = true;
+        if (item.noLinksFound && group.magnets.length === 0) group.noLinksFound = true;
+        if (item.detailUrl && !group.detailUrls.includes(item.detailUrl)) {
+          group.detailUrls.push(item.detailUrl);
+        }
+        if (item.detailUrls) {
+          for (const u of item.detailUrls) {
+            if (!group.detailUrls.includes(u)) group.detailUrls.push(u);
+          }
+        }
         if (language && !group.languages.includes(language)) {
           group.languages.push(language);
         }
@@ -868,16 +899,46 @@ export default function MirrorMoviesView({
                         );
                       })}
                     </div>
+                  ) : movie.linksChecked && movie.noLinksFound ? (
+                    /* Provider has created topic placeholder but no download links published yet */
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-center space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-amber-300">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Download Links Pending</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Provider created this thread as an upcoming release placeholder. Magnet links have not been published yet.
+                      </p>
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        {onSearch && (
+                          <button
+                            type="button"
+                            onClick={() => onSearch(movie.title)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#00DF81] text-[#071911] hover:bg-[#05D686] transition-all shadow-sm active:scale-95"
+                          >
+                            Search Torrents
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleFetchMovieLinks(movie)}
+                          disabled={isFetchingThis}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all active:scale-95"
+                        >
+                          Retry Check
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    /* Detail pending */
+                    /* Detail pending button */
                     <button
                       onClick={() => handleFetchMovieLinks(movie)}
                       disabled={isFetchingThis}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-500/15 hover:bg-sky-100 dark:hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 transition-all disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-500/15 hover:bg-sky-100 dark:hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 transition-all disabled:opacity-50 active:scale-[0.99]"
                     >
                       {isFetchingThis ? (
                         <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
                           <span>Fetching links & sizes...</span>
                         </>
                       ) : (

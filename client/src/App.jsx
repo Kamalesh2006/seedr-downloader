@@ -118,6 +118,9 @@ function App() {
   };
 
   const handleSearch = (query) => {
+    setCurrentTab('dashboard');
+    setDashboardMode('search');
+    setSearchQuery(query);
     search(query);
   };
 
@@ -399,14 +402,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* Torrent Search Results */}
-                  {results.length > 0 && (
-                    <SearchResults 
-                      results={results} 
-                      onDownload={handleAddMagnet} 
-                      onShowToast={showToast}
-                    />
-                  )}
 
                   {/* Active Cloud Downloads in Seedr */}
                   <ActiveDownloads 
@@ -475,13 +470,7 @@ function App() {
                 onShowToast={(msg, type) => showToast(msg, type)}
               />
 
-              {results.length > 0 && (
-                <SearchResults 
-                  results={results} 
-                  onDownload={handleAddMagnet} 
-                  onShowToast={showToast}
-                />
-              )}
+
             </div>
           )}
 
@@ -560,6 +549,7 @@ function App() {
               activeTransfers={activeTransfers}
               onShowToast={(msg, type) => showToast(msg, type)}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              onSearch={handleSearch}
             />
           )}
         </main>
