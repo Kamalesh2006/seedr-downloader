@@ -318,14 +318,15 @@ function App() {
                   />
 
                   {results.length > 0 && (
-                    <div className="pt-8 border-t border-[#1E293B] space-y-4">
+                    <div className="pt-8 border-t border-slate-200 dark:border-[#1E293B] space-y-4">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-200">Additional Public Indexer Results</h3>
-                        <p className="text-xs text-slate-400">Torrents found from 1337x, ThePirateBay, and YTS</p>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Additional Public Indexer Results</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Torrents found from 1337x, ThePirateBay, and YTS</p>
                       </div>
                       <SearchResults 
                         results={results} 
                         onDownload={handleAddMagnet} 
+                        onShowToast={showToast}
                       />
                     </div>
                   )}
@@ -349,6 +350,7 @@ function App() {
                     <SearchResults 
                       results={results} 
                       onDownload={handleAddMagnet} 
+                      onShowToast={showToast}
                     />
                   )}
 
@@ -423,6 +425,7 @@ function App() {
                 <SearchResults 
                   results={results} 
                   onDownload={handleAddMagnet} 
+                  onShowToast={showToast}
                 />
               )}
             </div>
@@ -430,24 +433,24 @@ function App() {
 
           {currentTab === 'storage' && (
             <div className="space-y-6 max-w-3xl">
-              <div className="pb-3 border-b border-[#1E293B]">
-                <h2 className="text-lg sm:text-xl font-bold text-white">Seedr Cloud Storage Details</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+              <div className="pb-3 border-b border-slate-200 dark:border-[#1E293B]">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Seedr Cloud Storage Details</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Overview of your account storage quota and cloud allocation.
                 </p>
               </div>
 
               <StorageCard storage={storage} />
 
-              <div className="bg-[#111927] p-5 sm:p-6 rounded-2xl border border-[#1E293B] shadow-xl space-y-4">
+              <div className="bg-white dark:bg-[#111927] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-[#1E293B] shadow-sm dark:shadow-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20">
                       <HardDrive className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="text-sm sm:text-base font-bold text-white">Free Tier Account</h4>
-                      <p className="text-xs text-slate-400">Total capacity: {formatBytes(max)}</p>
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Free Tier Account</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Total capacity: {formatBytes(max)}</p>
                     </div>
                   </div>
                   <span className="text-xs sm:text-sm font-bold text-[#00DF81] font-mono">
@@ -455,8 +458,8 @@ function App() {
                   </span>
                 </div>
 
-                <div className="pt-4 border-t border-[#1E293B] flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Want more than 4.5 GB?</span>
+                <div className="pt-4 border-t border-slate-200 dark:border-[#1E293B] flex items-center justify-between">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Want more than 4.5 GB?</span>
                   <a
                     href="https://www.seedr.cc/premium"
                     target="_blank"

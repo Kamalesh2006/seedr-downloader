@@ -53,7 +53,7 @@ class SearchService {
           TorrentSearchApi.overrideConfig(provider.name, { baseUrl: url });
 
           // Enforce a 6-second timeout using Promise.race
-          const searchPromise = TorrentSearchApi.search(query, 'All', config.maxResults);
+          const searchPromise = TorrentSearchApi.search(query, 'All', Math.max(config.maxResults || 25, 40));
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout')), 6000)
           );
@@ -74,24 +74,22 @@ class SearchService {
         for (const torrent of providerResults) {
           const sizeBytes = parseSizeToBytes(torrent.size);
           
-          if (sizeBytes > 0 && sizeBytes <= this.maxFileSizeBytes) {
-            try {
-              const magnet = await TorrentSearchApi.getMagnet(torrent);
-              if (magnet) {
-                apiResults.push({
-                  title: torrent.title,
-                  size: torrent.size,
-                  sizeBytes: sizeBytes,
-                  seeds: parseInt(torrent.seeds) || 0,
-                  leeches: parseInt(torrent.peers || torrent.leechs || 0),
-                  magnet: magnet,
-                  provider: torrent.provider || provider.name,
-                  time: torrent.time
-                });
-              }
-            } catch (magnetError) {
-              // Ignore magnet fetch error
+          try {
+            const magnet = torrent.magnet || await TorrentSearchApi.getMagnet(torrent);
+            if (magnet) {
+              apiResults.push({
+                title: torrent.title,
+                size: torrent.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Unknown'),
+                sizeBytes: sizeBytes || 0,
+                seeds: parseInt(torrent.seeds) || 0,
+                leeches: parseInt(torrent.peers || torrent.leechs || 0),
+                magnet: magnet,
+                provider: torrent.provider || provider.name,
+                time: torrent.time
+              });
             }
+          } catch (magnetError) {
+            // Ignore magnet fetch error
           }
         }
       }
@@ -131,8 +129,8 @@ class SearchService {
         combined.push(item);
       }
 
-      // Sort by seeds descending and return up to maxResults
-      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, Math.max(config.maxResults || 25, 30));
+      // Sort by seeds descending and return up to 50 results
+      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, Math.max(config.maxResults || 25, 50));
       
     } catch (error) {
       console.error('Search error:', error);

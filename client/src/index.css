@@ -58,22 +58,29 @@ html.light .bg-\[\#111927\] {
 
 /* Inner Panels, Inputs, Filter Pills, Sub-boxes */
 html.light .bg-\[\#090F1C\],
+html.light .bg-\[\#0A0F1D\],
 html.light .bg-\[\#0A101D\],
 html.light .bg-\[\#080E1A\],
 html.light .bg-\[\#080D17\],
 html.light .bg-\[\#0E1624\],
 html.light .bg-\[\#0B111D\],
 html.light .bg-\[\#111A29\],
+html.light .bg-\[\#111A28\],
+html.light .bg-\[\#131D2E\],
 html.light .bg-\[\#131D2F\],
 html.light .bg-\[\#141D2D\],
 html.light .bg-\[\#141D2E\],
 html.light .bg-\[\#151F32\],
+html.light .bg-\[\#152033\],
 html.light .bg-\[\#162032\],
+html.light .bg-\[\#162134\],
 html.light .bg-\[\#162238\],
 html.light .bg-\[\#172338\],
 html.light .bg-\[\#182335\],
 html.light .bg-\[\#182438\],
 html.light .bg-\[\#18263B\],
+html.light .bg-\[\#1E2E46\],
+html.light .bg-\[\#1E304B\],
 html.light .bg-\[\#0D1424\] {
   background-color: #F1F5F9 !important;
 }
@@ -83,7 +90,8 @@ html.light .from-\[\#172338\].via-\[\#111927\].to-\[\#1e1915\] {
   background-image: linear-gradient(to right, rgba(255, 237, 213, 0.7), #FFFFFF, rgba(254, 243, 199, 0.6)) !important;
 }
 
-html.light .bg-\[\#090F1C\]\/90 {
+html.light .bg-\[\#090F1C\]\/90,
+html.light .bg-\[\#090F1C\]\/70 {
   background-color: rgba(241, 245, 249, 0.95) !important;
 }
 
@@ -102,6 +110,7 @@ html.light .bg-\[\#0D1424\]\/95 {
 /* Modals & Backdrop Overlays */
 html.light .bg-black\/75,
 html.light .bg-black\/80,
+html.light .bg-black\/85,
 html.light .bg-black\/70,
 html.light .bg-black\/60 {
   background-color: rgba(15, 23, 42, 0.45) !important;
@@ -114,13 +123,16 @@ html.light .border-\[\#1E293B\]\/70,
 html.light .border-\[\#1E293B\]\/80,
 html.light .border-\[\#182335\],
 html.light .border-\[\#1E2B3E\],
+html.light .border-\[\#233550\],
 html.light .border-slate-800,
 html.light .border-slate-800\/80,
 html.light .border-slate-800\/60,
+html.light .border-slate-800\/50,
 html.light .border-slate-800\/40,
 html.light .border-slate-700,
 html.light .border-slate-700\/80,
-html.light .border-slate-700\/60 {
+html.light .border-slate-700\/60,
+html.light .border-slate-700\/50 {
   border-color: #E2E8F0 !important;
 }
 
@@ -166,6 +178,14 @@ html.light .text-gray-500 {
   color: #94A3B8 !important;
 }
 
+/* Ensure badges on image poster overlays retain high contrast */
+html.light .bg-black\/75 .text-slate-300,
+html.light .bg-black\/60 .text-slate-300,
+html.light .bg-black\/75 .text-slate-200,
+html.light .bg-black\/60 .text-slate-200 {
+  color: #F1F5F9 !important;
+}
+
 /* Inputs, Textareas & Forms */
 html.light input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
 html.light textarea {
@@ -178,10 +198,17 @@ html.light textarea::placeholder {
 }
 
 /* Secondary & Action Buttons */
+html.light .bg-slate-700,
+html.light .bg-slate-700\/80,
+html.light .bg-slate-700\/60,
+html.light .bg-slate-700\/50,
 html.light .bg-slate-800,
 html.light .bg-slate-800\/80,
 html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40,
 html.light .bg-slate-900,
+html.light .bg-slate-900\/80,
 html.light .bg-slate-900\/60 {
   background-color: #F1F5F9 !important;
   color: #334155 !important;

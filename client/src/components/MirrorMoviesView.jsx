@@ -327,14 +327,14 @@ export default function MirrorMoviesView({
                 <span className="font-semibold text-[#00DF81]">Updating releases...</span>
               </div>
             ) : mirrorStatus?.domain ? (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs text-slate-300 min-w-0">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 min-w-0">
                 <span className="w-2 h-2 rounded-full bg-[#00DF81] shrink-0" />
-                <span className="font-mono text-[#00DF81] font-semibold truncate max-w-[180px]">
+                <span className="font-mono text-emerald-600 dark:text-[#00DF81] font-semibold truncate max-w-[180px]">
                   {mirrorStatus.domain.replace(/^https?:\/\//, '')}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 font-medium">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-300 font-medium">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>No domain discovered</span>
               </div>
@@ -343,10 +343,10 @@ export default function MirrorMoviesView({
             <button
               onClick={() => fetchMovies(true)}
               disabled={rediscovering || loading}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-50"
               title="Force re-query search engine to find newest mirror"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-400' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-500 dark:text-emerald-400' : ''}`} />
               <span className="hidden sm:inline">Rediscover</span>
             </button>
 
@@ -363,16 +363,16 @@ export default function MirrorMoviesView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#1E293B] overflow-x-auto">
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-[#1E293B] overflow-x-auto">
           <button
             onClick={() => setViewMode('top')}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               viewMode === 'top'
                 ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
-                : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
+                : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
             }`}
           >
-            <Flame className="w-3.5 h-3.5 text-orange-400" />
+            <Flame className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
             <span>Top Releases</span>
             {displayedMovies.length > 0 && viewMode === 'top' && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
@@ -386,10 +386,10 @@ export default function MirrorMoviesView({
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               viewMode === 'all'
                 ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
-                : 'bg-[#0A0F1D] text-slate-300 hover:text-white border border-[#1E293B]'
+                : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
             }`}
           >
-            <Film className="w-3.5 h-3.5 text-emerald-400" />
+            <Film className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
             <span>All Releases</span>
             {displayedMovies.length > 0 && viewMode === 'all' && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
@@ -463,7 +463,7 @@ export default function MirrorMoviesView({
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-500/20 text-xs font-mono text-emerald-400">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900/80 border border-emerald-500/20 text-xs font-mono text-emerald-600 dark:text-emerald-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00DF81] animate-ping" />
                 <span>Auto-discovering domain & parsing movie forum</span>
               </div>
@@ -472,12 +472,12 @@ export default function MirrorMoviesView({
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-[#111927] border border-[#1E293B] rounded-2xl p-4 space-y-3 animate-pulse">
-                <div className="w-full aspect-[16/9] bg-slate-800/60 rounded-xl" />
-                <div className="h-4 bg-slate-800/60 rounded w-3/4" />
+              <div key={i} className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 space-y-3 animate-pulse">
+                <div className="w-full aspect-[16/9] bg-slate-200 dark:bg-slate-800/60 rounded-xl" />
+                <div className="h-4 bg-slate-200 dark:bg-slate-800/60 rounded w-3/4" />
                 <div className="space-y-2 pt-2">
-                  <div className="h-10 bg-slate-800/50 rounded-lg w-full" />
-                  <div className="h-10 bg-slate-800/50 rounded-lg w-full" />
+                  <div className="h-10 bg-slate-100 dark:bg-slate-800/50 rounded-lg w-full" />
+                  <div className="h-10 bg-slate-100 dark:bg-slate-800/50 rounded-lg w-full" />
                 </div>
               </div>
             ))}
@@ -565,11 +565,11 @@ export default function MirrorMoviesView({
             return (
               <div
                 key={movie.id}
-                className="bg-[#111927] border border-[#1E293B] hover:border-emerald-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/5 group"
+                className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] hover:border-emerald-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/5 group"
               >
                 <div>
                   {/* Poster Header */}
-                  <div className="relative aspect-[16/9] bg-slate-900 rounded-xl overflow-hidden mb-3.5 border border-slate-800">
+                  <div className="relative aspect-[16/9] bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden mb-3.5 border border-slate-200 dark:border-slate-800">
                     {movie.poster ? (
                       <img
                         src={movie.poster}
@@ -581,8 +581,8 @@ export default function MirrorMoviesView({
                     ) : null}
 
                     {/* Fallback Icon */}
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-700 pointer-events-none -z-0">
-                      <Film className="w-10 h-10 opacity-30" />
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-700 pointer-events-none -z-0">
+                      <Film className="w-10 h-10 opacity-40 dark:opacity-30" />
                     </div>
 
                     {/* Tag / Quality Badge */}
@@ -620,13 +620,13 @@ export default function MirrorMoviesView({
                   {/* Available Qualities Summary Pills */}
                   {uniqueQualities.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                         Resolutions:
                       </span>
                       {uniqueQualities.map(q => (
                         <span
                           key={q}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700"
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                         >
                           {q}
                         </span>
@@ -636,8 +636,8 @@ export default function MirrorMoviesView({
 
                   {/* Multi-Language / Audio Filter Tabs */}
                   {hasMultipleLangs && (
-                    <div className="flex items-center gap-1.5 flex-wrap pb-2 border-b border-slate-800/60 mb-2.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-0.5">
+                    <div className="flex items-center gap-1.5 flex-wrap pb-2 border-b border-slate-200 dark:border-slate-800/60 mb-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-0.5">
                         Audio:
                       </span>
                       <button
@@ -645,7 +645,7 @@ export default function MirrorMoviesView({
                         className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
                           activeLang === 'ALL'
                             ? 'bg-[#00DF81] text-[#071911] shadow-sm'
-                            : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700'
+                            : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
                         }`}
                       >
                         All ({magnets.length})
@@ -659,7 +659,7 @@ export default function MirrorMoviesView({
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
                               activeLang.toLowerCase() === lang.toLowerCase()
                                 ? 'bg-[#00DF81] text-[#071911] shadow-sm'
-                                : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
                             }`}
                           >
                             {lang} {langCount > 0 ? `(${langCount})` : ''}
@@ -827,7 +827,7 @@ export default function MirrorMoviesView({
 
                                 <button
                                   onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}
-                                  className="p-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                                  className="p-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
                                   title="Copy magnet link"
                                 >
                                   {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -843,7 +843,7 @@ export default function MirrorMoviesView({
                     <button
                       onClick={() => handleFetchMovieLinks(movie)}
                       disabled={isFetchingThis}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 transition-all disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-500/15 hover:bg-sky-100 dark:hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 transition-all disabled:opacity-50"
                     >
                       {isFetchingThis ? (
                         <>

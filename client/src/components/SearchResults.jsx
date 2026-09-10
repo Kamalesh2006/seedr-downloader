@@ -1,9 +1,36 @@
-import React from 'react';
-import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon } from 'lucide-react';
+import React, { useState } from 'react';
+import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon, Copy, Check } from 'lucide-react';
 import { isOversizedForSeedr } from '../utils/magnet';
 
-export default function SearchResults({ results, onDownload }) {
+export default function SearchResults({ results, onDownload, onShowToast }) {
+  const [copiedKey, setCopiedKey] = useState(null);
+
   if (!results || results.length === 0) return null;
+
+  const handleCopyMagnet = async (magnet, key, e) => {
+    e?.stopPropagation();
+    if (!magnet) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(magnet);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = magnet;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedKey(key);
+      onShowToast?.('Magnet link copied to clipboard', 'success');
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy magnet:', err);
+      onShowToast?.('Failed to copy magnet link', 'error');
+    }
+  };
 
   const getSizeColor = (sizeStr) => {
     if (!sizeStr) return 'text-slate-400';
@@ -34,7 +61,9 @@ export default function SearchResults({ results, onDownload }) {
               {results.length} found
             </span>
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">Click "Add to Seedr" to download. Torrents auto-schedule if Seedr is occupied.</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Click "Add to Seedr" for cloud downloads (max 4.5 GB) or "Copy Magnet" for any torrent.
+          </p>
         </div>
       </div>
 
@@ -42,6 +71,7 @@ export default function SearchResults({ results, onDownload }) {
       <div className="md:hidden divide-y divide-[#1E293B]/60">
         {results.map((result, idx) => {
           const isOversized = isOversizedForSeedr(result.size);
+          const isCopied = copiedKey === `m-${idx}`;
 
           return (
             <div key={`m-${idx}`} className={`p-4 space-y-2.5 ${isOversized ? 'bg-red-950/10' : ''}`}>
@@ -74,18 +104,41 @@ export default function SearchResults({ results, onDownload }) {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   onClick={() => onDownload(result.magnet, result.title, result.size)}
                   disabled={isOversized}
-                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
                     isOversized
                       ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
                       : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
                   }`}
+                  title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
                 >
-                  <CloudDownload className="w-3.5 h-3.5" />
-                  <span>Add to Seedr</span>
+                  <CloudDownload className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Add to Seedr</span>
+                </button>
+
+                <button
+                  onClick={(e) => handleCopyMagnet(result.magnet, `m-${idx}`, e)}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center gap-1.5 active:scale-95 ${
+                    isCopied
+                      ? 'bg-emerald-500/20 text-[#00DF81] border-emerald-500/40'
+                      : 'bg-[#090F1C] hover:bg-slate-800 text-slate-300 hover:text-white border-[#1E293B]'
+                  }`}
+                  title="Copy magnet link"
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-[#00DF81] shrink-0" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Copy Magnet</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -102,12 +155,13 @@ export default function SearchResults({ results, onDownload }) {
               <th className="px-6 py-3.5 font-semibold w-32">Size</th>
               <th className="px-6 py-3.5 font-semibold w-24">Seeders</th>
               <th className="px-6 py-3.5 font-semibold w-24">Leechers</th>
-              <th className="px-6 py-3.5 font-semibold w-48 text-right">Actions</th>
+              <th className="px-6 py-3.5 font-semibold w-60 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1E293B]/60">
             {results.map((result, idx) => {
               const isOversized = isOversizedForSeedr(result.size);
+              const isCopied = copiedKey === `d-${idx}`;
 
               return (
                 <tr key={`d-${idx}`} className={`transition-colors group ${isOversized ? 'bg-red-950/10 hover:bg-red-950/20' : 'hover:bg-[#152033]'}`}>
@@ -149,19 +203,41 @@ export default function SearchResults({ results, onDownload }) {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => onDownload(result.magnet, result.title, result.size)}
                         disabled={isOversized}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
                           isOversized
                             ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
                             : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98]'
                         }`}
-                        title={isOversized ? 'Exceeds limit' : 'Add to Seedr (Auto-queues if full)'}
+                        title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
                       >
                         <CloudDownload className="w-3.5 h-3.5" />
                         <span>Add to Seedr</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => handleCopyMagnet(result.magnet, `d-${idx}`, e)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                          isCopied
+                            ? 'bg-emerald-500/20 text-[#00DF81] border-emerald-500/40 shadow-sm'
+                            : 'bg-[#090F1C] hover:bg-slate-800 text-slate-300 hover:text-white border-[#1E293B]'
+                        }`}
+                        title={isCopied ? 'Copied!' : 'Copy magnet link'}
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-[#00DF81]" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Magnet</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </td>

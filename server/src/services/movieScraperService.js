@@ -535,11 +535,6 @@ class MovieScraperService {
               const meta = this.parseMagnetMetadata(m.magnet);
               const sizeBytes = m.sizeBytes || meta.sizeBytes || this.parseSizeToBytes(m.size);
 
-              // Disallow files that exceed Seedr 4.5 GB limit
-              if (sizeBytes > 0 && sizeBytes > maxFileSizeBytes) {
-                continue;
-              }
-
               let displayTitle = m.title || meta.title || topic.title;
               displayTitle = displayTitle.replace(/^www\.[a-zA-Z0-9.-]+\s*-\s*/i, '').trim();
 

@@ -127,16 +127,16 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
         {/* Modal Content */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {/* Active Mirror Status Card */}
-          <div className="bg-[#090F1C] border border-[#1E293B] rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[#00DF81]" />
                 Current Active Mirror
               </span>
               <button
                 onClick={handleRediscover}
                 disabled={rediscovering || saving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-50"
                 title="Force query search engine now to find newest mirror"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-[#00DF81]' : ''}`} />
@@ -144,11 +144,11 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-3 bg-[#111927] p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center justify-between gap-3 bg-white dark:bg-[#111927] p-3 rounded-xl border border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#00DF81] animate-pulse shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-mono font-bold text-white truncate">
+                  <p className="text-xs sm:text-sm font-mono font-bold text-slate-900 dark:text-white truncate">
                     {status?.activeDomain || 'https://www.1tamilmv.meme'}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
@@ -165,7 +165,7 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
           {/* Form: Configure Search Keyword & Mirror */}
           <form onSubmit={handleSave} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-200 flex items-center justify-between">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <Search className="w-4 h-4 text-[#00DF81]" />
                   Search Keyword for Mirror Discovery
@@ -177,17 +177,17 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="e.g. 1tamilmv"
-                className="w-full bg-[#090F1C] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#00DF81] transition-colors"
+                className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-[#00DF81] transition-colors"
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 The search term the scraper queries to automatically discover and bypass blocked mirror domains.
               </p>
             </div>
 
             {/* Search Engine Selection */}
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-sky-400" />
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-sky-500 dark:text-sky-400" />
                 Discovery Search Engine
               </label>
               <div className="grid grid-cols-2 gap-2.5">
@@ -201,8 +201,8 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
                     onClick={() => setSearchEngine(engine.id)}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       searchEngine === engine.id
-                        ? 'bg-emerald-500/15 border-emerald-500/40 text-white shadow-sm'
-                        : 'bg-[#090F1C] border-slate-800 text-slate-400 hover:text-slate-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-white shadow-sm'
+                        : 'bg-slate-50 dark:bg-[#090F1C] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-0.5">
@@ -219,7 +219,7 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
 
             {/* Fallback / Manual Override Domain */}
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-200 flex items-center justify-between">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
                 <span>Manual Override / Fallback Domain (Optional)</span>
                 <span className="text-[10px] font-normal text-slate-500">Optional</span>
               </label>
@@ -228,20 +228,20 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
                 value={fallbackDomain}
                 onChange={(e) => setFallbackDomain(e.target.value)}
                 placeholder="https://www.1tamilmv.meme"
-                className="w-full bg-[#090F1C] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#00DF81] transition-colors font-mono"
+                className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-[#00DF81] transition-colors font-mono"
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Optionally lock the scraper to a known domain if search engine discovery is slow or blocked.
               </p>
             </div>
 
             {/* System Info */}
-            <div className="bg-[#090F1C]/70 border border-slate-800/80 rounded-xl p-3.5 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+            <div className="bg-slate-50 dark:bg-[#090F1C]/70 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                 <ShieldCheck className="w-4 h-4 text-[#00DF81]" />
                 <span>Cloud & System Guardrails</span>
               </div>
-              <ul className="text-[11px] text-slate-400 space-y-1 pl-6 list-disc">
+              <ul className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 pl-6 list-disc">
                 <li>Seedr Free capacity: <strong>4.5 GB limit</strong> (larger files automatically routed to queue).</li>
                 <li>Torrent Watchdog: Stalled torrents with 0 progress are auto-deleted after <strong>2 minutes</strong>.</li>
                 <li>Queue Scheduler: Downloads process in order (FIFO) as storage space is freed.</li>
@@ -253,7 +253,7 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>

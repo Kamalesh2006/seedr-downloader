@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Sun, 
   Moon,
-  Bell, 
   Settings,
   Send
 } from 'lucide-react';
@@ -78,21 +77,6 @@ export default function Navbar({
           )}
         </button>
 
-        {/* System Status Indicator (Desktop only) */}
-        <div className="hidden sm:flex items-center">
-          <button
-            onClick={() => {}}
-            className={`relative p-2 rounded-xl transition-colors ${
-              isDarkMode 
-                ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' 
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-            }`}
-            title="System Status"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#00DF81] animate-pulse" />
-          </button>
-        </div>
 
         {/* Settings Button - Accessible on both mobile and desktop */}
         <button
