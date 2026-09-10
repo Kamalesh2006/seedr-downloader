@@ -51,11 +51,11 @@ router.post('/rediscover', async (req, res) => {
 // GET /api/mirror/detail
 router.get('/detail', async (req, res) => {
   try {
-    const { url } = req.query;
-    if (!url) {
-      return res.status(400).json({ error: 'Detail URL is required' });
+    const { url, title } = req.query;
+    if (!url && !title) {
+      return res.status(400).json({ error: 'Detail URL or title is required' });
     }
-    const details = await movieScraper.fetchMovieDetail(url);
+    const details = await movieScraper.fetchMovieDetail(url, title);
     res.json({ success: true, details });
   } catch (error) {
     console.error('[MirrorRoute] Fetch detail failed:', error.message);
