@@ -86,13 +86,13 @@ export default function SearchBar({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (mode === 'magnet' && magnet.trim()) {
+    if ((isQueueTab || mode === 'magnet') && magnet.trim()) {
       const finalName = customName.trim() || detectedName || 'Magnet Download';
       onAddMagnet(magnet.trim(), finalName);
       setMagnet('');
       setCustomName('');
       setDetectedName('');
-    } else if (mode === 'search' && query.trim()) {
+    } else if (!isQueueTab && mode === 'search' && query.trim()) {
       if (query.trim().toLowerCase().startsWith('magnet:?')) {
         setMode('magnet');
         setMagnet(query.trim());
