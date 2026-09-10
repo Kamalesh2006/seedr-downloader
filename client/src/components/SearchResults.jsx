@@ -179,7 +179,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                         </span>
                       )}
                       {isOversized && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
                           <AlertOctagon className="w-3 h-3" /> Exceeds 4.5 GB Limit
                         </span>
                       )}
@@ -191,13 +191,13 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#00DF81]/10 text-[#00DF81] border border-[#00DF81]/20">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#00DF81]/10 text-emerald-600 dark:text-[#00DF81] border border-[#00DF81]/20">
                       <ArrowUp className="w-3 h-3" />
                       {result.seeds || 0}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20">
                       <ArrowDown className="w-3 h-3" />
                       {result.leeches || 0}
                     </span>
@@ -209,7 +209,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                         disabled={isOversized}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
                           isOversized
-                            ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500 border border-slate-700'
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700'
                             : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98]'
                         }`}
                         title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
@@ -222,14 +222,14 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                         onClick={(e) => handleCopyMagnet(result.magnet, `d-${idx}`, e)}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
                           isCopied
-                            ? 'bg-emerald-500/20 text-[#00DF81] border-emerald-500/40 shadow-sm'
-                            : 'bg-[#090F1C] hover:bg-slate-800 text-slate-300 hover:text-white border-[#1E293B]'
+                            ? 'bg-emerald-500/25 text-emerald-700 dark:text-[#00DF81] border-emerald-500/40 shadow-sm'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 dark:hover:text-white border-slate-200 dark:border-[#1E293B]'
                         }`}
                         title={isCopied ? 'Copied!' : 'Copy magnet link'}
                       >
                         {isCopied ? (
                           <>
-                            <Check className="w-3.5 h-3.5 text-[#00DF81]" />
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-[#00DF81]" />
                             <span>Copied!</span>
                           </>
                         ) : (
