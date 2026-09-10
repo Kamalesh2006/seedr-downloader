@@ -585,14 +585,17 @@ export default function MirrorMoviesView({
                       <Film className="w-10 h-10 opacity-40 dark:opacity-30" />
                     </div>
 
+                    {/* Gradient scrim for high readability over posters */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent pointer-events-none" />
+
                     {/* Tag / Quality Badge */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-black/75 backdrop-blur-md text-[#00DF81] border border-emerald-500/30 tracking-wider">
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+                      <span className="movie-poster-badge-quality">
                         {movie.quality || 'HD'}
                       </span>
                       {movie.isTopRelease && (
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-orange-500/25 backdrop-blur-md text-orange-300 border border-orange-500/30 flex items-center gap-1">
-                          <Flame className="w-3 h-3 text-orange-400" />
+                        <span className="movie-poster-badge-top">
+                          <Flame className="w-3 h-3 text-white fill-white/20 shrink-0" />
                           TOP
                         </span>
                       )}
@@ -600,10 +603,10 @@ export default function MirrorMoviesView({
 
                     {/* Total Available Links Count */}
                     {magnets.length > 0 && (
-                      <div className="absolute top-2.5 right-2.5">
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-semibold bg-black/75 backdrop-blur-md text-slate-300 border border-slate-700 flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-[#00DF81]" />
-                          {magnets.length} {magnets.length === 1 ? 'Link' : 'Links'}
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <span className="movie-poster-badge-links">
+                          <Layers className="w-3 h-3 badge-icon shrink-0" />
+                          <span>{magnets.length} {magnets.length === 1 ? 'Link' : 'Links'}</span>
                         </span>
                       </div>
                     )}
@@ -611,7 +614,7 @@ export default function MirrorMoviesView({
 
                   {/* Clean Movie Title */}
                   <h3
-                    className="text-base sm:text-lg font-bold text-white line-clamp-2 leading-snug group-hover:text-[#00DF81] transition-colors mb-2"
+                    className="text-base sm:text-lg font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug group-hover:text-emerald-600 dark:group-hover:text-[#00DF81] transition-colors mb-2"
                     title={movie.title}
                   >
                     {movie.title}
@@ -722,39 +725,39 @@ export default function MirrorMoviesView({
                               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-black tracking-wider shrink-0 ${
                                   link.quality === '4K' || link.quality === '2160P'
-                                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                                    : 'bg-emerald-500/15 text-[#00DF81] border border-emerald-500/30'
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
                                 }`}>
                                   {link.quality || 'HD'}
                                 </span>
 
-                                <span className={`text-xs font-bold font-mono shrink-0 ${isOversized ? 'text-amber-300' : 'text-slate-100'}`}>
+                                <span className={`text-xs font-bold font-mono shrink-0 ${isOversized ? 'text-amber-600 dark:text-amber-300' : 'text-slate-800 dark:text-slate-100'}`}>
                                   {displaySize}
                                 </span>
 
                                 {hasMultipleLangs && activeLang === 'ALL' && link.language && (
-                                  <span className="text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-1.5 py-0.2 rounded border border-sky-500/30 shrink-0">
+                                  <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-500/15 px-1.5 py-0.2 rounded border border-sky-300 dark:border-sky-500/30 shrink-0">
                                     {link.language}
                                   </span>
                                 )}
 
                                 {isQueued && (
-                                  <span className="text-[9px] font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
-                                    <Clock className="w-2.5 h-2.5 text-amber-400" />
+                                  <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-500/30 flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
                                     Upcoming Queue
                                   </span>
                                 )}
 
                                 {isDownloading && (
-                                  <span className="text-[9px] font-bold text-[#00DF81] bg-[#00DF81]/15 px-1.5 py-0.5 rounded border border-[#00DF81]/30 flex items-center gap-1">
-                                    <Sparkles className="w-2.5 h-2.5 text-[#00DF81]" />
+                                  <span className="text-[9px] font-bold text-emerald-800 dark:text-[#00DF81] bg-emerald-100 dark:bg-[#00DF81]/15 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-[#00DF81]/30 flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 text-emerald-600 dark:text-[#00DF81]" />
                                     Downloading
                                   </span>
                                 )}
                               </div>
 
                               {isOversized && (
-                                <span className="text-[9px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 flex items-center gap-1">
+                                <span className="text-[9px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-500/20 shrink-0 flex items-center gap-1">
                                   &gt; 4.5 GB Limit
                                 </span>
                               )}

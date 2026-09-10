@@ -180,10 +180,111 @@ html.light .text-gray-500 {
   color: #94A3B8 !important;
 }
 
-/* Ensure badges on image poster overlays retain high contrast */
+/* ==========================================================================
+   MOVIE POSTER BADGES (CRISP, HIGH-CONTRAST IN BOTH LIGHT & DARK MODES)
+   ========================================================================== */
+
+.movie-poster-badge-quality {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(9, 15, 28, 0.92) !important;
+  color: #00DF81 !important;
+  border: 1px solid rgba(0, 223, 129, 0.45) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.movie-poster-badge-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.movie-poster-badge-top svg {
+  color: #FFFFFF !important;
+}
+
+.movie-poster-badge-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2.5px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(9, 15, 28, 0.92) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.movie-poster-badge-links .badge-icon {
+  color: #00DF81 !important;
+}
+
+/* Ensure light mode preserves high-contrast poster badges */
+html.light .movie-poster-badge-quality {
+  background: rgba(9, 15, 28, 0.92) !important;
+  color: #00DF81 !important;
+  border-color: rgba(0, 223, 129, 0.5) !important;
+}
+
+html.light .movie-poster-badge-top {
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+html.light .movie-poster-badge-top svg {
+  color: #FFFFFF !important;
+}
+
+html.light .movie-poster-badge-links {
+  background: rgba(9, 15, 28, 0.92) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+html.light .movie-poster-badge-links .badge-icon {
+  color: #00DF81 !important;
+}
+
+/* Ensure dark badges/overlays retain high contrast on same element or child */
+html.light .bg-black\/75.text-slate-300,
 html.light .bg-black\/75 .text-slate-300,
+html.light .bg-black\/80.text-slate-300,
+html.light .bg-black\/80 .text-slate-300,
+html.light .bg-black\/85.text-slate-300,
+html.light .bg-black\/85 .text-slate-300,
+html.light .bg-black\/70.text-slate-300,
+html.light .bg-black\/70 .text-slate-300,
+html.light .bg-black\/60.text-slate-300,
 html.light .bg-black\/60 .text-slate-300,
+html.light .bg-black\/75.text-slate-200,
 html.light .bg-black\/75 .text-slate-200,
+html.light .bg-black\/60.text-slate-200,
 html.light .bg-black\/60 .text-slate-200 {
   color: #F1F5F9 !important;
 }

@@ -1,19 +1,17 @@
 {
   "searchProviders": [
     {
+      "name": "ThePirateBay",
+      "urls": [
+        "https://apibay.org"
+      ]
+    },
+    {
       "name": "1337x",
       "urls": [
         "https://1337x.to",
         "https://1337x.gd",
         "https://1337x.is"
-      ]
-    },
-    {
-      "name": "ThePirateBay",
-      "urls": [
-        "https://thepiratebay.org",
-        "https://thepiratebay.party",
-        "https://tpb.party"
       ]
     },
     {
