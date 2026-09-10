@@ -38,69 +38,61 @@ class SearchService {
 
   async searchTorrentApi(query) {
     const apiResults = [];
-    for (const provider of config.searchProviders) {
-      console.log(`Searching provider: ${provider.name}`);
-      let providerResults = [];
-      let success = false;
+    const providers = config.searchProviders || [];
 
-      const urls = provider.urls && provider.urls.length > 0 ? provider.urls : [provider.baseUrl];
+    const providerPromises = providers.map(async (providerCfg) => {
+      const providerName = providerCfg.name;
+      const providerInstance = TorrentSearchApi.getProvider(providerName, false);
+      if (!providerInstance) return [];
+
+      const urls = providerCfg.urls && providerCfg.urls.length > 0 ? providerCfg.urls : [providerInstance.baseUrl];
 
       for (const url of urls) {
         try {
-          // Disable other providers to search only this one
-          TorrentSearchApi.disableAllProviders();
-          TorrentSearchApi.enableProvider(provider.name);
-          TorrentSearchApi.overrideConfig(provider.name, { baseUrl: url });
-
-          // Enforce a 6-second timeout using Promise.race
-          const searchPromise = TorrentSearchApi.search(query, 'All', Math.max(config.maxResults || 25, 40));
+          if (url) {
+            providerInstance.overrideConfig({ baseUrl: url });
+          }
+          const searchPromise = providerInstance.search(query, 'All', Math.max(config.maxResults || 25, 40));
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 6000)
+            setTimeout(() => reject(new Error('Timeout')), 4000)
           );
-          
           const results = await Promise.race([searchPromise, timeoutPromise]);
-          
           if (results && results.length > 0) {
-            providerResults = results;
-            success = true;
-            break;
+            return results;
           }
-        } catch (error) {
-          // Continue to next mirror
+        } catch (e) {
+          // Continue to next mirror/url
         }
       }
+      return [];
+    });
 
-      if (success && providerResults.length > 0) {
-        for (const torrent of providerResults) {
+    const settled = await Promise.allSettled(providerPromises);
+
+    for (const res of settled) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        for (const torrent of res.value) {
           const sizeBytes = parseSizeToBytes(torrent.size);
+          let magnet = torrent.magnet;
           
-          try {
-            const magnet = torrent.magnet || await TorrentSearchApi.getMagnet(torrent);
-            if (magnet) {
-              apiResults.push({
-                title: torrent.title,
-                size: torrent.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Unknown'),
-                sizeBytes: sizeBytes || 0,
-                seeds: parseInt(torrent.seeds) || 0,
-                leeches: parseInt(torrent.peers || torrent.leechs || 0),
-                magnet: magnet,
-                provider: torrent.provider || provider.name,
-                time: torrent.time
-              });
-            }
-          } catch (magnetError) {
-            // Ignore magnet fetch error
+          if (!magnet && torrent.link && torrent.link.startsWith('magnet:?')) {
+            magnet = torrent.link;
+          }
+
+          if (magnet) {
+            apiResults.push({
+              title: torrent.title,
+              size: torrent.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Unknown'),
+              sizeBytes: sizeBytes || 0,
+              seeds: parseInt(torrent.seeds) || 0,
+              leeches: parseInt(torrent.peers || torrent.leechs || 0),
+              magnet: magnet,
+              provider: torrent.provider || 'Public Torrent',
+              time: torrent.time
+            });
           }
         }
       }
-    }
-
-    // Re-enable all providers when finished
-    TorrentSearchApi.disableAllProviders();
-    for (const provider of config.searchProviders) {
-      try {
-        TorrentSearchApi.enableProvider(provider.name);
-      } catch (e) {}
     }
 
     return apiResults;
