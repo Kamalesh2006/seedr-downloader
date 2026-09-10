@@ -104,10 +104,10 @@ export default function FileActionSheet({
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-bold text-white truncate" title={file.name}>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate" title={file.name}>
                 {file.name}
               </h4>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {formatBytes(file.size)} • {formatRelativeTime(file.created || file.last_update)}
               </p>
             </div>
@@ -115,7 +115,7 @@ export default function FileActionSheet({
 
           <button 
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-slate-800/60"
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl bg-slate-100 dark:bg-slate-800/60"
           >
             <X className="w-5 h-5" />
           </button>
@@ -131,13 +131,13 @@ export default function FileActionSheet({
                   <button
                     onClick={handleLaunchVLC}
                     disabled={vlcLoading}
-                    className="flex items-center justify-between w-full p-3.5 rounded-xl bg-gradient-to-r from-orange-500/15 via-orange-500/10 to-amber-500/15 border border-orange-500/30 text-orange-400 font-bold text-sm hover:bg-orange-500/25 transition-all active:scale-[0.99]"
+                    className="flex items-center justify-between w-full p-3.5 rounded-xl bg-gradient-to-r from-orange-500/15 via-orange-500/10 to-amber-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-bold text-sm hover:bg-orange-500/25 transition-all active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
                       <VlcIcon className="w-5 h-5" />
                       <span>{vlcLoading ? 'Preparing VLC Stream...' : 'Stream in VLC App'}</span>
                     </div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-300">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-700 dark:text-orange-300">
                       Mobile & Desktop
                     </span>
                   </button>
@@ -169,7 +169,7 @@ export default function FileActionSheet({
 
               <button
                 onClick={(e) => onCopyLink(e, file.id)}
-                className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-[#182438] border border-[#1E293B] text-slate-200 font-semibold text-sm hover:bg-[#1E2E46] transition-all active:scale-[0.99]"
+                className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-slate-100 dark:bg-[#182438] border border-slate-200 dark:border-[#1E293B] text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-200 dark:hover:bg-[#1E2E46] transition-all active:scale-[0.99]"
               >
                 {isCopied ? (
                   <>

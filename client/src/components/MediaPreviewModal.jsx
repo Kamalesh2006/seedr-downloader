@@ -286,20 +286,20 @@ export default function MediaPreviewModal({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
         <div 
-          className="bg-[#111927] border border-[#1E293B] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in zoom-in-95 duration-200"
+          className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in zoom-in-95 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
-          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#1E293B] bg-[#111927] flex items-center justify-between gap-3">
+          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#111927] flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="p-2.5 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20 shrink-0">
                 {isVideo ? <Film className="w-5 h-5" /> : isAudio ? <Music className="w-5 h-5" /> : isImage ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-xs sm:text-base font-bold text-slate-100 truncate" title={fileName}>
+                <h3 className="text-xs sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate" title={fileName}>
                   {fileName}
                 </h3>
-                <div className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
                   <span>{formatBytes(file.size)}</span>
                   <span>•</span>
                   <span className="uppercase text-[#00DF81] font-semibold text-[10px] sm:text-[11px]">{ext || 'FILE'}</span>
@@ -620,23 +620,23 @@ export default function MediaPreviewModal({
 
           {/* Modal Footer with Direct Link Box */}
           {(downloadUrl || hlsUrl) && (
-            <div className="px-4 sm:px-5 py-3.5 border-t border-[#1E293B] bg-[#111927] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1 min-w-0 bg-[#080E1A] px-3 py-1.5 rounded-xl border border-[#182335] text-xs font-mono text-gray-400">
-                <span className="text-gray-500 select-none shrink-0">
+            <div className="px-4 sm:px-5 py-3.5 border-t border-slate-200 dark:border-[#1E293B] bg-slate-50 dark:bg-[#111927] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-100 dark:bg-[#080E1A] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#182335] text-xs font-mono text-slate-600 dark:text-gray-400">
+                <span className="text-slate-500 dark:text-gray-500 select-none shrink-0">
                   {hlsUrl ? 'HLS Stream:' : 'Download URL:'}
                 </span>
                 <input 
                   type="text" 
                   readOnly 
                   value={hlsUrl || downloadUrl} 
-                  className="bg-transparent text-gray-300 w-full focus:outline-none truncate select-all" 
+                  className="bg-transparent text-slate-800 dark:text-gray-300 w-full focus:outline-none truncate select-all" 
                 />
               </div>
 
               <div className="flex items-center gap-2 shrink-0 justify-end">
                 <button
                   onClick={() => setIsVlcModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-orange-400 bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 transition-colors"
                   title="Open VLC Network Stream Menu"
                 >
                   <VlcIcon className="w-3.5 h-3.5" />
@@ -645,7 +645,7 @@ export default function MediaPreviewModal({
 
                 <button
                   onClick={handleCopyLink}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#182335] hover:bg-slate-700 text-slate-200 hover:text-white border border-[#1E293B] transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-[#182335] dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#1E293B] transition-colors"
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copied ? 'Copied Link' : 'Copy'}</span>
