@@ -287,6 +287,24 @@ export default function SearchBar({
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
               </button>
             </div>
+
+            {/* Quick Popular Suggestions */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-xs">
+              <span className="text-slate-400 text-[11px] font-semibold">Popular:</span>
+              {['Inception', 'Avatar', 'Interstellar', 'Spider-Man', 'Oppenheimer', 'Deadpool', 'Batman'].map((term) => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => {
+                    setQuery(term);
+                    onSearch?.(term);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs bg-[#090F1C] text-slate-300 hover:text-[#00DF81] hover:bg-slate-800/80 border border-[#1E293B] hover:border-[#00DF81]/40 transition-colors"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </form>

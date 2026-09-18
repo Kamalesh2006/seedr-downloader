@@ -574,70 +574,45 @@ export default function MirrorMoviesView({
       {/* GLOBAL SEARCH VIEW */}
       {viewMode === 'global' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {/* Global Search Input Bar */}
-          <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                executeGlobalSearch();
-              }}
-              className="flex items-center gap-2"
-            >
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={globalQuery}
-                  onChange={(e) => setGlobalQuery(e.target.value)}
-                  placeholder="Search movie name (e.g. Inception, Avatar, Spider-Man, Interstellar)..."
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#00DF81] focus:ring-1 focus:ring-[#00DF81] transition-all"
-                />
-                {globalQuery && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGlobalQuery('');
-                      setGlobalResults([]);
-                      setGlobalHasSearched(false);
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+          {/* Active Global Search Query Header */}
+          {(globalQuery || searchQuery) && (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-xl text-xs text-slate-700 dark:text-slate-300 shadow-sm">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-slate-500 dark:text-slate-400">Global Search Query:</span>
+                <span className="font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-500/20">
+                  "{globalQuery || searchQuery}"
+                </span>
+                {globalResults.length > 0 && (
+                  <span className="text-slate-500">
+                    ({globalResults.length} {globalResults.length === 1 ? 'torrent found' : 'torrents found'})
+                  </span>
                 )}
               </div>
-              <button
-                type="submit"
-                disabled={globalLoading || !globalQuery.trim()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#00DF81] text-[#071911] hover:bg-[#05D686] transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 active:scale-95 shrink-0"
-              >
-                {globalLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Globe className="w-4 h-4" />
-                )}
-                <span>Search Global</span>
-              </button>
-            </form>
-
-            {/* Quick Keyword Pills */}
-            <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
-              <span className="text-slate-400 text-[11px] font-semibold">Popular:</span>
-              {['Inception', 'Avatar', 'Interstellar', 'Spider-Man', 'Oppenheimer', 'Deadpool', 'Batman'].map((term) => (
+              <div className="flex items-center gap-3">
                 <button
-                  key={term}
+                  type="button"
+                  onClick={() => executeGlobalSearch(globalQuery || searchQuery)}
+                  disabled={globalLoading}
+                  className="inline-flex items-center gap-1 text-xs text-[#00DF81] hover:underline font-semibold"
+                >
+                  <RefreshCw className={`w-3 h-3 ${globalLoading ? 'animate-spin' : ''}`} />
+                  <span>Re-search</span>
+                </button>
+                <button
                   type="button"
                   onClick={() => {
-                    setGlobalQuery(term);
-                    executeGlobalSearch(term);
+                    setGlobalQuery('');
+                    setGlobalResults([]);
+                    setGlobalHasSearched(false);
+                    onSearchChange?.('');
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-[#00DF81] border border-slate-200 dark:border-slate-800 transition-colors"
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-white underline ml-1"
                 >
-                  {term}
+                  Clear search
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Provider Filter Tabs (if results exist) */}
           {globalResults.length > 0 && (
@@ -722,16 +697,38 @@ export default function MirrorMoviesView({
 
           {/* Initial Welcome State (Before any search) */}
           {!globalLoading && !globalHasSearched && (
-            <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-8 sm:p-12 text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
-                <Globe className="w-6 h-6" />
+            <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
+                <Globe className="w-7 h-7" />
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                Global Public Torrent Indexers
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                Type any movie or show title in the box above to get instant results from <strong>YTS.mx</strong>, <strong>ThePirateBay</strong>, and <strong>1337x</strong>.
-              </p>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  Global Public Torrent Indexers
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+                  Type any movie or show title in the search box above to get instant results from <strong>YTS.mx</strong>, <strong>ThePirateBay</strong>, and <strong>1337x</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5 flex-wrap pt-2 max-w-lg mx-auto">
+                <span className="text-slate-400 text-xs font-semibold">Try popular:</span>
+                {['Inception', 'Avatar', 'Interstellar', 'Spider-Man', 'Oppenheimer', 'Deadpool', 'Batman'].map((term) => (
+                  <button
+                    key={term}
+                    type="button"
+                    onClick={() => {
+                      if (onSearch) {
+                        onSearch(term);
+                      } else {
+                        executeGlobalSearch(term);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-[#00DF81] border border-slate-200 dark:border-[#1E293B] hover:border-[#00DF81]/40 transition-colors"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
