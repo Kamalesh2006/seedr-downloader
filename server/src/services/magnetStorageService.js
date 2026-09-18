@@ -1,13 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days in milliseconds
 const MAX_DELETED_ITEMS = 500;
+const MAX_ACTIVE_ITEMS = 200;
 const STORAGE_KEY = 'seedr_deleted_magnets';
 const LEGACY_STORAGE_KEY = 'seedr_recent_magnets';
-const LOCAL_FALLBACK_FILE = path.join(__dirname, '../../deleted_magnets_data.json');
-const LEGACY_LOCAL_FALLBACK_FILE = path.join(__dirname, '../../recent_magnets_data.json');
+const ACTIVE_STORAGE_KEY = 'seedr_active_magnets';
 
 class MagnetStorageService {
   constructor() {
@@ -16,9 +17,38 @@ class MagnetStorageService {
     this.token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || null;
 
     // Active magnet tracking registry to preserve original magnet links for deletion tracking
-    this.activeMagnets = new Map(); // hash -> { magnet, hash, name, size, addedAt }
+    this.activeMagnets = new Map(); // hash -> { magnet, hash, name, size, id, addedAt }
     this.idToHash = new Map(); // id (Seedr torrent/folder/file id) -> hash
     this.nameToHash = new Map(); // normalized name -> hash
+
+    this.initPaths();
+    this.loadActiveMagnets();
+  }
+
+  initPaths() {
+    const isServerless = !!(
+      process.env.VERCEL || 
+      process.env.AWS_LAMBDA_FUNCTION_NAME || 
+      process.env.LAMBDA_TASK_ROOT
+    );
+
+    if (isServerless) {
+      this.dataDir = os.tmpdir();
+    } else {
+      const localDir = path.join(__dirname, '../../data');
+      try {
+        if (!fs.existsSync(localDir)) {
+          fs.mkdirSync(localDir, { recursive: true });
+        }
+        this.dataDir = localDir;
+      } catch (e) {
+        this.dataDir = os.tmpdir();
+      }
+    }
+    this.deletedFile = path.join(this.dataDir, 'deleted_magnets.json');
+    this.activeFile = path.join(this.dataDir, 'active_magnets.json');
+    this.legacyDeletedFile = path.join(__dirname, '../../deleted_magnets_data.json');
+    this.legacyRecentFile = path.join(__dirname, '../../recent_magnets_data.json');
   }
 
   // Check if remote KV config is available
@@ -56,25 +86,27 @@ class MagnetStorageService {
     return data.result;
   }
 
-  // Helper to read from local file fallback
+  // Helper to read from local file fallback for deleted magnets
   readLocalFallback() {
     try {
-      if (fs.existsSync(LOCAL_FALLBACK_FILE)) {
-        const data = fs.readFileSync(LOCAL_FALLBACK_FILE, 'utf8');
+      if (fs.existsSync(this.deletedFile)) {
+        const data = fs.readFileSync(this.deletedFile, 'utf8');
         return JSON.parse(data);
+      }
+      if (fs.existsSync(this.legacyDeletedFile)) {
+        const legacyData = fs.readFileSync(this.legacyDeletedFile, 'utf8');
+        const parsed = JSON.parse(legacyData);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      if (fs.existsSync(this.legacyRecentFile)) {
+        const legacyData = fs.readFileSync(this.legacyRecentFile, 'utf8');
+        const parsed = JSON.parse(legacyData);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
       const tmpFile = path.join(os.tmpdir(), 'seedr_deleted_magnets.json');
       if (fs.existsSync(tmpFile)) {
         const data = fs.readFileSync(tmpFile, 'utf8');
         return JSON.parse(data);
-      }
-      // Migrate from legacy file if it exists
-      if (fs.existsSync(LEGACY_LOCAL_FALLBACK_FILE)) {
-        const legacyData = fs.readFileSync(LEGACY_LOCAL_FALLBACK_FILE, 'utf8');
-        const parsed = JSON.parse(legacyData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
       }
     } catch (err) {
       console.warn('Error reading local fallback file:', err.message);
@@ -82,19 +114,72 @@ class MagnetStorageService {
     return this.memoryFallback;
   }
 
-  // Helper to write to local file fallback
+  // Helper to write to local file fallback for deleted magnets
   writeLocalFallback(data) {
     this.memoryFallback = data;
     try {
-      fs.writeFileSync(LOCAL_FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
+      fs.writeFileSync(this.deletedFile, JSON.stringify(data, null, 2), 'utf8');
     } catch (err) {
-      // In serverless / read-only filesystem environments, attempt writing to os.tmpdir()
       try {
         const tmpFile = path.join(os.tmpdir(), 'seedr_deleted_magnets.json');
         fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
       } catch (tmpErr) {
         // memoryFallback holds state
       }
+    }
+  }
+
+  // Load active magnets from disk
+  loadActiveMagnets() {
+    try {
+      let activeList = [];
+      if (fs.existsSync(this.activeFile)) {
+        const raw = fs.readFileSync(this.activeFile, 'utf8');
+        activeList = JSON.parse(raw);
+      } else {
+        const tmpFile = path.join(os.tmpdir(), 'seedr_active_magnets.json');
+        if (fs.existsSync(tmpFile)) {
+          const raw = fs.readFileSync(tmpFile, 'utf8');
+          activeList = JSON.parse(raw);
+        }
+      }
+
+      if (Array.isArray(activeList)) {
+        for (const item of activeList) {
+          if (!item) continue;
+          const hash = (item.hash || '').toLowerCase();
+          if (hash) {
+            this.activeMagnets.set(hash, item);
+          }
+          if (item.id) {
+            this.idToHash.set(String(item.id), hash);
+          }
+          if (item.name) {
+            this.nameToHash.set(this.normalizeName(item.name), hash);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load active magnets from disk:', err.message);
+    }
+  }
+
+  // Save active magnets to disk
+  saveActiveMagnets() {
+    try {
+      const list = Array.from(this.activeMagnets.values()).slice(-MAX_ACTIVE_ITEMS);
+      try {
+        fs.writeFileSync(this.activeFile, JSON.stringify(list, null, 2), 'utf8');
+      } catch (e) {
+        const tmpFile = path.join(os.tmpdir(), 'seedr_active_magnets.json');
+        fs.writeFileSync(tmpFile, JSON.stringify(list, null, 2), 'utf8');
+      }
+      // Also sync to remote KV if available
+      if (this.hasRemoteConfig()) {
+        this.executeKvCommand('SET', ACTIVE_STORAGE_KEY, JSON.stringify(list)).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Failed to save active magnets to disk:', err.message);
     }
   }
 
@@ -120,6 +205,20 @@ class MagnetStorageService {
     return name.trim().toLowerCase().replace(/[\s\.\-_]+/g, ' ');
   }
 
+  cleanSearchTokens(str) {
+    if (!str || typeof str !== 'string') return [];
+    const clean = str
+      .toLowerCase()
+      .replace(/https?:\/\/\S+/gi, ' ')
+      .replace(/www\.[a-z0-9\-_.]+/gi, ' ')
+      .replace(/1tamilmv|tamilmv|tamilblasters|yts|tgx|rarbg|eztv|torrentgalaxy|psa|galaxytv/gi, ' ')
+      .replace(/1080p|720p|2160p|4k|hevc|x264|x265|h264|h265|web-dl|webrip|bluray|hdrip|dvdrip|untouched|unrated|hq|avc|ddp5\.1|ddp5|dd5\.1|esub|complete|season|s\d{1,2}|e\d{1,2}/gi, ' ')
+      .replace(/hindi|tamil|telugu|malayalam|kannada|english|dual audio|multi audio|clean/gi, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .trim();
+    return clean.split(/\s+/).filter(t => t.length >= 2);
+  }
+
   // Register an added/active magnet so that we have its full magnet link when deleted
   registerActiveMagnet({ magnet, name, size, id, hash }) {
     if (!magnet && !hash) return;
@@ -132,6 +231,7 @@ class MagnetStorageService {
       hash: resolvedHash,
       name: resolvedName,
       size: size || null,
+      id: id ? String(id) : null,
       addedAt: new Date().toISOString()
     };
 
@@ -144,11 +244,13 @@ class MagnetStorageService {
     if (resolvedName) {
       this.nameToHash.set(this.normalizeName(resolvedName), resolvedHash);
     }
+
+    this.saveActiveMagnets();
     return record;
   }
 
-  // Find a known magnet by ID, hash, or name
-  findActiveMagnet({ id, hash, name }) {
+  // Find a known magnet by ID, hash, name, or token fuzzy match
+  findActiveMagnet({ id, hash, name, size }) {
     if (hash && this.activeMagnets.has(hash.toLowerCase())) {
       return this.activeMagnets.get(hash.toLowerCase());
     }
@@ -162,6 +264,48 @@ class MagnetStorageService {
         const h = this.nameToHash.get(norm);
         if (h && this.activeMagnets.has(h)) return this.activeMagnets.get(h);
       }
+
+      // Token overlap & fuzzy matching across registered active magnets
+      const targetTokens = this.cleanSearchTokens(name);
+      if (targetTokens.length > 0) {
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const [_, record] of this.activeMagnets.entries()) {
+          const recordTokens = this.cleanSearchTokens(record.name);
+          if (recordTokens.length === 0) continue;
+
+          let matches = 0;
+          for (const tok of targetTokens) {
+            if (recordTokens.includes(tok)) matches++;
+          }
+
+          const overlapRatio = matches / Math.max(1, Math.min(targetTokens.length, recordTokens.length));
+          let score = matches * 10 + overlapRatio * 20;
+
+          // Bonus if sizes are close (within 10%)
+          if (size && record.size && typeof size === 'number' && typeof record.size === 'number') {
+            const sizeDiff = Math.abs(size - record.size) / Math.max(size, record.size);
+            if (sizeDiff < 0.05) score += 30;
+            else if (sizeDiff < 0.15) score += 15;
+          }
+
+          // Bonus if one string contains the other
+          const normRecord = this.normalizeName(record.name);
+          if (norm.includes(normRecord) || normRecord.includes(norm)) {
+            score += 25;
+          }
+
+          if (score > bestScore && (matches >= 1 || score >= 20)) {
+            bestScore = score;
+            bestMatch = record;
+          }
+        }
+
+        if (bestMatch && bestScore >= 20) {
+          return bestMatch;
+        }
+      }
     }
     return null;
   }
@@ -170,7 +314,8 @@ class MagnetStorageService {
   filterPast30Days(list) {
     const cutoff = Date.now() - RETENTION_MS;
     return (Array.isArray(list) ? list : []).filter(item => {
-      if (!item || (!item.magnet && !item.hash)) return false;
+      if (!item) return false;
+      if (!item.name && !item.title && !item.magnet && !item.hash) return false;
 
       // Filter out dummy test items
       const hash = item.hash || '';
@@ -246,7 +391,7 @@ class MagnetStorageService {
     let addedAt = item.addedAt || null;
 
     // If magnet is missing or incomplete, search active magnets registry
-    const known = this.findActiveMagnet({ id: item.id, hash, name: title });
+    const known = this.findActiveMagnet({ id: item.id, hash, name: title, size });
     if (known) {
       if (!magnet) magnet = known.magnet;
       if (!hash) hash = known.hash;
@@ -260,9 +405,11 @@ class MagnetStorageService {
       magnet = `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(title || 'Torrent')}`;
     }
 
+    // Fallback: If still no hash and no magnet, generate deterministic hash from title/id
     if (!magnet && !hash) {
-      console.warn('[MagnetStorage] Cannot record deleted magnet without magnet URI or infohash:', item);
-      return await this.getDeletedMagnets();
+      const pseudoHash = crypto.createHash('sha1').update((title || '') + String(item.id || Date.now())).digest('hex');
+      hash = pseudoHash;
+      magnet = `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(title || 'Deleted Torrent')}`;
     }
 
     const finalTitle = title || this.extractMagnetName(magnet) || 'Deleted Torrent';
@@ -271,13 +418,16 @@ class MagnetStorageService {
 
     const currentList = await this.getDeletedMagnets();
 
-    // Deduplicate existing item with identical hash or URL
+    // Deduplicate existing item with identical hash, URL, or id
     const filtered = currentList.filter(entry => {
       if (hash && entry.hash) {
         return entry.hash.toLowerCase() !== hash.toLowerCase();
       }
       if (magnet && entry.magnet) {
         return entry.magnet.trim() !== magnet;
+      }
+      if (item.id && entry.id) {
+        return String(entry.id) !== String(item.id);
       }
       return true;
     });
@@ -300,7 +450,10 @@ class MagnetStorageService {
     const saved = await this.saveDeletedMagnets(updated);
 
     // Clean up from active registry
-    if (hash) this.activeMagnets.delete(hash);
+    if (hash) {
+      this.activeMagnets.delete(hash);
+      this.saveActiveMagnets();
+    }
 
     console.log(`[MagnetStorage] 🗑️ Archived deleted magnet: "${finalTitle}" (${reason})`);
     return saved;
@@ -339,3 +492,4 @@ class MagnetStorageService {
 }
 
 module.exports = new MagnetStorageService();
+
