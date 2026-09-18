@@ -42,47 +42,49 @@ class SearchService {
       ? ytsCfg.urls
       : ['https://yts.am', 'https://yts.gg', 'https://yts.mx', 'https://yts.lt'];
 
-    for (const mirror of mirrors) {
-      try {
-        const cleanMirror = mirror.replace(/\/+$/, '');
-        const url = `${cleanMirror}/api/v2/list_movies.json?query_term=${encodeURIComponent(query.trim())}&sort=seeds&order=desc`;
-        const res = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'application/json'
-          },
-          timeout: 4500
-        });
+    const mirrorPromises = mirrors.map(async (mirror) => {
+      const cleanMirror = mirror.replace(/\/+$/, '');
+      const url = `${cleanMirror}/api/v2/list_movies.json?query_term=${encodeURIComponent(query.trim())}&sort=seeds&order=desc`;
+      const res = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        },
+        timeout: 3000
+      });
 
-        if (res.data?.data?.movies && Array.isArray(res.data.data.movies)) {
-          const results = [];
-          for (const movie of res.data.data.movies) {
-            if (!movie.torrents) continue;
-            for (const t of movie.torrents) {
-              if (!t.hash) continue;
-              const title = `${movie.title} (${movie.year}) [${t.quality || 'HD'}] [${(t.type || 'WEB').toUpperCase()}] [YTS.MX]`;
-              const magnet = `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(title)}&tr=udp://open.demonii.com:1337/announce&tr=udp://tracker.openbittorrent.com:80&tr=udp://tracker.coppersurfer.tk:6969&tr=udp://glotorrents.pw:6969/announce&tr=udp://tracker.opentrackr.org:1337/announce&tr=udp://torrent.gresille.org:80/announce&tr=udp://p4p.arenabg.com:1337`;
-              const sizeBytes = t.size_bytes || parseSizeToBytes(t.size);
+      if (res.data?.data?.movies && Array.isArray(res.data.data.movies)) {
+        const results = [];
+        for (const movie of res.data.data.movies) {
+          if (!movie.torrents) continue;
+          for (const t of movie.torrents) {
+            if (!t.hash) continue;
+            const title = `${movie.title} (${movie.year}) [${t.quality || 'HD'}] [${(t.type || 'WEB').toUpperCase()}] [YTS]`;
+            const magnet = `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(title)}&tr=udp://open.demonii.com:1337/announce&tr=udp://tracker.openbittorrent.com:80&tr=udp://tracker.coppersurfer.tk:6969&tr=udp://glotorrents.pw:6969/announce&tr=udp://tracker.opentrackr.org:1337/announce&tr=udp://torrent.gresille.org:80/announce&tr=udp://p4p.arenabg.com:1337`;
+            const sizeBytes = t.size_bytes || parseSizeToBytes(t.size);
 
-              results.push({
-                title,
-                size: t.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Unknown'),
-                sizeBytes: sizeBytes || 0,
-                seeds: parseInt(t.seeds, 10) || 0,
-                leeches: parseInt(t.peers, 10) || 0,
-                magnet,
-                provider: 'YTS',
-                time: t.date_uploaded
-              });
-            }
+            results.push({
+              title,
+              size: t.size || (sizeBytes ? `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : 'Unknown'),
+              sizeBytes: sizeBytes || 0,
+              seeds: parseInt(t.seeds, 10) || 0,
+              leeches: parseInt(t.peers, 10) || 0,
+              magnet,
+              provider: 'YTS',
+              time: t.date_uploaded
+            });
           }
-          if (results.length > 0) return results;
         }
-      } catch (err) {
-        // Continue to next mirror
+        if (results.length > 0) return results;
       }
+      throw new Error('No movies');
+    });
+
+    try {
+      return await Promise.any(mirrorPromises);
+    } catch (e) {
+      return [];
     }
-    return [];
   }
 
   async searchThePirateBay(query) {
@@ -176,11 +178,12 @@ class SearchService {
       const pCfg = (config.searchProviders || []).find(p => p.name === '1337x');
       const urls = pCfg?.urls?.length ? pCfg.urls : [providerInstance.baseUrl];
 
-      for (const url of urls) {
+      const checkUrl = async (url) => {
         try {
-          if (url) providerInstance.overrideConfig({ baseUrl: url });
-          const searchPromise = providerInstance.search(query, 'All', 20);
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+          const inst = TorrentSearchApi.getProvider('1337x', false);
+          if (url) inst.overrideConfig({ baseUrl: url });
+          const searchPromise = inst.search(query, 'All', 20);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
           const results = await Promise.race([searchPromise, timeoutPromise]);
           if (Array.isArray(results) && results.length > 0) {
             const list = [];
@@ -189,7 +192,7 @@ class SearchService {
               if (!magnet && t.desc) {
                 try {
                   const magPromise = TorrentSearchApi.getMagnet(t);
-                  const magTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500));
+                  const magTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
                   magnet = await Promise.race([magPromise, magTimeout]);
                 } catch (err) {}
               }
@@ -210,9 +213,27 @@ class SearchService {
             if (list.length > 0) return list;
           }
         } catch (e) {}
+        throw new Error('No 1337x results');
+      };
+
+      try {
+        return await Promise.any(urls.map(u => checkUrl(u)));
+      } catch (e) {
+        return [];
       }
     } catch (err) {}
     return [];
+  }
+
+  async search1TamilMV(query) {
+    try {
+      const searchPromise = movieScraperService.searchTorrents(query);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('1TamilMV timeout')), 4500));
+      const res = await Promise.race([searchPromise, timeoutPromise]);
+      return Array.isArray(res) ? res : [];
+    } catch (e) {
+      return [];
+    }
   }
 
   async searchTorrentApi(query) {
@@ -231,21 +252,40 @@ class SearchService {
     return list;
   }
 
-  async search(query) {
+  async search(query, source = 'all') {
     try {
-      const [mirrorSettled, tpbSettled, ytsSettled, x1337Settled] = await Promise.allSettled([
-        movieScraperService.searchTorrents(query),
-        this.searchThePirateBay(query),
-        this.searchYts(query),
-        this.search1337x(query)
-      ]);
+      let tpbResults = [];
+      let ytsResults = [];
+      let x1337Results = [];
+      let mirrorResults = [];
 
-      const mirrorResults = mirrorSettled.status === 'fulfilled' ? (mirrorSettled.value || []) : [];
-      const tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
-      const ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
-      const x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
+      if (source === 'global') {
+        const [tpbSettled, ytsSettled, x1337Settled] = await Promise.allSettled([
+          this.searchThePirateBay(query),
+          this.searchYts(query),
+          this.search1337x(query)
+        ]);
+        tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
+        ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
+        x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
+        console.log(`[SearchService:Global] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, 1337x: ${x1337Results.length}`);
+      } else if (source === '1tamilmv') {
+        mirrorResults = await this.search1TamilMV(query);
+        console.log(`[SearchService:1TamilMV] Query "${query}" -> Found: ${mirrorResults.length}`);
+      } else {
+        const [mirrorSettled, tpbSettled, ytsSettled, x1337Settled] = await Promise.allSettled([
+          this.search1TamilMV(query),
+          this.searchThePirateBay(query),
+          this.searchYts(query),
+          this.search1337x(query)
+        ]);
 
-      console.log(`[SearchService] Query "${query}" -> Found: TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
+        mirrorResults = mirrorSettled.status === 'fulfilled' ? (mirrorSettled.value || []) : [];
+        tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
+        ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
+        x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
+        console.log(`[SearchService:All] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
+      }
 
       const seenMagnets = new Set();
       const combined = [];

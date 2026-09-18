@@ -278,7 +278,7 @@ export default function RecentLinksView({
                   {/* Copy Magnet Link */}
                   <button
                     onClick={(e) => handleCopyMagnet(e, m.magnet, m.id)}
-                    className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-[#090F1C] dark:hover:bg-[#151F32] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E293B] transition-colors max-w-md truncate"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-[#090F1C] dark:hover:bg-[#151F32] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E293B] transition-colors max-w-[190px] sm:max-w-xs md:max-w-md truncate"
                     title="Click to copy full magnet URI"
                   >
                     {isCopied ? (

@@ -7,8 +7,8 @@ const { sanitizeErrorMessage } = require('../middleware/errorHandler');
 
 router.get('/', searchLimiter, validateSearchQuery, async (req, res) => {
   try {
-    const { q } = req.query;
-    const results = await searchService.search(q);
+    const { q, source } = req.query;
+    const results = await searchService.search(q, source);
     res.json({ results });
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Search failed' });
