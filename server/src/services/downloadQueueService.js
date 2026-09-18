@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const seedrService = require('./seedrService');
 const magnetStorage = require('./magnetStorageService');
+const { sanitizeErrorMessage } = require('../middleware/errorHandler');
 
 function parseSizeInGB(sizeStr) {
   if (!sizeStr) return 0;
@@ -21,52 +23,147 @@ function parseSizeInGB(sizeStr) {
 
 class DownloadQueueService {
   constructor() {
-    this.dataDir = path.join(__dirname, '../../data');
-    this.dataFile = path.join(this.dataDir, 'queue.json');
+    this.initPaths();
     this.queue = [];
     this.isAutoEnabled = true;
     this.isProcessing = false;
     this.checkInterval = 10000; // 10 seconds
     this.intervalHandle = null;
 
+    this.url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || null;
+    this.token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || null;
+
     this.loadData();
+  }
+
+  initPaths() {
+    const isServerless = !!(
+      process.env.VERCEL || 
+      process.env.AWS_LAMBDA_FUNCTION_NAME || 
+      process.env.LAMBDA_TASK_ROOT
+    );
+
+    if (isServerless) {
+      this.dataDir = os.tmpdir();
+      this.dataFile = path.join(this.dataDir, 'seedr_queue.json');
+    } else {
+      const localDir = path.join(__dirname, '../../data');
+      try {
+        if (!fs.existsSync(localDir)) {
+          fs.mkdirSync(localDir, { recursive: true });
+        }
+        this.dataDir = localDir;
+        this.dataFile = path.join(this.dataDir, 'queue.json');
+      } catch (e) {
+        this.dataDir = os.tmpdir();
+        this.dataFile = path.join(this.dataDir, 'seedr_queue.json');
+      }
+    }
+  }
+
+  hasRemoteConfig() {
+    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || this.url;
+    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || this.token;
+    return !!(url && token);
+  }
+
+  async executeKvCommand(...command) {
+    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || this.url;
+    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || this.token;
+
+    if (!url || !token) {
+      throw new Error('KV credentials not configured');
+    }
+
+    const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    const response = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(command)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`KV REST Error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.result;
+  }
+
+  async syncFromKv() {
+    if (!this.hasRemoteConfig()) return;
+    try {
+      const remoteData = await this.executeKvCommand('GET', 'seedr_download_queue');
+      if (remoteData) {
+        const parsed = typeof remoteData === 'string' ? JSON.parse(remoteData) : remoteData;
+        if (Array.isArray(parsed.queue)) {
+          this.queue = parsed.queue;
+        }
+        if (parsed.isAutoEnabled !== undefined) {
+          this.isAutoEnabled = parsed.isAutoEnabled;
+        }
+      }
+    } catch (e) {
+      // Ignore KV sync errors silently
+    }
   }
 
   loadData() {
     try {
-      if (!fs.existsSync(this.dataDir)) {
-        fs.mkdirSync(this.dataDir, { recursive: true });
-      }
-
       if (fs.existsSync(this.dataFile)) {
         const raw = fs.readFileSync(this.dataFile, 'utf8');
         const parsed = JSON.parse(raw);
         this.queue = Array.isArray(parsed.queue) ? parsed.queue : [];
         this.isAutoEnabled = parsed.isAutoEnabled !== undefined ? parsed.isAutoEnabled : true;
       } else {
-        this.saveData();
+        const tmpFile = path.join(os.tmpdir(), 'seedr_queue.json');
+        if (fs.existsSync(tmpFile)) {
+          const raw = fs.readFileSync(tmpFile, 'utf8');
+          const parsed = JSON.parse(raw);
+          this.queue = Array.isArray(parsed.queue) ? parsed.queue : [];
+          this.isAutoEnabled = parsed.isAutoEnabled !== undefined ? parsed.isAutoEnabled : true;
+        }
       }
     } catch (e) {
-      console.error('Error loading queue data:', e.message);
       this.queue = [];
+    }
+
+    if (this.hasRemoteConfig()) {
+      this.syncFromKv().catch(() => {});
     }
   }
 
   saveData() {
+    const payload = {
+      queue: this.queue,
+      isAutoEnabled: this.isAutoEnabled,
+      updatedAt: new Date().toISOString()
+    };
+
     try {
       if (!fs.existsSync(this.dataDir)) {
         fs.mkdirSync(this.dataDir, { recursive: true });
       }
-      fs.writeFileSync(
-        this.dataFile,
-        JSON.stringify({
-          queue: this.queue,
-          isAutoEnabled: this.isAutoEnabled,
-          updatedAt: new Date().toISOString()
-        }, null, 2)
-      );
+      fs.writeFileSync(this.dataFile, JSON.stringify(payload, null, 2), 'utf8');
     } catch (e) {
-      console.error('Error saving queue data:', e.message);
+      try {
+        const tmpFile = path.join(os.tmpdir(), 'seedr_queue.json');
+        if (this.dataFile !== tmpFile) {
+          this.dataDir = os.tmpdir();
+          this.dataFile = tmpFile;
+          fs.writeFileSync(this.dataFile, JSON.stringify(payload, null, 2), 'utf8');
+        }
+      } catch (tmpErr) {
+        // Suppress disk write error in serverless, in-memory state holds data
+      }
+    }
+
+    if (this.hasRemoteConfig()) {
+      this.executeKvCommand('SET', 'seedr_download_queue', JSON.stringify(payload)).catch(() => {});
     }
   }
 
@@ -219,12 +316,18 @@ class DownloadQueueService {
 
     try {
       // 1. Inspect Seedr current state
-      const folderData = await seedrService.listFolder();
+      let folderData;
+      try {
+        folderData = await seedrService.listFolder();
+      } catch (listErr) {
+        const safeListMsg = sanitizeErrorMessage(listErr);
+        console.warn(`[Queue] ⚠️ Could not inspect Seedr storage state (${safeListMsg}). Will retry later.`);
+        this.isProcessing = false;
+        return;
+      }
+
       const activeTorrents = folderData.torrents || [];
       const activeTasks = folderData.tasks || [];
-      const completedFolders = folderData.folders || [];
-      const completedFiles = folderData.files || [];
-      
       const spaceUsed = folderData.space_used || 0;
       const spaceMax = folderData.space_max || (4.5 * 1024 * 1024 * 1024);
       const freeSpace = Math.max(0, spaceMax - spaceUsed);
@@ -237,7 +340,7 @@ class DownloadQueueService {
 
       // If existing completed files occupy the majority of storage (free space < 500MB), wait for user to delete files
       if (spaceUsed > 0 && freeSpace < 500 * 1024 * 1024) {
-        console.log(`[Queue] ⏳ Insufficient free storage in Seedr (${(freeSpace / (1024*1024)).toFixed(0)} MB free). Waiting for user to delete completed files.`);
+        console.log(`[Queue] ⏳ Insufficient free storage in Seedr (${(freeSpace / (1024 * 1024)).toFixed(0)} MB free). Waiting for user to delete completed files.`);
         this.isProcessing = false;
         return;
       }
@@ -262,22 +365,89 @@ class DownloadQueueService {
       console.log(`[Queue] 🚀 Auto-Scheduler submitting next item in order: "${nextItem.name}"...`);
 
       // 3. Submit magnet link to Seedr
-      const result = await seedrService.addMagnet(nextItem.magnet);
+      let result;
+      try {
+        result = await seedrService.addMagnet(nextItem.magnet);
+      } catch (apiError) {
+        // Handle rejection or error thrown from Seedr API / Axios
+        const safeMsg = sanitizeErrorMessage(apiError);
+        const rawError = String(apiError?.error || apiError?.response?.data?.error || '');
+        const rawResult = String(apiError?.result || apiError?.response?.data?.result || '');
+        const rawReason = String(apiError?.reason_phrase || apiError?.response?.data?.reason_phrase || '');
+        const rawMsg = String(apiError?.message || '');
+        const combined = `${safeMsg} ${rawError} ${rawResult} ${rawReason} ${rawMsg}`.toLowerCase();
 
-      // 4. If Seedr rejects due to oversized file
-      if (result && (result.result === 'file_too_big' || result.error === 'file_too_big')) {
-        console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" as oversized (> 4.5 GB). Auto-removing from queue.`);
-        this.queue.shift();
-        this.saveData();
+        if (combined.includes('file_too_big')) {
+          console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" as oversized (> 4.5 GB). Auto-removing from queue.`);
+          this.queue.shift();
+          this.saveData();
+          this.isProcessing = false;
+          return;
+        }
+
+        if (
+          combined.includes('not_enough_space') ||
+          combined.includes('free_user_limit') ||
+          combined.includes('user_torrent_limit') ||
+          combined.includes('wishlist') ||
+          combined.includes('space') ||
+          combined.includes('queue')
+        ) {
+          console.log(`[Queue] ⏳ Seedr not ready for "${nextItem.name}" (${safeMsg || 'Storage full / limits reached'}). Keeping in queue.`);
+          this.isProcessing = false;
+          return;
+        }
+
+        // Permanently unrecoverable magnet links (malformed hash, invalid protocol)
+        if (
+          combined.includes('invalid_magnet') ||
+          combined.includes('invalid magnet') ||
+          combined.includes('malformed') ||
+          combined.includes('cant_fetch_torrent')
+        ) {
+          console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" due to invalid magnet link (${safeMsg}). Removing from queue.`);
+          this.queue.shift();
+          this.saveData();
+          this.isProcessing = false;
+          return;
+        }
+
+        // Track consecutive failures to avoid blocking the queue permanently
+        nextItem.attempts = (nextItem.attempts || 0) + 1;
+        if (nextItem.attempts >= 3) {
+          console.warn(`[Queue] ⚠️ Item "${nextItem.name}" failed 3 consecutive times (${safeMsg}). Removing from upcoming queue.`);
+          this.queue.shift();
+          this.saveData();
+        } else {
+          console.error('[Queue] Error processing next scheduled item:', safeMsg || rawError || rawResult || rawMsg || 'Seedr request failed');
+        }
+
         this.isProcessing = false;
         return;
       }
 
-      // If Seedr still returns not_enough_space or free_user_limit, wait
-      if (result && (result.result === 'not_enough_space' || result.result === 'free_user_limit' || result.result === false)) {
-        console.log(`[Queue] ⏳ Seedr not ready for "${nextItem.name}". Keeping in queue.`);
-        this.isProcessing = false;
-        return;
+      // 4. If Seedr returned 200 response with error payload
+      if (result) {
+        if (result.result === 'file_too_big' || result.error === 'file_too_big') {
+          console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" as oversized (> 4.5 GB). Auto-removing from queue.`);
+          this.queue.shift();
+          this.saveData();
+          this.isProcessing = false;
+          return;
+        }
+
+        if (
+          result.result === 'not_enough_space' ||
+          result.result === 'free_user_limit' ||
+          result.result === 'user_torrent_limit' ||
+          result.result === false ||
+          result.reason_phrase?.includes('space') ||
+          result.reason_phrase?.includes('wishlist')
+        ) {
+          console.log(`[Queue] ⏳ Seedr not ready for "${nextItem.name}". Keeping in queue.`);
+          this.isProcessing = false;
+          return;
+        }
       }
 
       // 5. Pop item from queue upon successful dispatch
@@ -286,15 +456,9 @@ class DownloadQueueService {
 
       console.log(`[Queue] ✅ Successfully dispatched scheduled torrent "${nextItem.name}" to Seedr! (Remaining in queue: ${this.queue.length})`);
 
-    } catch (error) {
-      const errorMsg = String(error.message || error.result || '');
-      if (errorMsg.includes('file_too_big')) {
-        console.warn(`[Queue] ⚠️ Seedr rejected item as oversized (> 4.5 GB). Auto-removing.`);
-        this.queue.shift();
-        this.saveData();
-      } else {
-        console.error('[Queue] Error processing next scheduled item:', error.response ? error.response.data : error.message);
-      }
+    } catch (unexpectedError) {
+      const safeMsg = sanitizeErrorMessage(unexpectedError);
+      console.error('[Queue] Unexpected error processing next scheduled item:', safeMsg || unexpectedError?.message || unexpectedError);
     } finally {
       this.isProcessing = false;
     }

@@ -19,8 +19,11 @@ function parseName(magnet, providedName) {
   return 'Scheduled Torrent';
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
+    if (downloadQueueService.hasRemoteConfig && downloadQueueService.hasRemoteConfig()) {
+      await downloadQueueService.syncFromKv().catch(() => {});
+    }
     const status = downloadQueueService.getQueueStatus();
     res.json(status);
   } catch (err) {

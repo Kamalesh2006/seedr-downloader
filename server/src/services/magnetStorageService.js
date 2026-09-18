@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days in milliseconds
 const MAX_DELETED_ITEMS = 500;
@@ -62,6 +63,11 @@ class MagnetStorageService {
         const data = fs.readFileSync(LOCAL_FALLBACK_FILE, 'utf8');
         return JSON.parse(data);
       }
+      const tmpFile = path.join(os.tmpdir(), 'seedr_deleted_magnets.json');
+      if (fs.existsSync(tmpFile)) {
+        const data = fs.readFileSync(tmpFile, 'utf8');
+        return JSON.parse(data);
+      }
       // Migrate from legacy file if it exists
       if (fs.existsSync(LEGACY_LOCAL_FALLBACK_FILE)) {
         const legacyData = fs.readFileSync(LEGACY_LOCAL_FALLBACK_FILE, 'utf8');
@@ -82,7 +88,13 @@ class MagnetStorageService {
     try {
       fs.writeFileSync(LOCAL_FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
     } catch (err) {
-      // In serverless / read-only filesystem environments, memoryFallback holds the state
+      // In serverless / read-only filesystem environments, attempt writing to os.tmpdir()
+      try {
+        const tmpFile = path.join(os.tmpdir(), 'seedr_deleted_magnets.json');
+        fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+      } catch (tmpErr) {
+        // memoryFallback holds state
+      }
     }
   }
 

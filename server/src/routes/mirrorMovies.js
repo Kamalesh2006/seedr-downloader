@@ -75,7 +75,11 @@ router.post('/config', async (req, res) => {
     if (typeof searchEngine === 'string') cfg.mirrorDiscovery.searchEngine = searchEngine.trim();
     if (typeof fallbackDomain === 'string') cfg.mirrorDiscovery.fallbackDomain = fallbackDomain.trim();
 
-    require('fs').writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
+    try {
+      require('fs').writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
+    } catch (e) {
+      // In serverless / read-only environments, file write fails; in-memory cfg is still used
+    }
 
     // Trigger rediscovery if keyword changed
     let discoveryResult = null;

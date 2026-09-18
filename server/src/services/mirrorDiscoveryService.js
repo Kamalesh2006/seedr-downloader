@@ -2,13 +2,36 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const os = require('os');
 const config = require('../../config.json');
 
 class MirrorDiscoveryService {
   constructor() {
-    this.cacheFile = path.join(__dirname, '../../data/mirror_cache.json');
+    this.cacheFile = this.resolveCachePath();
     this.memoryCache = null;
     this.loadCache();
+  }
+
+  resolveCachePath() {
+    const isServerless = !!(
+      process.env.VERCEL || 
+      process.env.AWS_LAMBDA_FUNCTION_NAME || 
+      process.env.LAMBDA_TASK_ROOT
+    );
+
+    if (isServerless) {
+      return path.join(os.tmpdir(), 'seedr_mirror_cache.json');
+    }
+
+    const localDir = path.join(__dirname, '../../data');
+    try {
+      if (!fs.existsSync(localDir)) {
+        fs.mkdirSync(localDir, { recursive: true });
+      }
+      return path.join(localDir, 'mirror_cache.json');
+    } catch (e) {
+      return path.join(os.tmpdir(), 'seedr_mirror_cache.json');
+    }
   }
 
   getConfig() {
@@ -29,9 +52,14 @@ class MirrorDiscoveryService {
       if (fs.existsSync(this.cacheFile)) {
         const raw = fs.readFileSync(this.cacheFile, 'utf8');
         this.memoryCache = JSON.parse(raw);
+        return;
+      }
+      const tmpFile = path.join(os.tmpdir(), 'seedr_mirror_cache.json');
+      if (fs.existsSync(tmpFile)) {
+        const raw = fs.readFileSync(tmpFile, 'utf8');
+        this.memoryCache = JSON.parse(raw);
       }
     } catch (e) {
-      console.warn('[MirrorDiscovery] Failed to load disk cache:', e.message);
       this.memoryCache = null;
     }
   }
@@ -45,7 +73,20 @@ class MirrorDiscoveryService {
       }
       fs.writeFileSync(this.cacheFile, JSON.stringify(data, null, 2), 'utf8');
     } catch (e) {
-      console.error('[MirrorDiscovery] Failed to write disk cache:', e.message);
+      // In serverless / read-only filesystem environments, write to os.tmpdir()
+      try {
+        const tmpFile = path.join(os.tmpdir(), 'seedr_mirror_cache.json');
+        if (this.cacheFile !== tmpFile) {
+          this.cacheFile = tmpFile;
+          fs.writeFileSync(this.cacheFile, JSON.stringify(data, null, 2), 'utf8');
+          return;
+        }
+      } catch (tmpErr) {
+        // Suppress disk write error in serverless, in-memory cache holds state
+      }
+      if (e.code !== 'EROFS') {
+        console.warn('[MirrorDiscovery] Disk cache write failed (using memory cache):', e.message);
+      }
     }
   }
 
