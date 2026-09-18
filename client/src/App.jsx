@@ -75,7 +75,6 @@ function App() {
   } = useQueue();
   
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [dashboardMode, setDashboardMode] = useState('magnet');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
@@ -312,96 +311,56 @@ function App() {
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-4xl lg:max-w-5xl w-full mx-auto pb-28 md:pb-12">
           {currentTab === 'dashboard' && (
             <>
-              {/* Top Search & Magnet Input Card */}
-              <SearchBar 
-                onSearch={handleSearch} 
-                onAddMagnet={handleAddMagnet} 
-                loading={searchLoading} 
-                queueCount={queue.length}
-                recentCount={recentMagnets.length}
-                onOpenRecent={() => setIsMagnetsOpen(true)}
-                mode={dashboardMode}
-                onModeChange={(m) => {
-                  if (m === 'search') {
-                    setCurrentTab('search');
-                  } else {
-                    setDashboardMode(m);
-                  }
-                }}
-                onNavigateToSearch={() => setCurrentTab('search')}
-                searchQuery={searchQuery}
-                onSearchQueryChange={setSearchQuery}
+              {/* Storage Capacity Card */}
+              <StorageCard 
+                storage={storage} 
+                onClickDetails={() => setCurrentTab('storage')}
               />
 
-              {/* When Search Torrents is selected, render the mirror movies and global search right here */}
-              {dashboardMode === 'search' ? (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                  <MirrorMoviesView 
-                    searchQuery={searchQuery}
-                    onSearchChange={(q) => {
-                      setSearchQuery(q);
-                      if (!q) clearResults();
-                    }}
-                    onAddMagnet={handleAddMagnet} 
-                    queue={queue}
-                    activeTransfers={activeTransfers}
-                    onShowToast={(msg, type) => showToast(msg, type)}
-                    onOpenSettings={() => setIsSettingsOpen(true)}
-                    publicResultsCount={results.length}
-                    searchLoading={searchLoading}
-                    hasSearched={hasSearched}
-                    onSearch={handleSearch}
-                  />
+              {searchError && (
+                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
+                  {searchError}
                 </div>
-              ) : (
-                <>
-                  {/* Storage Capacity Card */}
-                  <StorageCard 
-                    storage={storage} 
-                    onClickDetails={() => setCurrentTab('storage')}
-                  />
-
-                  {searchError && (
-                    <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
-                      {searchError}
-                    </div>
-                  )}
-
-
-                  {/* Active Cloud Downloads in Seedr */}
-                  <ActiveDownloads 
-                    transfers={activeTransfers} 
-                    onCancel={(id, type) => handleDelete(id, type || 'torrent')}
-                  />
-
-                  {/* Upcoming Download Schedule / Queue Manager - Only visible on main dashboard when items are queued */}
-                  {queue.length > 0 && (
-                    <QueueManager 
-                      queue={queue}
-                      isAutoEnabled={isAutoEnabled}
-                      onMoveItem={moveItem}
-                      onRemoveItem={removeFromQueue}
-                      onClearQueue={clearQueue}
-                      onToggleAuto={toggleAutoQueue}
-                      onSendNow={handleSendFromQueueNow}
-                    />
-                  )}
-
-                  {/* Completed Files in Seedr Cloud */}
-                  <CompletedFiles 
-                    files={completedFiles} 
-                    activeTorrents={cloudTorrents}
-                    storage={storage}
-                    folderContents={folderContents}
-                    loading={seedrLoading}
-                    onRefresh={refreshFiles}
-                    onFetchFolder={fetchFolderContents}
-                    onDownload={handleDownloadFile} 
-                    onDelete={handleDelete} 
-                    getDownloadUrl={getDownloadUrl}
-                  />
-                </>
               )}
+
+              {/* Active Cloud Downloads in Seedr */}
+              <ActiveDownloads 
+                transfers={activeTransfers} 
+                onCancel={(id, type) => handleDelete(id, type || 'torrent')}
+              />
+
+              {/* Files in Seedr Cloud Storage */}
+              <CompletedFiles 
+                files={completedFiles} 
+                activeTorrents={cloudTorrents}
+                storage={storage}
+                folderContents={folderContents}
+                loading={seedrLoading}
+                onRefresh={refreshFiles}
+                onFetchFolder={fetchFolderContents}
+                onDownload={handleDownloadFile} 
+                onDelete={handleDelete} 
+                getDownloadUrl={getDownloadUrl}
+              />
+
+              {/* Upcoming Download Schedule / Queue Manager - Visible when items are queued */}
+              {queue.length > 0 && (
+                <QueueManager 
+                  queue={queue}
+                  isAutoEnabled={isAutoEnabled}
+                  onMoveItem={moveItem}
+                  onRemoveItem={removeFromQueue}
+                  onClearQueue={clearQueue}
+                  onToggleAuto={toggleAutoQueue}
+                  onSendNow={handleSendFromQueueNow}
+                />
+              )}
+
+              {/* Paste Magnet Link with Step-by-Step Guide at the Bottom */}
+              <SearchBar 
+                onAddMagnet={handleAddMagnet} 
+                loading={searchLoading} 
+              />
             </>
           )}
 
@@ -414,12 +373,8 @@ function App() {
 
               {/* Input for pasting or adding magnet links to the upcoming queue */}
               <SearchBar 
-                onSearch={handleSearch} 
                 onAddMagnet={handleAddMagnet} 
                 loading={searchLoading} 
-                queueCount={queue.length}
-                recentCount={recentMagnets.length}
-                onOpenRecent={() => setIsMagnetsOpen(true)}
                 isQueueTab={true}
               />
 
