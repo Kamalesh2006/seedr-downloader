@@ -59,7 +59,8 @@ function App() {
     deleteTorrent, 
     deleteTask, 
     removeManualMagnet,
-    clearRecentMagnets
+    clearRecentMagnets,
+    registerActiveMagnet
   } = useSeedr();
 
   const {
@@ -118,8 +119,7 @@ function App() {
   };
 
   const handleSearch = (query) => {
-    setCurrentTab('dashboard');
-    setDashboardMode('search');
+    setCurrentTab('search');
     setSearchQuery(query);
     search(query);
   };
@@ -161,6 +161,9 @@ function App() {
     }
 
     try {
+      if (registerActiveMagnet) {
+        registerActiveMagnet({ magnet, name, size });
+      }
       await addToQueue(magnet, name, size);
       showToast(`Scheduled "${name || 'Torrent'}" in queue!`, 'success');
     } catch (err) {
@@ -201,6 +204,12 @@ function App() {
         itemMeta = cloudTorrents.find(t => String(t.id) === String(id));
       } else if (type === 'folder' || type === 'file') {
         itemMeta = completedFiles.find(f => String(f.id) === String(id));
+        // If not in root files, look up in folderContents if item was inside a folder
+        if (!itemMeta && parentFolderId && folderContents[parentFolderId]) {
+          const contents = folderContents[parentFolderId];
+          const pool = type === 'folder' ? (contents.folders || []) : (contents.files || []);
+          itemMeta = pool.find(item => String(item.id) === String(id));
+        }
       }
 
       if (type === 'folder') {
@@ -312,7 +321,14 @@ function App() {
                 recentCount={recentMagnets.length}
                 onOpenRecent={() => setIsMagnetsOpen(true)}
                 mode={dashboardMode}
-                onModeChange={setDashboardMode}
+                onModeChange={(m) => {
+                  if (m === 'search') {
+                    setCurrentTab('search');
+                  } else {
+                    setDashboardMode(m);
+                  }
+                }}
+                onNavigateToSearch={() => setCurrentTab('search')}
                 searchQuery={searchQuery}
                 onSearchQueryChange={setSearchQuery}
               />
@@ -491,7 +507,7 @@ function App() {
             />
           )}
 
-          {currentTab === 'discover' && (
+          {(currentTab === 'search' || currentTab === 'discover') && (
             <MirrorMoviesView 
               onAddMagnet={handleAddMagnet}
               queue={queue}
@@ -499,6 +515,8 @@ function App() {
               onShowToast={(msg, type) => showToast(msg, type)}
               onOpenSettings={() => setIsSettingsOpen(true)}
               onSearch={handleSearch}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
             />
           )}
         </main>

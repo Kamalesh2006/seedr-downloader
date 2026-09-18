@@ -76,11 +76,49 @@ export default function MirrorMoviesView({
 
   // Global Search State
   const [globalQuery, setGlobalQuery] = useState(searchQuery || '');
+  const [searchInput, setSearchInput] = useState(searchQuery || '');
   const [globalResults, setGlobalResults] = useState([]);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [globalError, setGlobalError] = useState(null);
   const [globalHasSearched, setGlobalHasSearched] = useState(false);
   const [globalProviderFilter, setGlobalProviderFilter] = useState('ALL');
+
+  // Sync searchInput when searchQuery prop changes
+  useEffect(() => {
+    if (searchQuery !== undefined && searchQuery !== searchInput) {
+      setSearchInput(searchQuery);
+      setGlobalQuery(searchQuery);
+      if (searchQuery && searchQuery.trim()) {
+        setViewMode('global');
+      }
+    }
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    const q = (searchInput || '').trim();
+    if (!q) return;
+    setGlobalQuery(q);
+    onSearchChange?.(q);
+    setViewMode('global');
+    executeGlobalSearch(q);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setGlobalQuery('');
+    setGlobalResults([]);
+    setGlobalHasSearched(false);
+    onSearchChange?.('');
+  };
+
+  const handleQuickSearch = (term) => {
+    setSearchInput(term);
+    setGlobalQuery(term);
+    onSearchChange?.(term);
+    setViewMode('global');
+    executeGlobalSearch(term);
+  };
 
   // Per-magnet addition tracking & visual queued state
   const [addingMagnet, setAddingMagnet] = useState(null);
@@ -385,23 +423,23 @@ export default function MirrorMoviesView({
     }
 
     let result = Array.from(map.values());
-    if (searchQuery && searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
+    const activeSearch = (searchInput || searchQuery || globalQuery || '').toLowerCase().trim();
+    if (activeSearch) {
       result = result.filter(m => 
-        (m.title && m.title.toLowerCase().includes(q)) ||
-        (m.rawTitle && m.rawTitle.toLowerCase().includes(q)) ||
-        (m.year && m.year.includes(q)) ||
-        (m.languages && m.languages.some(l => l.toLowerCase().includes(q))) ||
-        (m.quality && m.quality.toLowerCase().includes(q)) ||
+        (m.title && m.title.toLowerCase().includes(activeSearch)) ||
+        (m.rawTitle && m.rawTitle.toLowerCase().includes(activeSearch)) ||
+        (m.year && m.year.includes(activeSearch)) ||
+        (m.languages && m.languages.some(l => l.toLowerCase().includes(activeSearch))) ||
+        (m.quality && m.quality.toLowerCase().includes(activeSearch)) ||
         (m.magnets && m.magnets.some(link => 
-          (link.title && link.title.toLowerCase().includes(q)) ||
-          (link.quality && link.quality.toLowerCase().includes(q)) ||
-          (link.language && link.language.toLowerCase().includes(q))
+          (link.title && link.title.toLowerCase().includes(activeSearch)) ||
+          (link.quality && link.quality.toLowerCase().includes(activeSearch)) ||
+          (link.language && link.language.toLowerCase().includes(activeSearch))
         ))
       );
     }
     return result;
-  }, [topReleases, allMovies, viewMode, searchQuery]);
+  }, [topReleases, allMovies, viewMode, searchQuery, searchInput, globalQuery]);
 
   // Filtered Global Results
   const filteredGlobalResults = useMemo(() => {
@@ -416,76 +454,138 @@ export default function MirrorMoviesView({
 
   return (
     <div className="space-y-5 pb-12 max-w-7xl mx-auto">
-      {/* Header Bar: Source Info + Rediscover + Settings */}
-      <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 shadow-sm dark:shadow-lg">
+      {/* Header Bar: Search Input + Source Info + Sub-navigation tabs */}
+      <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-sm dark:shadow-lg space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2.5 bg-emerald-500/10 text-[#00DF81] rounded-xl border border-emerald-500/20 shrink-0">
-              {viewMode === 'global' ? <Globe className="w-5 h-5" /> : <Film className="w-5 h-5" />}
+              <Search className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                {viewMode === 'global' ? 'Global Torrent Search' : '1TamilMV Releases'}
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {viewMode === 'global' 
-                  ? 'Search movies and media from YTS, ThePirateBay, and 1337x' 
-                  : 'Direct forum scraping for regional releases & multi-quality magnets'}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  Torrent & Movie Search
+                </h1>
+                <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-[#00DF81] border border-emerald-500/25">
+                  Multi-Indexer
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Search millions of torrents across YTS, 1337x, ThePirateBay, and regional mirror releases
               </p>
             </div>
           </div>
 
-          <div className="flex items-center flex-wrap gap-2">
-            {viewMode !== 'global' && (
-              <>
-                {loading || rediscovering ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-600 dark:text-emerald-300 animate-pulse">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00DF81]" />
-                    <span className="font-semibold text-[#00DF81]">Updating mirror...</span>
-                  </div>
-                ) : mirrorStatus?.domain ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-[#00DF81] shrink-0" />
-                    <span className="font-mono text-emerald-600 dark:text-[#00DF81] font-semibold truncate max-w-[160px]">
-                      {mirrorStatus.domain.replace(/^https?:\/\//, '')}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-300 font-medium">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    <span>No mirror discovered</span>
-                  </div>
-                )}
+          <div className="flex items-center flex-wrap gap-2 self-start sm:self-auto">
+            {mirrorStatus?.domain && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-[#00DF81] shrink-0" />
+                <span className="font-mono text-emerald-600 dark:text-[#00DF81] font-semibold truncate max-w-[150px]">
+                  {mirrorStatus.domain.replace(/^https?:\/\//, '')}
+                </span>
+              </div>
+            )}
 
-                <button
-                  onClick={() => fetchMovies(true)}
-                  disabled={rediscovering || loading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-50"
-                  title="Rediscover newest mirror"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-500' : ''}`} />
-                  <span className="hidden sm:inline">Rediscover</span>
-                </button>
+            <button
+              onClick={() => fetchMovies(true)}
+              disabled={rediscovering || loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-50"
+              title="Rediscover newest mirror"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${rediscovering ? 'animate-spin text-emerald-500' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
 
-                {onOpenSettings && (
-                  <button
-                    onClick={onOpenSettings}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00DF81]/15 hover:bg-[#00DF81]/25 text-[#00DF81] border border-[#00DF81]/30 transition-all active:scale-95"
-                    title="Configure mirror settings"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Settings</span>
-                  </button>
-                )}
-              </>
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00DF81]/15 hover:bg-[#00DF81]/25 text-[#00DF81] border border-[#00DF81]/30 transition-all active:scale-95"
+                title="Configure mirror settings"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
             )}
           </div>
         </div>
 
-        {/* Navigation Tabs (Top Releases | All Releases | Global Search) & View Toggle (Grid | List) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-200 dark:border-[#1E293B]">
-          {/* Main Navigation Tabs */}
+        {/* Prominent Full-Width Search Input Bar */}
+        <form onSubmit={handleSearchSubmit} className="relative">
+          <div className="relative flex items-center">
+            <Search className="w-5 h-5 text-slate-400 dark:text-slate-500 absolute left-4 pointer-events-none" />
+            <input 
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search movies, TV shows, anime, games, or release titles..."
+              className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl pl-12 pr-28 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#00DF81] focus:ring-2 focus:ring-[#00DF81]/20 transition-all shadow-inner"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-24 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                title="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={globalLoading}
+              className="absolute right-1.5 px-4 py-2 bg-[#00DF81] hover:bg-[#00DF81]/90 text-[#071911] font-bold text-xs sm:text-sm rounded-lg shadow-md shadow-emerald-500/25 transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              {globalLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+              <span>Search</span>
+            </button>
+          </div>
+        </form>
+
+        {/* Quick Search Tags / Trending Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+          <span className="text-slate-400 font-semibold flex items-center gap-1 mr-1">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Popular:</span>
+          </span>
+          {['Latest Releases', '1080p Movies', 'Tamil 2024', 'Malayalam', 'Telugu', 'Hindi', 'Web Series', '4K HEVC'].map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => handleQuickSearch(tag)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-[#00DF81]/15 hover:text-[#00DF81] hover:border-[#00DF81]/30 border border-slate-200 dark:border-slate-700/60 transition-all active:scale-95"
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+
+        {/* Navigation Tabs (Global Search | Top Releases | All Releases) & View Toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-[#1E293B]">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <button
+              onClick={() => {
+                setViewMode('global');
+                if (searchInput && (!globalResults || globalResults.length === 0)) {
+                  executeGlobalSearch(searchInput);
+                }
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                viewMode === 'global'
+                  ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
+                  : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+              <span>Global Search</span>
+              <span className="px-1.5 py-0.2 rounded-md text-[10px] font-semibold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25">
+                YTS • 1337x • PirateBay
+              </span>
+            </button>
+
             <button
               onClick={() => setViewMode('top')}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -496,7 +596,7 @@ export default function MirrorMoviesView({
             >
               <Flame className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
               <span>Top Releases</span>
-              {displayedMovies.length > 0 && viewMode === 'top' && (
+              {displayedMovies.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
                   {displayedMovies.length}
                 </span>
@@ -513,31 +613,11 @@ export default function MirrorMoviesView({
             >
               <Film className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
               <span>All Releases</span>
-              {displayedMovies.length > 0 && viewMode === 'all' && (
+              {allMovies.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                  {displayedMovies.length}
+                  {allMovies.length}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => {
-                setViewMode('global');
-                if (searchQuery && (!globalResults || globalResults.length === 0)) {
-                  executeGlobalSearch(searchQuery);
-                }
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                viewMode === 'global'
-                  ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
-                  : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
-              <span>Global Search</span>
-              <span className="px-1.5 py-0.2 rounded-md text-[10px] font-semibold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25">
-                YTS • 1337x • PirateBay
-              </span>
             </button>
           </div>
 

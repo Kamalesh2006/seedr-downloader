@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, History, Database, Film, ListOrdered } from 'lucide-react';
+import { Folder, History, Database, Search, ListOrdered } from 'lucide-react';
 
 export default function BottomNav({ 
   currentTab, 
@@ -16,11 +16,11 @@ export default function BottomNav({
       onClick: () => setCurrentTab('dashboard')
     },
     {
-      id: 'discover',
-      label: 'Releases',
-      icon: Film,
+      id: 'search',
+      label: 'Search',
+      icon: Search,
       badge: 'Hot',
-      onClick: () => setCurrentTab('discover')
+      onClick: () => setCurrentTab('search')
     },
     {
       id: 'queue',
@@ -52,7 +52,7 @@ export default function BottomNav({
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
+          const isActive = currentTab === tab.id || (tab.id === 'search' && currentTab === 'discover');
 
           if (tab.href) {
             return (

@@ -494,6 +494,15 @@ class DownloadQueueService {
         );
 
         if (isConfirmedSuccess) {
+          // Register magnet with Seedr user_torrent_id and torrent_hash for deletion tracking
+          magnetStorage.registerActiveMagnet({
+            magnet: nextItem.magnet,
+            name: (result && result.title) || nextItem.name,
+            size: nextItem.size,
+            id: (result && (result.user_torrent_id || result.id)) || null,
+            hash: (result && result.torrent_hash) || null
+          });
+
           // Successfully added to Seedr: Remove from queue
           this.queue.splice(candidateIndex, 1);
           this.saveData();

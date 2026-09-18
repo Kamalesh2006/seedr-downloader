@@ -20,6 +20,8 @@ export default function useSeedr() {
     recentMagnets,
     deletedMagnets,
     recordDeletedMagnet,
+    registerActiveMagnet,
+    findActiveMagnet,
     removeManualMagnet,
     clearRecentMagnets
   } = useRecentMagnets();
@@ -137,7 +139,19 @@ export default function useSeedr() {
   const addMagnet = async (magnet, name = '', size = null) => {
     try {
       const parsedName = name || getMagnetDisplayName(magnet);
+      if (registerActiveMagnet) {
+        registerActiveMagnet({ magnet, name: parsedName, size });
+      }
       const { data } = await api.post('/seedr/add', { magnet, name: parsedName, size });
+      if (data && (data.user_torrent_id || data.id) && registerActiveMagnet) {
+        registerActiveMagnet({
+          magnet,
+          name: data.title || parsedName,
+          size,
+          id: data.user_torrent_id || data.id,
+          hash: data.torrent_hash
+        });
+      }
       // Immediately refresh files and torrents
       refreshFiles();
       return data;
@@ -159,17 +173,22 @@ export default function useSeedr() {
 
   const deleteFile = async (fileId, parentFolderId = null, fileMeta = null) => {
     try {
-      if (fileMeta) {
-        recordDeletedMagnet({
-          id: fileId,
-          name: fileMeta.name,
-          size: fileMeta.size,
-          hash: fileMeta.hash,
-          magnet: fileMeta.magnet,
-          deletedReason: 'Deleted file from Seedr'
-        });
-      }
-      await api.delete(`/seedr/file/${fileId}`, { data: fileMeta || {} });
+      const fileName = (fileMeta && fileMeta.name) || '';
+      const fileSize = (fileMeta && fileMeta.size) || null;
+      const matched = findActiveMagnet ? findActiveMagnet({ id: fileId, name: fileName, size: fileSize }) : null;
+
+      const enrichedMeta = {
+        id: fileId,
+        name: fileName || (matched && matched.name) || 'File',
+        size: fileSize || (matched && matched.size) || null,
+        hash: (fileMeta && fileMeta.hash) || (matched && matched.hash) || null,
+        magnet: (fileMeta && fileMeta.magnet) || (matched && matched.magnet) || null,
+        deletedReason: 'Deleted file from Seedr'
+      };
+
+      recordDeletedMagnet(enrichedMeta);
+
+      await api.delete(`/seedr/file/${fileId}`, { data: enrichedMeta });
       if (parentFolderId) {
         fetchFolderContents(parentFolderId);
       }
@@ -184,17 +203,22 @@ export default function useSeedr() {
   
   const deleteFolder = async (folderId, folderMeta = null) => {
     try {
-      if (folderMeta) {
-        recordDeletedMagnet({
-          id: folderId,
-          name: folderMeta.name,
-          size: folderMeta.size,
-          hash: folderMeta.hash,
-          magnet: folderMeta.magnet,
-          deletedReason: 'Deleted folder from Seedr'
-        });
-      }
-      await api.delete(`/seedr/folder/${folderId}`, { data: folderMeta || {} });
+      const folderName = (folderMeta && folderMeta.name) || '';
+      const folderSize = (folderMeta && folderMeta.size) || null;
+      const matched = findActiveMagnet ? findActiveMagnet({ id: folderId, name: folderName, size: folderSize }) : null;
+
+      const enrichedMeta = {
+        id: folderId,
+        name: folderName || (matched && matched.name) || 'Folder',
+        size: folderSize || (matched && matched.size) || null,
+        hash: (folderMeta && folderMeta.hash) || (matched && matched.hash) || null,
+        magnet: (folderMeta && folderMeta.magnet) || (matched && matched.magnet) || null,
+        deletedReason: 'Deleted folder from Seedr'
+      };
+
+      recordDeletedMagnet(enrichedMeta);
+
+      await api.delete(`/seedr/folder/${folderId}`, { data: enrichedMeta });
       setFolderContents(prev => {
         const next = { ...prev };
         delete next[folderId];
@@ -211,17 +235,22 @@ export default function useSeedr() {
 
   const deleteTorrent = async (torrentId, torrentMeta = null) => {
     try {
-      if (torrentMeta) {
-        recordDeletedMagnet({
-          id: torrentId,
-          name: torrentMeta.name,
-          size: torrentMeta.size,
-          hash: torrentMeta.hash,
-          magnet: torrentMeta.magnet,
-          deletedReason: 'Deleted active torrent from Seedr'
-        });
-      }
-      await api.delete(`/seedr/torrent/${torrentId}`, { data: torrentMeta || {} });
+      const torrentName = (torrentMeta && torrentMeta.name) || '';
+      const torrentSize = (torrentMeta && torrentMeta.size) || null;
+      const matched = findActiveMagnet ? findActiveMagnet({ id: torrentId, name: torrentName, size: torrentSize }) : null;
+
+      const enrichedMeta = {
+        id: torrentId,
+        name: torrentName || (matched && matched.name) || 'Active Torrent',
+        size: torrentSize || (matched && matched.size) || null,
+        hash: (torrentMeta && torrentMeta.hash) || (matched && matched.hash) || null,
+        magnet: (torrentMeta && torrentMeta.magnet) || (matched && matched.magnet) || null,
+        deletedReason: 'Deleted active torrent from Seedr'
+      };
+
+      recordDeletedMagnet(enrichedMeta);
+
+      await api.delete(`/seedr/torrent/${torrentId}`, { data: enrichedMeta });
       refreshFiles();
       // Immediately wake up queue to dispatch next scheduled torrent
       api.post('/queue/process-now').catch(() => {});
@@ -263,6 +292,8 @@ export default function useSeedr() {
     recentMagnets,
     deletedMagnets,
     recordDeletedMagnet,
+    registerActiveMagnet,
+    findActiveMagnet,
     addMagnet,
     refreshFiles,
     fetchFolderContents,

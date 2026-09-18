@@ -11,7 +11,8 @@ import {
   Cloud,
   Film,
   History,
-  Settings
+  Settings,
+  Search
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
@@ -36,9 +37,9 @@ export default function Sidebar({
       badge: null 
     },
     { 
-      id: 'discover', 
-      label: 'Top Releases', 
-      icon: Film, 
+      id: 'search', 
+      label: 'Search Torrents', 
+      icon: Search, 
       badge: 'Hot',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },
@@ -94,7 +95,7 @@ export default function Sidebar({
         <nav className="p-3.5 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentTab === item.id;
+            const isActive = currentTab === item.id || (item.id === 'search' && currentTab === 'discover');
 
             if (item.id === 'telegram') {
               return (

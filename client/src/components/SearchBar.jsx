@@ -23,6 +23,7 @@ export default function SearchBar({
   recentCount = 0,
   queueCount = 0,
   onOpenRecent,
+  onNavigateToSearch,
   prefilledMagnet = null,
   prefilledName = null,
   isQueueTab = false,
@@ -137,7 +138,13 @@ export default function SearchBar({
 
         <button
           type="button"
-          onClick={() => setMode('search')}
+          onClick={() => {
+            if (onNavigateToSearch) {
+              onNavigateToSearch();
+            } else {
+              setMode('search');
+            }
+          }}
           className={`w-full py-2 sm:py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
             mode === 'search'
               ? 'bg-[#00DF81] text-[#071911] font-bold shadow-md shadow-emerald-500/25'
