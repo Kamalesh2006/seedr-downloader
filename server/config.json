@@ -3,7 +3,17 @@
     {
       "name": "ThePirateBay",
       "urls": [
-        "https://apibay.org"
+        "https://apibay.org",
+        "https://piratebayproxy.info/api.php?url="
+      ]
+    },
+    {
+      "name": "Yts",
+      "urls": [
+        "https://yts.am",
+        "https://yts.gg",
+        "https://yts.mx",
+        "https://yts.lt"
       ]
     },
     {
@@ -12,13 +22,6 @@
         "https://1337x.to",
         "https://1337x.gd",
         "https://1337x.is"
-      ]
-    },
-    {
-      "name": "Yts",
-      "urls": [
-        "https://yts.mx",
-        "https://yts.lt"
       ]
     }
   ],
