@@ -14,9 +14,10 @@ import {
   PlusCircle,
   ExternalLink,
   ShieldCheck,
-  Clock
+  Clock,
+  Magnet
 } from 'lucide-react';
-import { extractMagnetName, formatBytes } from '../utils/magnet';
+import { extractMagnetName, formatBytes, ensureMagnetUri } from '../utils/magnet';
 
 function getFileIcon(fileName) {
   if (!fileName) return <FileText className="w-5 h-5 text-slate-400" />;
@@ -275,24 +276,38 @@ export default function RecentLinksView({
 
                 {/* Bottom Row: Magnet URI Preview + Quick Actions */}
                 <div className="pt-2 border-t border-slate-200 dark:border-[#1E293B]/70 flex flex-wrap items-center justify-between gap-3">
-                  {/* Copy Magnet Link */}
-                  <button
-                    onClick={(e) => handleCopyMagnet(e, m.magnet, m.id)}
-                    className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-[#090F1C] dark:hover:bg-[#151F32] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E293B] transition-colors max-w-[190px] sm:max-w-xs md:max-w-md truncate"
-                    title="Click to copy full magnet URI"
-                  >
-                    {isCopied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-[#00DF81]" />
-                        <span className="text-emerald-600 dark:text-[#00DF81] font-sans font-semibold">Magnet URI Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="truncate">{m.magnet ? `${m.magnet.substring(0, 38)}...` : (m.hash || 'Copy Magnet')}</span>
-                      </>
+                  {/* Copy Magnet Link & Open in Torrent App */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => handleCopyMagnet(e, m.magnet, m.id)}
+                      className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-[#090F1C] dark:hover:bg-[#151F32] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E293B] transition-colors max-w-[190px] sm:max-w-xs md:max-w-md truncate"
+                      title="Click to copy full magnet URI"
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-[#00DF81]" />
+                          <span className="text-emerald-600 dark:text-[#00DF81] font-sans font-semibold">Magnet URI Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="truncate">{m.magnet ? `${m.magnet.substring(0, 38)}...` : (m.hash || 'Copy Magnet')}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {m.magnet && (
+                      <a
+                        href={ensureMagnetUri(m.magnet, displayName)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 rounded-xl transition-all active:scale-95"
+                        title="Open in Torrent App (Soft link)"
+                      >
+                        <Magnet className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Open App</span>
+                      </a>
                     )}
-                  </button>
+                  </div>
 
                   {/* Restore Actions */}
                   <div className="flex items-center gap-2">

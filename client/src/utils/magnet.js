@@ -155,3 +155,26 @@ export function formatRelativeTime(timestamp) {
   }
 }
 
+/**
+ * Ensures a magnet link is formatted as a full magnet URI
+ * @param {string} magnet - Magnet URI or info hash
+ * @param {string} [name] - Optional display name for dn parameter
+ * @returns {string}
+ */
+export function ensureMagnetUri(magnet, name = '') {
+  if (!magnet || typeof magnet !== 'string') return '';
+  const trimmed = magnet.trim();
+  if (trimmed.toLowerCase().startsWith('magnet:?')) {
+    return trimmed;
+  }
+  if (trimmed.toLowerCase().startsWith('magnet:')) {
+    return trimmed.replace(/^magnet:\??/i, 'magnet:?');
+  }
+  // Check if raw infohash (40 hex or 32 base32)
+  if (/^[a-fA-F0-9]{40}$/.test(trimmed) || /^[a-zA-Z2-7]{32}$/.test(trimmed)) {
+    const dnParam = name ? `&dn=${encodeURIComponent(name.trim())}` : '';
+    return `magnet:?xt=urn:btih:${trimmed.toLowerCase()}${dnParam}`;
+  }
+  return trimmed;
+}
+

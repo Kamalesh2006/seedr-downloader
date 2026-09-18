@@ -14,9 +14,10 @@ import {
   CloudDownload,
   Loader2,
   Link as LinkIcon,
-  Sparkles
+  Sparkles,
+  Magnet
 } from 'lucide-react';
-import { formatBytes, formatRelativeTime } from '../utils/magnet';
+import { formatBytes, formatRelativeTime, ensureMagnetUri } from '../utils/magnet';
 
 export default function QueueManager({ 
   queue = [], 
@@ -210,6 +211,21 @@ export default function QueueManager({
                   </button>
 
                   <div className="flex items-center gap-1">
+                    {/* Open in Torrent App */}
+                    {item.magnet && (
+                      <a
+                        href={ensureMagnetUri(item.magnet, item.name || item.title)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowToast?.('Opening torrent app...', 'info');
+                        }}
+                        className="p-2 text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 dark:text-rose-400 dark:hover:text-rose-300 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 rounded-xl transition-all border border-rose-200 dark:border-rose-500/30 active:scale-95"
+                        title="Open in Torrent App (Soft link)"
+                      >
+                        <Magnet className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
                     {/* Copy Magnet Link */}
                     {item.magnet && (
                       <button

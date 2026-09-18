@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon, Copy, Check } from 'lucide-react';
-import { isOversizedForSeedr } from '../utils/magnet';
+import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon, Copy, Check, Magnet } from 'lucide-react';
+import { isOversizedForSeedr, ensureMagnetUri } from '../utils/magnet';
 
 export default function SearchResults({ results, onDownload, onShowToast }) {
   const [copiedKey, setCopiedKey] = useState(null);
@@ -62,7 +62,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
             </span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Click "Add to Seedr" for cloud downloads (max 4.5 GB) or "Copy Magnet" for any torrent.
+            Click "Add to Seedr" for cloud downloads (max 4.5 GB), "Copy Magnet", or the Magnet icon to open in your desktop torrent app.
           </p>
         </div>
       </div>
@@ -104,11 +104,11 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={() => onDownload(result.magnet, result.title, result.size)}
                   disabled={isOversized}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
                     isOversized
                       ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700'
                       : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
@@ -118,6 +118,21 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                   <CloudDownload className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">Add to Seedr</span>
                 </button>
+
+                {result.magnet && (
+                  <a
+                    href={ensureMagnetUri(result.magnet, result.title)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShowToast?.('Opening torrent app...', 'info');
+                    }}
+                    className="py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border-rose-200 dark:border-rose-500/30 active:scale-95 shrink-0"
+                    title="Open in Torrent App (Soft link)"
+                  >
+                    <Magnet className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden sm:inline">Open</span>
+                  </a>
+                )}
 
                 <button
                   onClick={(e) => handleCopyMagnet(result.magnet, `m-${idx}`, e)}
@@ -136,7 +151,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Copy Magnet</span>
+                      <span className="truncate">Copy</span>
                     </>
                   )}
                 </button>
@@ -155,7 +170,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
               <th className="px-6 py-3.5 font-semibold w-32">Size</th>
               <th className="px-6 py-3.5 font-semibold w-24">Seeders</th>
               <th className="px-6 py-3.5 font-semibold w-24">Leechers</th>
-              <th className="px-6 py-3.5 font-semibold w-60 text-right">Actions</th>
+              <th className="px-6 py-3.5 font-semibold w-72 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-[#1E293B]/60">
@@ -217,6 +232,21 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                         <CloudDownload className="w-3.5 h-3.5" />
                         <span>Add to Seedr</span>
                       </button>
+
+                      {result.magnet && (
+                        <a
+                          href={ensureMagnetUri(result.magnet, result.title)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onShowToast?.('Opening torrent app...', 'info');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-rose-200 dark:border-rose-500/30 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 transition-all active:scale-95 shadow-sm"
+                          title="Open in Torrent App (Soft link)"
+                        >
+                          <Magnet className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden lg:inline">Open App</span>
+                        </a>
+                      )}
 
                       <button
                         onClick={(e) => handleCopyMagnet(result.magnet, `d-${idx}`, e)}

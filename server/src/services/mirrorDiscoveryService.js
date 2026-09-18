@@ -249,6 +249,8 @@ class MirrorDiscoveryService {
     const kwLower = cfg.keyword.toLowerCase();
     if (kwLower.includes('tamilmv')) {
       const knownMirrors = [
+        'https://www.1tamilmv.rocks',
+        'https://1tamilmv.rocks',
         cfg.fallbackDomain || 'https://www.1tamilmv.meme',
         'https://1tamilmv.meme',
         'https://www.1tamilmv.pm',

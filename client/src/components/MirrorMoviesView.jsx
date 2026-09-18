@@ -22,10 +22,11 @@ import {
   ArrowUp,
   ArrowDown,
   AlertOctagon,
-  X
+  X,
+  Magnet
 } from 'lucide-react';
 import api from '../api/client';
-import { isOversizedForSeedr } from '../utils/magnet';
+import { isOversizedForSeedr, ensureMagnetUri } from '../utils/magnet';
 
 function extractMagnetHash(magnet) {
   if (!magnet) return '';
@@ -828,6 +829,20 @@ export default function MirrorMoviesView({
                           </button>
                         )}
 
+                        {torrent.magnet && (
+                          <a
+                            href={ensureMagnetUri(torrent.magnet, torrent.title)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onShowToast?.('Opening torrent app...', 'info');
+                            }}
+                            className="p-2 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95"
+                            title="Open in Torrent App (Soft link)"
+                          >
+                            <Magnet className="w-4 h-4" />
+                          </a>
+                        )}
+
                         <button
                           onClick={() => handleCopy(torrent.magnet, `global-${idx}`)}
                           className="p-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-[#1E293B] transition-colors"
@@ -929,6 +944,20 @@ export default function MirrorMoviesView({
                           <CloudDownload className="w-3.5 h-3.5 shrink-0" />
                           <span>Seedr</span>
                         </button>
+                      )}
+
+                      {torrent.magnet && (
+                        <a
+                          href={ensureMagnetUri(torrent.magnet, torrent.title)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onShowToast?.('Opening torrent app...', 'info');
+                          }}
+                          className="p-1.5 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95"
+                          title="Open in Torrent App (Soft link)"
+                        >
+                          <Magnet className="w-3.5 h-3.5" />
+                        </a>
                       )}
 
                       <button
@@ -1328,6 +1357,20 @@ export default function MirrorMoviesView({
                                       </button>
                                     )}
 
+                                    {link.magnet && (
+                                      <a
+                                        href={ensureMagnetUri(link.magnet, link.title || movie.title)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onShowToast?.('Opening torrent app...', 'info');
+                                        }}
+                                        className="p-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95"
+                                        title="Open in Torrent App (Soft link)"
+                                      >
+                                        <Magnet className="w-3.5 h-3.5" />
+                                      </a>
+                                    )}
+
                                     <button
                                       onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}
                                       className="p-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
@@ -1515,6 +1558,20 @@ export default function MirrorMoviesView({
                                   >
                                     Seedr
                                   </button>
+                                )}
+
+                                {link.magnet && (
+                                  <a
+                                    href={ensureMagnetUri(link.magnet, link.title || movie.title)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onShowToast?.('Opening torrent app...', 'info');
+                                    }}
+                                    className="text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 p-0.5 transition-colors"
+                                    title="Open in Torrent App (Soft link)"
+                                  >
+                                    <Magnet className="w-3.5 h-3.5" />
+                                  </a>
                                 )}
 
                                 <button
