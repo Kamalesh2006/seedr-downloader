@@ -216,7 +216,7 @@ export default function CompletedFiles({
             </div>
             <h4 className="text-sm sm:text-base font-semibold text-slate-300">Your Cloud Storage is empty</h4>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
-              Paste a torrent or magnet link above to convert and save direct downloadable files to your cloud storage.
+              Search torrents from the sidebar or paste a magnet link below to download direct files to your cloud storage.
             </p>
           </div>
         ) : (

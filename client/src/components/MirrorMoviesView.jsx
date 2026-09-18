@@ -565,12 +565,12 @@ export default function MirrorMoviesView({
 
         {/* Navigation Tabs (Top Releases | All Releases | Global Search) & View Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-[#1E293B]">
-          {/* Tabs Container with smooth touch scrolling and edge bleed on mobile */}
-          <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none scroll-smooth min-w-0 flex-1">
+          {/* Stack tabs on mobile; switch to a horizontal tab row on larger screens */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setViewMode('top')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all w-full sm:w-auto sm:shrink-0 whitespace-nowrap ${
                 viewMode === 'top'
                   ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
                   : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
@@ -590,7 +590,7 @@ export default function MirrorMoviesView({
             <button
               type="button"
               onClick={() => setViewMode('all')}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all w-full sm:w-auto sm:shrink-0 whitespace-nowrap ${
                 viewMode === 'all'
                   ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
                   : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
@@ -615,7 +615,7 @@ export default function MirrorMoviesView({
                   executeGlobalSearch(searchInput);
                 }
               }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all w-full sm:w-auto sm:shrink-0 whitespace-nowrap ${
                 viewMode === 'global'
                   ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
                   : 'bg-slate-100 dark:bg-[#0A0F1D] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#1E293B]'
