@@ -190,7 +190,7 @@ export default function CompletedFiles({
       <div className="flex items-center justify-between mb-3 px-1">
         <div>
           <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-            Files in Seedr Cloud
+            Files in Cloud Storage
           </h3>
         </div>
 
@@ -214,9 +214,9 @@ export default function CompletedFiles({
             <div className="p-3.5 bg-[#141D2E] rounded-2xl mb-3 border border-[#1E293B]">
               <Folder className="w-8 h-8 sm:w-10 sm:h-10 text-slate-600" />
             </div>
-            <h4 className="text-sm sm:text-base font-semibold text-slate-300">Your Seedr cloud is empty</h4>
+            <h4 className="text-sm sm:text-base font-semibold text-slate-300">Your Cloud Storage is empty</h4>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
-              Search for a torrent or paste a magnet link above to download files to your Seedr account.
+              Paste a torrent or magnet link above to convert and save direct downloadable files to your cloud storage.
             </p>
           </div>
         ) : (
@@ -377,7 +377,7 @@ export default function CompletedFiles({
                         <button
                           onClick={() => setDeleteTarget({ id: item.id, name: item.name, type: item.type })}
                           className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-                          title={`Delete ${item.type} from Seedr`}
+                          title={`Delete ${item.type} from Cloud storage`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -569,7 +569,7 @@ export default function CompletedFiles({
                   Are you sure you want to delete <span className="text-slate-200 font-semibold truncate block mt-0.5">"{deleteTarget.name}"</span>
                 </p>
                 <p className="text-xs text-red-400/80 mt-2 font-medium">
-                  This action will permanently delete it and free up Seedr storage space.
+                  This action will permanently delete it and free up cloud storage space.
                 </p>
               </div>
             </div>

@@ -126,7 +126,7 @@ export default function RecentLinksView({
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Magnet links deleted from Seedr storage in the past 30 days. Easily copy or restore downloads at any time.
+            Magnet links deleted from Cloud storage in the past 30 days. Easily copy or restore downloads at any time.
           </p>
         </div>
 
@@ -196,7 +196,7 @@ export default function RecentLinksView({
           </div>
           <h4 className="text-base sm:text-lg font-bold text-slate-200">No deleted magnet links in the past 30 days</h4>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mt-2 leading-relaxed">
-            When you delete files or torrents from Seedr to free up account space, their magnet links will be preserved here for 30 days so you can easily restore or copy them.
+            When you delete files or torrents from Cloud storage to free up account space, their magnet links will be preserved here for 30 days so you can easily restore or copy them.
           </p>
         </div>
       ) : filteredMagnets.length === 0 ? (
@@ -316,10 +316,10 @@ export default function RecentLinksView({
                         disabled={isRestoring}
                         onClick={() => handleRestore(m.magnet, displayName, m.size, m.id)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00DF81]/15 text-[#00DF81] hover:bg-[#00DF81]/25 border border-[#00DF81]/30 transition-all active:scale-95 disabled:opacity-50"
-                        title="Re-download this torrent in Seedr cloud"
+                        title="Re-download this torrent in Cloud storage"
                       >
                         <RotateCw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
-                        <span>{isRestoring ? 'Restoring...' : 'Restore to Seedr'}</span>
+                        <span>{isRestoring ? 'Restoring...' : 'Restore to Cloud'}</span>
                       </button>
                     )}
                   </div>

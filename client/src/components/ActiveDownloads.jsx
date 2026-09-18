@@ -33,7 +33,7 @@ export default function ActiveDownloads({ transfers = [], onCancel }) {
                 ({transfers.length})
               </span>
             </h3>
-            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">Torrents downloading in Seedr</p>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">Torrents downloading in Cloud</p>
           </div>
         </div>
 

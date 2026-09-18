@@ -127,17 +127,17 @@ function App() {
   const handleAddMagnet = async (magnet, name = '', size = null) => {
     // 1. Validate file size > 4.5 GB limit
     if (size && isOversizedForSeedr(size)) {
-      showToast(`⚠️ Cannot download "${name || 'Torrent'}" (${size}): File size exceeds Seedr's 4.5 GB total storage limit.`, 'error');
+      showToast(`⚠️ Cannot download "${name || 'Torrent'}" (${size}): File size exceeds 4.5 GB cloud storage limit.`, 'error');
       return;
     }
 
     try {
       const res = await addMagnet(magnet, name, size);
       if (res && res.autoQueued) {
-        showToast(`Seedr is currently full. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
+        showToast(`Cloud storage is currently full. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
         fetchQueue();
       } else {
-        showToast('Added to Seedr cloud! Fetching progress...', 'success');
+        showToast('Added to Cloud! Converting to high-speed download...', 'success');
         if (!name) {
           setIsMagnetsOpen(true);
         }
@@ -146,9 +146,9 @@ function App() {
     } catch (err) {
       const errDetail = err.response?.data?.error || err.message || '';
       if (err.response?.data?.isOversized || errDetail.includes('4.5 GB') || errDetail.includes('file_too_big')) {
-        showToast(`⚠️ "${name || 'Torrent'}" exceeds Seedr's 4.5 GB storage limit and cannot be added.`, 'error');
+        showToast(`⚠️ "${name || 'Torrent'}" exceeds 4.5 GB cloud limit and cannot be added.`, 'error');
       } else {
-        showToast(errDetail || 'Failed to add to Seedr', 'error');
+        showToast(errDetail || 'Failed to add to Cloud', 'error');
       }
       throw err;
     }
@@ -156,7 +156,7 @@ function App() {
 
   const handleAddToQueue = async (magnet, name = '', size = null) => {
     if (size && isOversizedForSeedr(size)) {
-      showToast(`⚠️ Cannot schedule "${name || 'Torrent'}" (${size}): Exceeds Seedr 4.5 GB limit.`, 'error');
+      showToast(`⚠️ Cannot schedule "${name || 'Torrent'}" (${size}): Exceeds 4.5 GB cloud limit.`, 'error');
       return;
     }
 
@@ -170,7 +170,7 @@ function App() {
 
   const handleSendFromQueueNow = async (magnet, name, queueId, size = null) => {
     if (size && isOversizedForSeedr(size)) {
-      showToast(`⚠️ Cannot send "${name}" (${size}): Exceeds Seedr 4.5 GB limit. Removing from queue...`, 'error');
+      showToast(`⚠️ Cannot send "${name}" (${size}): Exceeds 4.5 GB cloud limit. Removing from queue...`, 'error');
       await removeFromQueue(queueId);
       return;
     }
@@ -178,9 +178,9 @@ function App() {
     try {
       const res = await addMagnet(magnet, name, size);
       await removeFromQueue(queueId);
-      showToast(`Sent "${name}" to Seedr immediately!`, 'success');
+      showToast(`Sent "${name}" to Cloud immediately!`, 'success');
     } catch (err) {
-      showToast('Failed to send to Seedr', 'error');
+      showToast('Failed to send to Cloud', 'error');
     }
   };
 
@@ -205,18 +205,19 @@ function App() {
 
       if (type === 'folder') {
         await deleteFolder(id, itemMeta);
-        showToast('Folder deleted from Seedr (Saved to 30-day deleted links)');
+        showToast('Folder deleted from Cloud (Saved to 30-day deleted links)');
       } else if (type === 'torrent') {
         await deleteTorrent(id, itemMeta);
-        showToast('Active torrent cancelled & removed from Seedr (Saved to 30-day deleted links)');
+        showToast('Active torrent cancelled & removed from Cloud (Saved to 30-day deleted links)');
       } else if (type === 'task') {
         await deleteTask(id);
-        showToast('Task removed from Seedr');
+        showToast('Task removed from Cloud');
       } else {
         await deleteFile(id, parentFolderId, itemMeta);
-        showToast('File deleted from Seedr (Saved to 30-day deleted links)');
+        showToast('File deleted from Cloud (Saved to 30-day deleted links)');
       }
       fetchQueue();
+      setTimeout(fetchQueue, 1500);
     } catch (err) {
       showToast(`Failed to delete ${type}`, 'error');
       throw err;
@@ -425,7 +426,7 @@ function App() {
           {currentTab === 'storage' && (
             <div className="space-y-6 max-w-3xl">
               <div className="pb-3 border-b border-slate-200 dark:border-[#1E293B]">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Seedr Cloud Storage Details</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Cloud Storage Details</h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Overview of your account storage quota and cloud allocation.
                 </p>

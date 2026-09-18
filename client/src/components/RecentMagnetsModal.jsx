@@ -163,7 +163,7 @@ export default function RecentMagnetsModal({
               <Trash2 className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#00DF81]" />
               <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No deleted magnet links in the past 30 days</p>
               <p className="text-xs mt-1 text-slate-500 max-w-sm mx-auto">
-                When you delete torrents or files from Seedr, their magnet links will be preserved here for 30 days.
+                When you delete torrents or files from Cloud storage, their magnet links will be preserved here for 30 days.
               </p>
             </div>
           ) : (

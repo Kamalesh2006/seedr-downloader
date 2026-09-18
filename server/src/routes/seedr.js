@@ -166,6 +166,11 @@ router.get('/folders', async (req, res) => {
   try {
     const result = await seedrService.listFolder();
     res.json(result);
+
+    // Opportunistically check if queued items can now start in the cloud
+    if (downloadQueue.queue.length > 0 && !downloadQueue.isProcessing && downloadQueue.isAutoEnabled) {
+      downloadQueue.processNext().catch(() => {});
+    }
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to list root folder' });
   }
@@ -346,7 +351,9 @@ router.delete('/file/:fileId', validateIdParam('fileId'), async (req, res) => {
     }).catch(err => console.error('Failed to archive deleted file:', err.message));
 
     res.json(result);
-    setTimeout(() => downloadQueue.processNext(), 2000);
+    // Wake up download queue processor immediately to auto-start queued files
+    downloadQueue.processNext().catch(err => console.warn('[Queue] Post-file-delete process error:', err.message));
+    setTimeout(() => downloadQueue.processNext().catch(() => {}), 2000);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete file' });
   }
@@ -387,7 +394,9 @@ router.delete('/folder/:folderId', validateIdParam('folderId'), async (req, res)
     }).catch(err => console.error('Failed to archive deleted folder:', err.message));
 
     res.json(result);
-    setTimeout(() => downloadQueue.processNext(), 2000);
+    // Wake up download queue processor immediately to auto-start queued files
+    downloadQueue.processNext().catch(err => console.warn('[Queue] Post-folder-delete process error:', err.message));
+    setTimeout(() => downloadQueue.processNext().catch(() => {}), 2000);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete folder' });
   }
@@ -429,7 +438,9 @@ router.delete('/torrent/:torrentId', validateIdParam('torrentId'), async (req, r
     }).catch(err => console.error('Failed to archive deleted torrent:', err.message));
 
     res.json(result);
-    setTimeout(() => downloadQueue.processNext(), 2000);
+    // Wake up download queue processor immediately to auto-start queued files
+    downloadQueue.processNext().catch(err => console.warn('[Queue] Post-torrent-delete process error:', err.message));
+    setTimeout(() => downloadQueue.processNext().catch(() => {}), 2000);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete torrent' });
   }
@@ -440,7 +451,9 @@ router.delete('/task/:taskId', validateIdParam('taskId'), async (req, res) => {
     const { taskId } = req.params;
     const result = await seedrService.deleteTask(taskId);
     res.json(result);
-    setTimeout(() => downloadQueue.processNext(), 2000);
+    // Wake up download queue processor immediately to auto-start queued files
+    downloadQueue.processNext().catch(err => console.warn('[Queue] Post-task-delete process error:', err.message));
+    setTimeout(() => downloadQueue.processNext().catch(() => {}), 2000);
   } catch (error) {
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to delete task' });
   }

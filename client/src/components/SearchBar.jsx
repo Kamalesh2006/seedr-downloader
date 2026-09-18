@@ -9,7 +9,9 @@ import {
   Sparkles, 
   X,
   Flame,
-  Plus
+  Plus,
+  CloudDownload,
+  Zap
 } from 'lucide-react';
 import api from '../api/client';
 import { extractMagnetName, isValidMagnet } from '../utils/magnet';
@@ -130,7 +132,7 @@ export default function SearchBar({
           }`}
         >
           <LinkIcon className="w-4 h-4" />
-          <span>Paste Magnet</span>
+          <span>Paste Torrent / Magnet</span>
         </button>
 
         <button
@@ -151,6 +153,31 @@ export default function SearchBar({
       <form onSubmit={handleSubmit} className="space-y-3">
         {mode === 'magnet' ? (
           <div className="space-y-3">
+            {/* Explainer card for converting torrent to direct download */}
+            <div className="bg-gradient-to-r from-emerald-500/10 via-[#0A1626]/70 to-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 sm:p-3.5 space-y-2 text-xs">
+              <div className="flex items-center gap-2 font-bold text-emerald-400">
+                <Zap className="w-4 h-4 text-[#00DF81] shrink-0" />
+                <span>Convert Torrent into Fast Direct Download</span>
+              </div>
+              <p className="text-slate-300 text-[11px] sm:text-xs leading-relaxed">
+                Paste any torrent link or magnet URL below. Our cloud server fetches it at lightning speed, converting it into a <strong className="text-white">direct high-speed download link</strong> (compatible with IDM & browsers) and <strong className="text-white">instant web stream</strong> without using any torrent client.
+              </p>
+              <div className="pt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] sm:text-[11px] text-slate-400 border-t border-[#1E293B]/70">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00DF81]" />
+                  <span>Cloud fetches files at server speed</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00DF81]" />
+                  <span>Direct HTTPS Download (Browser / IDM)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00DF81]" />
+                  <span>Instant Streaming in Browser or VLC</span>
+                </div>
+              </div>
+            </div>
+
             <div className="relative bg-[#090F1C] border border-[#1E293B] rounded-xl focus-within:border-[#00DF81] focus-within:ring-1 focus-within:ring-[#00DF81]/30 transition-all p-2.5 sm:p-3">
               <div className="flex items-start gap-2 sm:gap-2.5">
                 <LinkIcon className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
@@ -158,7 +185,7 @@ export default function SearchBar({
                   rows={isQueueTab ? 2 : 3}
                   value={magnet}
                   onChange={(e) => setMagnet(e.target.value)}
-                  placeholder="Paste magnet link (magnet:?xt=urn:btih:...)..."
+                  placeholder="Paste torrent or magnet link here (e.g. magnet:?xt=urn:btih:...)..."
                   className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 text-xs sm:text-sm p-1 sm:p-2 focus:outline-none resize-none font-mono"
                   disabled={loading}
                   autoFocus
@@ -206,16 +233,23 @@ export default function SearchBar({
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <div className="text-xs text-slate-500 hidden sm:block">
-                Auto-schedules in queue if space is occupied (Max 4.5 GB)
+                Auto-schedules in queue if storage is full (Max 4.5 GB)
               </div>
               
               <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-2.5 sm:ml-auto">
                 <button
                   type="submit"
                   disabled={loading || !magnet.trim()}
-                  className="w-full sm:w-auto bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center min-w-0 sm:min-w-[140px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
+                  className="w-full sm:w-auto bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 min-w-0 sm:min-w-[140px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Seedr'}
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CloudDownload className="w-4 h-4 shrink-0" />
+                      <span>Add to Cloud</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

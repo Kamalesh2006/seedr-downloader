@@ -138,7 +138,7 @@ export default function QueueManager({
               Upcoming Queue is Empty
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Torrents download immediately in Seedr Cloud. If storage is occupied, new downloads are automatically queued here and start as soon as space is freed.
+              Torrents download immediately in Cloud Storage. If storage is occupied, new downloads are automatically queued here and start as soon as space is freed.
             </p>
           </div>
         </div>
@@ -204,7 +204,7 @@ export default function QueueManager({
                     onClick={() => handleSendNow(item)}
                     disabled={isSending}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-[#00DF81]/15 dark:hover:bg-[#00DF81]/25 dark:text-[#00DF81] dark:border-[#00DF81]/30 rounded-xl transition-all disabled:opacity-50 active:scale-95 shadow-sm"
-                    title="Start download in Seedr immediately"
+                    title="Start download in Cloud storage immediately"
                   >
                     {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                     <span>Send Now</span>

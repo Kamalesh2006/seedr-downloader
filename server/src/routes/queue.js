@@ -26,6 +26,11 @@ router.get('/', async (req, res) => {
     }
     const status = downloadQueueService.getQueueStatus();
     res.json(status);
+
+    // If items are in queue and processor is not busy, trigger processing
+    if (downloadQueueService.queue.length > 0 && !downloadQueueService.isProcessing && downloadQueueService.isAutoEnabled) {
+      downloadQueueService.processNext().catch(() => {});
+    }
   } catch (err) {
     res.status(500).json({ error: sanitizeErrorMessage(err) || 'Failed to get queue' });
   }

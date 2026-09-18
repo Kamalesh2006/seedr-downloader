@@ -62,7 +62,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
             </span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Click "Add to Seedr" for cloud downloads (max 4.5 GB), "Copy Magnet", or the Magnet icon to open in your desktop torrent app.
+            Click "Add to Cloud" for high-speed cloud downloads (max 4.5 GB), "Copy Magnet", or the Magnet icon to open in your desktop torrent app.
           </p>
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
 
               {isOversized && (
                 <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 mb-2">
-                  <AlertOctagon className="w-3 h-3" /> Exceeds 4.5 GB Seedr Limit
+                  <AlertOctagon className="w-3 h-3" /> Exceeds 4.5 GB Limit
                 </div>
               )}
 
@@ -113,10 +113,10 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                       ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700'
                       : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-md shadow-emerald-500/20 active:scale-95'
                   }`}
-                  title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
+                  title={isOversized ? 'File exceeds 4.5 GB cloud storage limit' : 'Add to Cloud (Auto-queues if full)'}
                 >
                   <CloudDownload className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">Add to Seedr</span>
+                  <span className="truncate">Add to Cloud</span>
                 </button>
 
                 {result.magnet && (
@@ -227,10 +227,10 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
                             ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700'
                             : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98]'
                         }`}
-                        title={isOversized ? 'File exceeds Seedr 4.5 GB limit' : 'Add to Seedr (Auto-queues if full)'}
+                        title={isOversized ? 'File exceeds 4.5 GB cloud storage limit' : 'Add to Cloud (Auto-queues if full)'}
                       >
                         <CloudDownload className="w-3.5 h-3.5" />
-                        <span>Add to Seedr</span>
+                        <span>Add to Cloud</span>
                       </button>
 
                       {result.magnet && (

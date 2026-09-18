@@ -338,33 +338,67 @@ class DownloadQueueService {
         return;
       }
 
-      // If existing completed files occupy the majority of storage (free space < 500MB), wait for user to delete files
-      if (spaceUsed > 0 && freeSpace < 500 * 1024 * 1024) {
-        console.log(`[Queue] ⏳ Insufficient free storage in Seedr (${(freeSpace / (1024 * 1024)).toFixed(0)} MB free). Waiting for user to delete completed files.`);
+      // If existing completed files occupy all storage (free space < 100MB), wait for user to delete files
+      if (freeSpace < 100 * 1024 * 1024) {
+        console.log(`[Queue] ⏳ Cloud storage full (${(freeSpace / (1024 * 1024)).toFixed(0)} MB free). Waiting for user to delete completed files.`);
         this.isProcessing = false;
         return;
       }
 
-      // 2. Pick next queued item in order (FIFO)
-      const nextItem = this.queue[0];
-      if (!nextItem) {
-        this.isProcessing = false;
-        return;
-      }
-
-      // Check if next queued item is oversized (> 4.5 GB) -> auto-remove from queue
-      const itemSizeInGB = parseSizeInGB(nextItem.size);
-      if (itemSizeInGB > 4.5) {
-        console.warn(`[Queue] ⚠️ Auto-removing oversized item "${nextItem.name}" (${itemSizeInGB.toFixed(2)} GB > 4.5 GB) from queue.`);
-        this.queue.shift();
+      // 2. Remove any oversized items (> 4.5 GB) from the queue
+      const initialCount = this.queue.length;
+      this.queue = this.queue.filter(item => {
+        const sz = parseSizeInGB(item.size);
+        if (sz > 4.5) {
+          console.warn(`[Queue] ⚠️ Auto-removing oversized item "${item.name}" (${sz.toFixed(2)} GB > 4.5 GB limit) from queue.`);
+          return false;
+        }
+        return true;
+      });
+      if (this.queue.length !== initialCount) {
         this.saveData();
+      }
+
+      if (this.queue.length === 0) {
         this.isProcessing = false;
         return;
       }
 
-      console.log(`[Queue] 🚀 Auto-Scheduler submitting next item in order: "${nextItem.name}"...`);
+      // 3. Select the best eligible queued item (prefer FIFO order, but check fit against available free space)
+      let candidateIndex = -1;
+      for (let i = 0; i < this.queue.length; i++) {
+        const item = this.queue[i];
+        const itemSizeInGB = parseSizeInGB(item.size);
+        const itemSizeInBytes = itemSizeInGB * 1024 * 1024 * 1024;
 
-      // 3. Submit magnet link to Seedr
+        if (itemSizeInBytes > 0) {
+          // Check if item fits in available free space (with a 50MB safety buffer)
+          if (itemSizeInBytes <= freeSpace) {
+            candidateIndex = i;
+            break;
+          }
+        } else {
+          // If size is unknown, only attempt if there is at least 500 MB free space
+          if (freeSpace >= 500 * 1024 * 1024) {
+            candidateIndex = i;
+            break;
+          }
+        }
+      }
+
+      // If no item fits in currently free storage, wait for user to free more storage
+      if (candidateIndex === -1) {
+        const firstItem = this.queue[0];
+        const firstSize = parseSizeInGB(firstItem.size);
+        console.log(`[Queue] ⏳ Insufficient free storage in Seedr (${(freeSpace / (1024 * 1024)).toFixed(0)} MB free). Next item "${firstItem.name}" needs ${firstSize > 0 ? (firstSize * 1024).toFixed(0) + ' MB' : 'more free space'}. Waiting for user to free cloud storage.`);
+        this.isProcessing = false;
+        return;
+      }
+
+      const nextItem = this.queue[candidateIndex];
+      console.log(`[Queue] 🚀 Auto-Scheduler submitting eligible item: "${nextItem.name}" (Queue position #${candidateIndex + 1}/${this.queue.length})...`);
+
+      // 4. Submit magnet link to Seedr
       let result;
       try {
         result = await seedrService.addMagnet(nextItem.magnet);
@@ -379,7 +413,7 @@ class DownloadQueueService {
 
         if (combined.includes('file_too_big')) {
           console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" as oversized (> 4.5 GB). Auto-removing from queue.`);
-          this.queue.shift();
+          this.queue.splice(candidateIndex, 1);
           this.saveData();
           this.isProcessing = false;
           return;
@@ -406,31 +440,31 @@ class DownloadQueueService {
           combined.includes('cant_fetch_torrent')
         ) {
           console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" due to invalid magnet link (${safeMsg}). Removing from queue.`);
-          this.queue.shift();
+          this.queue.splice(candidateIndex, 1);
           this.saveData();
           this.isProcessing = false;
           return;
         }
 
-        // Track consecutive failures to avoid blocking the queue permanently
+        // Track consecutive failures - allow up to 10 attempts before flagging
         nextItem.attempts = (nextItem.attempts || 0) + 1;
-        if (nextItem.attempts >= 3) {
-          console.warn(`[Queue] ⚠️ Item "${nextItem.name}" failed 3 consecutive times (${safeMsg}). Removing from upcoming queue.`);
-          this.queue.shift();
+        if (nextItem.attempts >= 10) {
+          console.warn(`[Queue] ⚠️ Item "${nextItem.name}" failed 10 consecutive times (${safeMsg}). Removing from queue.`);
+          this.queue.splice(candidateIndex, 1);
           this.saveData();
         } else {
-          console.error('[Queue] Error processing next scheduled item:', safeMsg || rawError || rawResult || rawMsg || 'Seedr request failed');
+          console.error('[Queue] Error processing scheduled item:', safeMsg || rawError || rawResult || rawMsg || 'Seedr request failed');
         }
 
         this.isProcessing = false;
         return;
       }
 
-      // 4. If Seedr returned 200 response with error payload
+      // 5. Verify response from Seedr
       if (result) {
         if (result.result === 'file_too_big' || result.error === 'file_too_big') {
           console.warn(`[Queue] ⚠️ Seedr rejected "${nextItem.name}" as oversized (> 4.5 GB). Auto-removing from queue.`);
-          this.queue.shift();
+          this.queue.splice(candidateIndex, 1);
           this.saveData();
           this.isProcessing = false;
           return;
@@ -441,20 +475,33 @@ class DownloadQueueService {
           result.result === 'free_user_limit' ||
           result.result === 'user_torrent_limit' ||
           result.result === false ||
+          result.wt ||
           result.reason_phrase?.includes('space') ||
           result.reason_phrase?.includes('wishlist')
         ) {
-          console.log(`[Queue] ⏳ Seedr not ready for "${nextItem.name}". Keeping in queue.`);
+          console.log(`[Queue] ⏳ Seedr storage limit reached for "${nextItem.name}". Keeping in queue.`);
           this.isProcessing = false;
           return;
         }
+
+        // Validate confirmed success indicator from Seedr API
+        const isConfirmedSuccess = !!(
+          result.user_torrent_id || 
+          result.id || 
+          result.success === true || 
+          result.torrent_hash ||
+          (result.result === true)
+        );
+
+        if (isConfirmedSuccess) {
+          // Successfully added to Seedr: Remove from queue
+          this.queue.splice(candidateIndex, 1);
+          this.saveData();
+          console.log(`[Queue] ✅ Successfully dispatched scheduled torrent "${nextItem.name}" to Seedr! (Remaining in queue: ${this.queue.length})`);
+        } else {
+          console.warn(`[Queue] ⚠️ Unconfirmed dispatch result for "${nextItem.name}". Keeping in queue to prevent loss:`, result);
+        }
       }
-
-      // 5. Pop item from queue upon successful dispatch
-      this.queue.shift();
-      this.saveData();
-
-      console.log(`[Queue] ✅ Successfully dispatched scheduled torrent "${nextItem.name}" to Seedr! (Remaining in queue: ${this.queue.length})`);
 
     } catch (unexpectedError) {
       const safeMsg = sanitizeErrorMessage(unexpectedError);

@@ -174,6 +174,8 @@ export default function useSeedr() {
         fetchFolderContents(parentFolderId);
       }
       refreshFiles();
+      // Immediately wake up queue to dispatch next scheduled torrent
+      api.post('/queue/process-now').catch(() => {});
     } catch (err) {
       console.error('Failed to delete file', err);
       throw err;
@@ -199,6 +201,8 @@ export default function useSeedr() {
         return next;
       });
       refreshFiles();
+      // Immediately wake up queue to dispatch next scheduled torrent
+      api.post('/queue/process-now').catch(() => {});
     } catch (err) {
       console.error('Failed to delete folder', err);
       throw err;
@@ -219,6 +223,8 @@ export default function useSeedr() {
       }
       await api.delete(`/seedr/torrent/${torrentId}`, { data: torrentMeta || {} });
       refreshFiles();
+      // Immediately wake up queue to dispatch next scheduled torrent
+      api.post('/queue/process-now').catch(() => {});
     } catch (err) {
       console.error('Failed to delete torrent', err);
       throw err;
@@ -229,6 +235,8 @@ export default function useSeedr() {
     try {
       await api.delete(`/seedr/task/${taskId}`);
       refreshFiles();
+      // Immediately wake up queue to dispatch next scheduled torrent
+      api.post('/queue/process-now').catch(() => {});
     } catch (err) {
       console.error('Failed to delete task', err);
       throw err;

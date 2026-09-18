@@ -213,7 +213,7 @@ export default function FileActionSheet({
             className="flex items-center gap-3 w-full p-3.5 rounded-xl bg-red-950/20 border border-red-800/40 text-red-400 font-semibold text-sm hover:bg-red-950/30 transition-all active:scale-[0.99]"
           >
             <Trash2 className="w-5 h-5" />
-            <span>Delete from Seedr Storage</span>
+            <span>Delete from Cloud Storage</span>
           </button>
         </div>
       </div>
