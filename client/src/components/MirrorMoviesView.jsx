@@ -518,30 +518,33 @@ export default function MirrorMoviesView({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search movies, TV shows, anime, games, or release titles..."
-              className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl pl-12 pr-28 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#00DF81] focus:ring-2 focus:ring-[#00DF81]/20 transition-all shadow-inner"
+              className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl pl-12 pr-32 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#00DF81] focus:ring-2 focus:ring-[#00DF81]/20 transition-all shadow-inner"
             />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="absolute right-24 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-                title="Clear"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={globalLoading}
-              className="absolute right-1.5 px-4 py-2 bg-[#00DF81] hover:bg-[#00DF81]/90 text-[#071911] font-bold text-xs sm:text-sm rounded-lg shadow-md shadow-emerald-500/25 transition-all active:scale-95 flex items-center gap-1.5"
-            >
-              {globalLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Search className="w-4 h-4" />
+            <div className="absolute right-1.5 flex items-center gap-1">
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
+                  title="Clear"
+                  aria-label="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               )}
-              <span>Search</span>
-            </button>
+              <button
+                type="submit"
+                disabled={globalLoading}
+                className="px-3 sm:px-4 py-2 bg-[#00DF81] hover:bg-[#00DF81]/90 text-[#071911] font-bold text-xs sm:text-sm rounded-lg shadow-md shadow-emerald-500/25 transition-all active:scale-95 flex items-center gap-1.5 shrink-0"
+              >
+                {globalLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                <span>Search</span>
+              </button>
+            </div>
           </div>
         </form>
 
