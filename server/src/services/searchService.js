@@ -1,5 +1,8 @@
 const TorrentSearchApi = require('torrent-search-api');
 const axios = require('axios');
+const cheerio = require('cheerio');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 const config = require('../../config.json');
 const movieScraperService = require('./movieScraperService');
 
@@ -9,6 +12,21 @@ for (const provider of config.searchProviders || []) {
     TorrentSearchApi.enableProvider(provider.name);
   } catch (error) {
     console.error(`Failed to enable provider ${provider.name}:`, error.message);
+  }
+}
+
+function getProxyAgent() {
+  const proxyUrl = process.env.PROXY_URL || process.env.HTTP_PROXY || process.env.HTTPS_PROXY || config.proxyUrl || config.proxy;
+  if (!proxyUrl || typeof proxyUrl !== 'string' || !proxyUrl.trim()) return null;
+  const clean = proxyUrl.trim();
+  try {
+    if (clean.startsWith('socks')) {
+      return new SocksProxyAgent(clean);
+    }
+    return new HttpsProxyAgent(clean);
+  } catch (err) {
+    console.warn('[SearchService] Invalid proxy configuration:', clean, err.message);
+    return null;
   }
 }
 
@@ -42,6 +60,8 @@ class SearchService {
       ? ytsCfg.urls
       : ['https://yts.am', 'https://yts.gg', 'https://yts.mx', 'https://yts.lt'];
 
+    const proxyAgent = getProxyAgent();
+
     const mirrorPromises = mirrors.map(async (mirror) => {
       const cleanMirror = mirror.replace(/\/+$/, '');
       const url = `${cleanMirror}/api/v2/list_movies.json?query_term=${encodeURIComponent(query.trim())}&sort=seeds&order=desc`;
@@ -50,7 +70,8 @@ class SearchService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json'
         },
-        timeout: 3000
+        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
+        timeout: 4000
       });
 
       if (res.data?.data?.movies && Array.isArray(res.data.data.movies)) {
@@ -91,54 +112,79 @@ class SearchService {
     const tpbCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'thepiratebay') || {};
     const mirrors = (tpbCfg.urls && tpbCfg.urls.length > 0)
       ? tpbCfg.urls
-      : ['https://apibay.org', 'https://piratebayproxy.info/api.php?url='];
+      : [
+          'https://apibay.org',
+          'https://pirateproxy.live',
+          'https://thepiratebay10.org',
+          'https://piratebayproxy.info/api.php?url='
+        ];
 
+    const proxyAgent = getProxyAgent();
+    const cleanQuery = query.trim();
+
+    const fetchFromMirror = async (mirror, q) => {
+      const cleanMirror = mirror.replace(/\/+$/, '');
+      let url;
+      if (cleanMirror.includes('api.php')) {
+        url = `${cleanMirror}${encodeURIComponent('/q.php?q=' + q)}`;
+      } else if (cleanMirror.includes('apibay.org')) {
+        url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
+      } else {
+        url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
+      }
+
+      const res = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        },
+        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
+        timeout: 5000
+      });
+
+      if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
+        const results = [];
+        for (const item of res.data) {
+          if (!item.info_hash) continue;
+          const sizeBytes = parseInt(item.size, 10) || 0;
+          let sizeStr = 'Unknown';
+          if (sizeBytes >= 1024 * 1024 * 1024) {
+            sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+          } else if (sizeBytes >= 1024 * 1024) {
+            sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
+          } else if (sizeBytes > 0) {
+            sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+          }
+
+          const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce`;
+
+          results.push({
+            title: item.name,
+            size: sizeStr,
+            sizeBytes,
+            seeds: parseInt(item.seeders, 10) || 0,
+            leeches: parseInt(item.leechers, 10) || 0,
+            magnet,
+            provider: 'ThePirateBay',
+            time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
+          });
+        }
+        if (results.length > 0) return results;
+      }
+      return null;
+    };
+
+    // Try primary mirror first
     for (const mirror of mirrors) {
       try {
-        const cleanMirror = mirror.replace(/\/+$/, '');
-        let url;
-        if (cleanMirror.includes('api.php')) {
-          url = `${cleanMirror}${encodeURIComponent('/q.php?q=' + query.trim())}`;
-        } else {
-          url = `${cleanMirror}/q.php?q=${encodeURIComponent(query.trim())}`;
-        }
+        const res = await fetchFromMirror(mirror, cleanQuery);
+        if (res && res.length > 0) return res;
 
-        const res = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'application/json'
-          },
-          timeout: 6000
-        });
-
-        if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
-          const results = [];
-          for (const item of res.data) {
-            if (!item.info_hash) continue;
-            const sizeBytes = parseInt(item.size, 10) || 0;
-            let sizeStr = 'Unknown';
-            if (sizeBytes >= 1024 * 1024 * 1024) {
-              sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-            } else if (sizeBytes >= 1024 * 1024) {
-              sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
-            } else if (sizeBytes > 0) {
-              sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
-            }
-
-            const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce`;
-
-            results.push({
-              title: item.name,
-              size: sizeStr,
-              sizeBytes,
-              seeds: parseInt(item.seeders, 10) || 0,
-              leeches: parseInt(item.leechers, 10) || 0,
-              magnet,
-              provider: 'ThePirateBay',
-              time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
-            });
-          }
-          if (results.length > 0) return results;
+        // If query has punctuation/brackets, try stripped fallback
+        const stripped = cleanQuery.replace(/[\(\)\[\]\{\}\:\-\_\.]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (stripped !== cleanQuery && stripped.length >= 2) {
+          const resStripped = await fetchFromMirror(mirror, stripped);
+          if (resStripped && resStripped.length > 0) return resStripped;
         }
       } catch (err) {
         // Continue to next mirror
@@ -149,7 +195,7 @@ class SearchService {
     try {
       const providerInstance = TorrentSearchApi.getProvider('ThePirateBay', false);
       if (providerInstance) {
-        const searchPromise = providerInstance.search(query, 'All', Math.max(config.maxResults || 25, 40));
+        const searchPromise = providerInstance.search(cleanQuery, 'All', Math.max(config.maxResults || 25, 40));
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
         const results = await Promise.race([searchPromise, timeoutPromise]);
         if (Array.isArray(results)) {
@@ -171,58 +217,93 @@ class SearchService {
   }
 
   async search1337x(query) {
-    try {
-      const providerInstance = TorrentSearchApi.getProvider('1337x', false);
-      if (!providerInstance) return [];
+    const x1337Cfg = (config.searchProviders || []).find(p => p.name === '1337x') || {};
+    const mirrors = (x1337Cfg.urls && x1337Cfg.urls.length > 0)
+      ? x1337Cfg.urls
+      : [
+          'https://1337x.to',
+          'https://1337x.st',
+          'https://x1337x.ws',
+          'https://1377x.to'
+        ];
 
-      const pCfg = (config.searchProviders || []).find(p => p.name === '1337x');
-      const urls = pCfg?.urls?.length ? pCfg.urls : [providerInstance.baseUrl];
+    const proxyAgent = getProxyAgent();
+    const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleanQuery) return [];
 
-      const checkUrl = async (url) => {
-        try {
-          const inst = TorrentSearchApi.getProvider('1337x', false);
-          if (url) inst.overrideConfig({ baseUrl: url });
-          const searchPromise = inst.search(query, 'All', 20);
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
-          const results = await Promise.race([searchPromise, timeoutPromise]);
-          if (Array.isArray(results) && results.length > 0) {
-            const list = [];
-            for (const t of results.slice(0, 15)) {
-              let magnet = t.magnet;
-              if (!magnet && t.desc) {
-                try {
-                  const magPromise = TorrentSearchApi.getMagnet(t);
-                  const magTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
-                  magnet = await Promise.race([magPromise, magTimeout]);
-                } catch (err) {}
-              }
-              if (magnet) {
-                const sizeBytes = parseSizeToBytes(t.size);
-                list.push({
-                  title: t.title,
-                  size: t.size || 'Unknown',
-                  sizeBytes,
-                  seeds: parseInt(t.seeds, 10) || 0,
-                  leeches: parseInt(t.peers || t.leechs || 0, 10) || 0,
-                  magnet,
-                  provider: '1337x',
-                  time: t.time
+    const fetchMirror = async (mirror) => {
+      const cleanMirror = mirror.replace(/\/+$/, '');
+      const searchUrl = `${cleanMirror}/search/${encodeURIComponent(cleanQuery)}/1/`;
+      const res = await axios.get(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        },
+        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
+        signal: AbortSignal.timeout(2000)
+      });
+
+      if (res.data && typeof res.data === 'string' && res.data.includes('table-list')) {
+        const $ = cheerio.load(res.data);
+        const rows = $('table.table-list tbody tr');
+        if (rows.length > 0) {
+          const list = [];
+          rows.slice(0, 15).each((_, el) => {
+            const titleLink = $(el).find('td.name a:nth-child(2)');
+            const title = titleLink.text().trim();
+            const href = titleLink.attr('href');
+            if (!title || !href) return;
+
+            const seeds = parseInt($(el).find('td.seeds').text().trim(), 10) || 0;
+            const leeches = parseInt($(el).find('td.leeches').text().trim(), 10) || 0;
+            const size = $(el).find('td.size').clone().children().remove().end().text().trim();
+            const detailUrl = cleanMirror + (href.startsWith('/') ? '' : '/') + href;
+
+            list.push({
+              title,
+              size: size || 'Unknown',
+              sizeBytes: parseSizeToBytes(size),
+              seeds,
+              leeches,
+              provider: '1337x',
+              detailUrl,
+              time: $(el).find('td.coll-date').text().trim() || undefined
+            });
+          });
+
+          if (list.length > 0) {
+            const topCandidates = list.slice(0, 5);
+            await Promise.allSettled(topCandidates.map(async (item) => {
+              try {
+                const dRes = await axios.get(item.detailUrl, {
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': searchUrl
+                  },
+                  ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
+                  signal: AbortSignal.timeout(2000)
                 });
-              }
-            }
-            if (list.length > 0) return list;
-          }
-        } catch (e) {}
-        throw new Error('No 1337x results');
-      };
+                if (dRes.data) {
+                  const $d = cheerio.load(dRes.data);
+                  const mag = $d('a[href^="magnet:"]').first().attr('href');
+                  if (mag) item.magnet = mag;
+                }
+              } catch (e) {}
+            }));
 
-      try {
-        return await Promise.any(urls.map(u => checkUrl(u)));
-      } catch (e) {
-        return [];
+            const withMagnets = topCandidates.filter(t => t.magnet);
+            if (withMagnets.length > 0) return withMagnets;
+          }
+        }
       }
-    } catch (err) {}
-    return [];
+      throw new Error('No 1337x results from ' + mirror);
+    };
+
+    try {
+      return await Promise.any(mirrors.map(m => fetchMirror(m)));
+    } catch (e) {
+      return [];
+    }
   }
 
   async search1TamilMV(query) {
@@ -290,7 +371,17 @@ class SearchService {
       const seenMagnets = new Set();
       const combined = [];
 
-      for (const item of [...tpbResults, ...ytsResults, ...x1337Results, ...mirrorResults]) {
+      // Interleave results to guarantee representation from all providers
+      const maxLen = Math.max(tpbResults.length, ytsResults.length, x1337Results.length, mirrorResults.length);
+      const interleaved = [];
+      for (let i = 0; i < maxLen; i++) {
+        if (tpbResults[i]) interleaved.push(tpbResults[i]);
+        if (ytsResults[i]) interleaved.push(ytsResults[i]);
+        if (x1337Results[i]) interleaved.push(x1337Results[i]);
+        if (mirrorResults[i]) interleaved.push(mirrorResults[i]);
+      }
+
+      for (const item of interleaved) {
         if (!item.magnet) continue;
         const hashMatch = item.magnet.match(/urn:btih:([a-zA-Z0-9]+)/i);
         const dedupeKey = hashMatch ? hashMatch[1].toLowerCase() : item.magnet.toLowerCase();
@@ -299,7 +390,8 @@ class SearchService {
         combined.push(item);
       }
 
-      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, Math.max(config.maxResults || 25, 50));
+      // Sort by seeds but ensure healthy representation of each provider
+      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, Math.max(config.maxResults || 25, 60));
     } catch (error) {
       console.error('Search error:', error);
       throw error;

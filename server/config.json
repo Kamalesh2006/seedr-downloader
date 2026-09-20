@@ -4,6 +4,8 @@
       "name": "ThePirateBay",
       "urls": [
         "https://apibay.org",
+        "https://pirateproxy.live",
+        "https://thepiratebay10.org",
         "https://piratebayproxy.info/api.php?url="
       ]
     },
@@ -20,13 +22,15 @@
       "name": "1337x",
       "urls": [
         "https://1337x.to",
-        "https://1337x.gd",
-        "https://1337x.is"
+        "https://1337x.st",
+        "https://x1337x.ws",
+        "https://1377x.to"
       ]
     }
   ],
+  "proxyUrl": "",
   "maxFileSizeGB": 4.5,
-  "maxResults": 20,
+  "maxResults": 60,
   "seedrPollIntervalMs": 3000,
   "seedrBaseUrl": "https://www.seedr.cc/rest",
   "mirrorDiscovery": {

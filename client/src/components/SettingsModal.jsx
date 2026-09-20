@@ -12,7 +12,8 @@ import {
   HardDrive,
   Sliders,
   Sparkles,
-  Save
+  Save,
+  Network
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -20,6 +21,7 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
   const [keyword, setKeyword] = useState('1tamilmv');
   const [searchEngine, setSearchEngine] = useState('bing');
   const [fallbackDomain, setFallbackDomain] = useState('');
+  const [proxyUrl, setProxyUrl] = useState('');
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,6 +37,7 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
         if (s.configuredKeyword) setKeyword(s.configuredKeyword);
         if (s.searchEngine) setSearchEngine(s.searchEngine);
         if (s.fallbackDomain) setFallbackDomain(s.fallbackDomain);
+        if (s.proxyUrl !== undefined) setProxyUrl(s.proxyUrl || '');
       }
     } catch (err) {
       console.error('Failed to load mirror settings', err);
@@ -63,7 +66,8 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
       const res = await api.post('/mirror/config', {
         keyword: keyword.trim(),
         searchEngine,
-        fallbackDomain: fallbackDomain.trim()
+        fallbackDomain: fallbackDomain.trim(),
+        proxyUrl: proxyUrl.trim()
       });
 
       if (res.data?.success) {
@@ -232,6 +236,27 @@ export default function SettingsModal({ isOpen, onClose, onShowToast, onConfigUp
               />
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Optionally lock the scraper to a known domain if search engine discovery is slow or blocked.
+              </p>
+            </div>
+
+            {/* Proxy Configuration (Bypass ISP DNS/SNI Blocks) */}
+            <div className="space-y-1.5">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Network className="w-4 h-4 text-emerald-500" />
+                  Proxy URL (Bypass ISP Blocking)
+                </span>
+                <span className="text-[10px] font-normal text-slate-500">Optional</span>
+              </label>
+              <input
+                type="text"
+                value={proxyUrl}
+                onChange={(e) => setProxyUrl(e.target.value)}
+                placeholder="e.g. socks5://127.0.0.1:9050 or http://127.0.0.1:8080"
+                className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-[#00DF81] transition-colors font-mono"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Route 1337x, ThePirateBay, and mirror searches through an HTTP, HTTPS, or SOCKS5 proxy to bypass ISP DNS/SNI blocks without needing a full-system VPN.
               </p>
             </div>
 

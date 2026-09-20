@@ -1393,6 +1393,20 @@ export default function MirrorMoviesView({
                                       {displaySize}
                                     </span>
 
+                                    {link.provider && (
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                                        link.provider === 'YTS'
+                                          ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
+                                          : link.provider === 'ThePirateBay'
+                                            ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
+                                            : link.provider === '1337x'
+                                              ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                                              : 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30'
+                                      }`}>
+                                        {link.provider}
+                                      </span>
+                                    )}
+
                                     {hasMultipleLangs && activeLang === 'ALL' && link.language && (
                                       <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-500/15 px-1.5 py-0.2 rounded border border-sky-300 dark:border-sky-500/30 shrink-0">
                                         {link.language}
@@ -1640,6 +1654,19 @@ export default function MirrorMoviesView({
                                 <span className="font-bold text-[10px] text-emerald-600 dark:text-[#00DF81]">
                                   {link.quality || 'HD'}
                                 </span>
+                                {link.provider && (
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                    link.provider === 'YTS'
+                                      ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
+                                      : link.provider === 'ThePirateBay'
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
+                                        : link.provider === '1337x'
+                                          ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                                          : 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30'
+                                  }`}>
+                                    {link.provider}
+                                  </span>
+                                )}
                                 <span className={`font-mono text-[11px] ${isOversized ? 'text-rose-500 font-bold' : 'text-slate-600 dark:text-slate-300'}`}>
                                   {link.size || ''}
                                 </span>

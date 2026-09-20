@@ -424,7 +424,7 @@ class MovieScraperService {
 
             const language = this.extractLanguage(meta.title) || this.extractLanguage(parentText) || this.extractLanguage(detailUrl) || this.extractLanguage(pageTitle) || '';
 
-            let label = `${quality}${size ? ` • ${size}` : ''}${language ? ` • ${language}` : ''}`;
+            let label = `${quality}${size ? ` • ${size}` : ''}${language ? ` • ${language}` : ''} • [1TamilMV]`;
             if (!quality && !size) label = cleanDn || $(el).text().trim() || 'Magnet Link';
 
             magnetLinks.push({
@@ -434,6 +434,7 @@ class MovieScraperService {
               size,
               sizeBytes,
               language,
+              provider: '1TamilMV',
               infoHash: meta.infoHash,
               title: cleanDn || meta.title
             });
@@ -468,8 +469,8 @@ class MovieScraperService {
       }
     }
 
-    // Fallback: If topic has few/no magnets and fallback is allowed, search for sibling releases on mirror
-    if (magnetLinks.length < 2 && allowSearchFallback) {
+    // Multi-Provider Integration: Fetch additional torrent options from global indexers (TPB, YTS, 1337x)
+    if (allowSearchFallback) {
       const fallbackQuery = (movieTitle || pageTitle || '')
         .replace(/\(.*?\)/g, '')
         .replace(/\b(Tamil|Telugu|Hindi|Malayalam|Kannada|English|UHD|TRUE WEB-DL|WEB-DL|HDRip|PreDVD|ESub)\b/gi, '')
@@ -477,27 +478,63 @@ class MovieScraperService {
         .replace(/\s+/g, ' ')
         .trim();
 
-      if (fallbackQuery.length >= 3) {
+      if (fallbackQuery.length >= 2) {
+        // 1. Regional sibling search on 1TamilMV mirror if few magnets found
+        if (magnetLinks.length < 2) {
+          try {
+            const siblingTorrents = await this.searchTorrents(fallbackQuery, false);
+            const coreLower = fallbackQuery.toLowerCase();
+            for (const st of siblingTorrents) {
+              if (st.magnet && st.title && st.title.toLowerCase().includes(coreLower) && !magnetLinks.some(m => m.magnet === st.magnet)) {
+                if (!poster && st.poster) poster = st.poster;
+                magnetLinks.push({
+                  magnet: st.magnet,
+                  label: `${st.quality || 'HD'}${st.size ? ' • ' + st.size : ''}${st.language ? ' • ' + st.language : ''} • [1TamilMV]`,
+                  quality: st.quality || 'HD',
+                  size: st.size || '',
+                  sizeBytes: st.sizeBytes || 0,
+                  language: st.language || this.extractLanguage(st.title) || '',
+                  provider: '1TamilMV',
+                  infoHash: this.parseMagnetMetadata(st.magnet).infoHash || '',
+                  title: st.title
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('[MovieScraper] Detail fallback search error:', e.message);
+          }
+        }
+
+        // 2. Global Public Indexers (ThePirateBay, YTS, 1337x)
         try {
-          const siblingTorrents = await this.searchTorrents(fallbackQuery, false);
-          const coreLower = fallbackQuery.toLowerCase();
-          for (const st of siblingTorrents) {
-            if (st.magnet && st.title && st.title.toLowerCase().includes(coreLower) && !magnetLinks.some(m => m.magnet === st.magnet)) {
-              if (!poster && st.poster) poster = st.poster;
+          const searchService = require('./searchService');
+          const globalTorrents = await searchService.search(fallbackQuery, 'global');
+          for (const gt of globalTorrents) {
+            if (!gt.magnet) continue;
+            const meta = this.parseMagnetMetadata(gt.magnet);
+            const exists = magnetLinks.some(m => 
+              (m.infoHash && meta.infoHash && m.infoHash === meta.infoHash) || 
+              m.magnet === gt.magnet
+            );
+            if (!exists) {
+              const quality = this.extractQuality(gt.title) || 'HD';
+              const size = gt.size || (gt.sizeBytes ? `${(gt.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : '');
+              const provider = gt.provider || 'Public';
               magnetLinks.push({
-                magnet: st.magnet,
-                label: `${st.quality || 'HD'}${st.size ? ' • ' + st.size : ''}${st.language ? ' • ' + st.language : ''}`,
-                quality: st.quality || 'HD',
-                size: st.size || '',
-                sizeBytes: st.sizeBytes || 0,
-                language: st.language || this.extractLanguage(st.title) || '',
-                infoHash: this.parseMagnetMetadata(st.magnet).infoHash || '',
-                title: st.title
+                magnet: gt.magnet,
+                label: `${quality}${size ? ' • ' + size : ''} • [${provider}]`,
+                quality,
+                size,
+                sizeBytes: gt.sizeBytes || 0,
+                language: this.extractLanguage(gt.title) || '',
+                provider,
+                infoHash: meta.infoHash || '',
+                title: gt.title
               });
             }
           }
-        } catch (e) {
-          console.warn('[MovieScraper] Detail fallback search error:', e.message);
+        } catch (gErr) {
+          console.warn('[MovieScraper] Global multi-provider search error in fetchMovieDetail:', gErr.message);
         }
       }
     }

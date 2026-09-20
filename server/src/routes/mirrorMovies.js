@@ -66,7 +66,7 @@ router.get('/detail', async (req, res) => {
 // POST /api/mirror/config
 router.post('/config', async (req, res) => {
   try {
-    const { keyword, searchEngine, fallbackDomain } = req.body;
+    const { keyword, searchEngine, fallbackDomain, proxyUrl } = req.body;
     const configPath = require('path').join(__dirname, '../../config.json');
     const cfg = require('../../config.json');
     if (!cfg.mirrorDiscovery) cfg.mirrorDiscovery = {};
@@ -74,6 +74,7 @@ router.post('/config', async (req, res) => {
     if (typeof keyword === 'string') cfg.mirrorDiscovery.keyword = keyword.trim();
     if (typeof searchEngine === 'string') cfg.mirrorDiscovery.searchEngine = searchEngine.trim();
     if (typeof fallbackDomain === 'string') cfg.mirrorDiscovery.fallbackDomain = fallbackDomain.trim();
+    if (typeof proxyUrl === 'string') cfg.proxyUrl = proxyUrl.trim();
 
     try {
       require('fs').writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
@@ -94,7 +95,10 @@ router.post('/config', async (req, res) => {
     res.json({
       success: true,
       message: 'Configuration updated successfully',
-      status: mirrorDiscovery.getStatus(),
+      status: {
+        ...mirrorDiscovery.getStatus(),
+        proxyUrl: cfg.proxyUrl || ''
+      },
       discoveryResult
     });
   } catch (error) {
@@ -123,7 +127,11 @@ router.post('/override', async (req, res) => {
 // GET /api/mirror/status
 router.get('/status', (req, res) => {
   try {
-    const status = mirrorDiscovery.getStatus();
+    const cfg = require('../../config.json');
+    const status = {
+      ...mirrorDiscovery.getStatus(),
+      proxyUrl: cfg.proxyUrl || ''
+    };
     res.json({ success: true, status });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to get status' });
