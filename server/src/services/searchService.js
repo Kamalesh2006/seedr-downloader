@@ -216,6 +216,51 @@ class SearchService {
     return [];
   }
 
+  async searchTorrentsCsv(query) {
+    try {
+      const cleanQuery = query.trim();
+      const res = await axios.get(`https://torrents-csv.com/service/search?q=${encodeURIComponent(cleanQuery)}&size=30`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36'
+        },
+        signal: AbortSignal.timeout(4000)
+      });
+
+      if (res.data && Array.isArray(res.data.torrents)) {
+        const results = [];
+        for (const item of res.data.torrents) {
+          if (!item.infohash) continue;
+          const sizeBytes = item.size_bytes || 0;
+          let sizeStr = 'Unknown';
+          if (sizeBytes >= 1024 * 1024 * 1024) {
+            sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+          } else if (sizeBytes >= 1024 * 1024) {
+            sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
+          } else if (sizeBytes > 0) {
+            sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+          }
+
+          const magnet = `magnet:?xt=urn:btih:${item.infohash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce`;
+
+          results.push({
+            title: item.name,
+            size: sizeStr,
+            sizeBytes,
+            seeds: parseInt(item.seeders, 10) || 0,
+            leeches: parseInt(item.leechers, 10) || 0,
+            magnet,
+            provider: 'TorrentsCSV',
+            time: item.created_unix ? new Date(item.created_unix * 1000).toLocaleDateString() : undefined
+          });
+        }
+        return results;
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   async search1337x(query) {
     const x1337Cfg = (config.searchProviders || []).find(p => p.name === '1337x') || {};
     const mirrors = (x1337Cfg.urls && x1337Cfg.urls.length > 0)
@@ -318,15 +363,17 @@ class SearchService {
   }
 
   async searchTorrentApi(query) {
-    const [tpbResults, ytsResults, x1337Results] = await Promise.allSettled([
+    const [tpbResults, ytsResults, csvResults, x1337Results] = await Promise.allSettled([
       this.searchThePirateBay(query),
       this.searchYts(query),
+      this.searchTorrentsCsv(query),
       this.search1337x(query)
     ]);
 
     const list = [
       ...(tpbResults.status === 'fulfilled' ? tpbResults.value : []),
       ...(ytsResults.status === 'fulfilled' ? ytsResults.value : []),
+      ...(csvResults.status === 'fulfilled' ? csvResults.value : []),
       ...(x1337Results.status === 'fulfilled' ? x1337Results.value : [])
     ];
 
@@ -337,45 +384,51 @@ class SearchService {
     try {
       let tpbResults = [];
       let ytsResults = [];
+      let csvResults = [];
       let x1337Results = [];
       let mirrorResults = [];
 
       if (source === 'global') {
-        const [tpbSettled, ytsSettled, x1337Settled] = await Promise.allSettled([
+        const [tpbSettled, ytsSettled, csvSettled, x1337Settled] = await Promise.allSettled([
           this.searchThePirateBay(query),
           this.searchYts(query),
+          this.searchTorrentsCsv(query),
           this.search1337x(query)
         ]);
         tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
         ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
+        csvResults = csvSettled.status === 'fulfilled' ? (csvSettled.value || []) : [];
         x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
-        console.log(`[SearchService:Global] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, 1337x: ${x1337Results.length}`);
+        console.log(`[SearchService:Global] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}`);
       } else if (source === '1tamilmv') {
         mirrorResults = await this.search1TamilMV(query);
         console.log(`[SearchService:1TamilMV] Query "${query}" -> Found: ${mirrorResults.length}`);
       } else {
-        const [mirrorSettled, tpbSettled, ytsSettled, x1337Settled] = await Promise.allSettled([
+        const [mirrorSettled, tpbSettled, ytsSettled, csvSettled, x1337Settled] = await Promise.allSettled([
           this.search1TamilMV(query),
           this.searchThePirateBay(query),
           this.searchYts(query),
+          this.searchTorrentsCsv(query),
           this.search1337x(query)
         ]);
 
         mirrorResults = mirrorSettled.status === 'fulfilled' ? (mirrorSettled.value || []) : [];
         tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
         ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
+        csvResults = csvSettled.status === 'fulfilled' ? (csvSettled.value || []) : [];
         x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
-        console.log(`[SearchService:All] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
+        console.log(`[SearchService:All] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
       }
 
       const seenMagnets = new Set();
       const combined = [];
 
       // Interleave results to guarantee representation from all providers
-      const maxLen = Math.max(tpbResults.length, ytsResults.length, x1337Results.length, mirrorResults.length);
+      const maxLen = Math.max(tpbResults.length, ytsResults.length, csvResults.length, x1337Results.length, mirrorResults.length);
       const interleaved = [];
       for (let i = 0; i < maxLen; i++) {
         if (tpbResults[i]) interleaved.push(tpbResults[i]);
+        if (csvResults[i]) interleaved.push(csvResults[i]);
         if (ytsResults[i]) interleaved.push(ytsResults[i]);
         if (x1337Results[i]) interleaved.push(x1337Results[i]);
         if (mirrorResults[i]) interleaved.push(mirrorResults[i]);

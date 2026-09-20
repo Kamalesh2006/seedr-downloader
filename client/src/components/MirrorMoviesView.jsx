@@ -864,7 +864,11 @@ export default function MirrorMoviesView({
                             ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
                             : torrent.provider === 'ThePirateBay'
                               ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
+                              : torrent.provider === 'TorrentsCSV'
+                                ? 'bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30'
+                                : torrent.provider === '1337x'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
                         }`}>
                           {torrent.provider}
                         </span>
@@ -986,7 +990,11 @@ export default function MirrorMoviesView({
                             ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
                             : torrent.provider === 'ThePirateBay'
                               ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
+                              : torrent.provider === 'TorrentsCSV'
+                                ? 'bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30'
+                                : torrent.provider === '1337x'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
                         }`}>
                           {torrent.provider}
                         </span>
