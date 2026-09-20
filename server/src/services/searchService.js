@@ -16,7 +16,7 @@ for (const provider of config.searchProviders || []) {
 }
 
 function getProxyAgent() {
-  const proxyUrl = process.env.PROXY_URL || process.env.HTTP_PROXY || process.env.HTTPS_PROXY || config.proxyUrl || config.proxy;
+  const proxyUrl = process.env.PROXY_URL || config.proxyUrl || config.proxy;
   if (!proxyUrl || typeof proxyUrl !== 'string' || !proxyUrl.trim()) return null;
   const clean = proxyUrl.trim();
   try {
@@ -120,7 +120,7 @@ class SearchService {
         ];
 
     const proxyAgent = getProxyAgent();
-    const cleanQuery = query.trim();
+    const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim() || query.trim();
 
     const fetchFromMirror = async (mirror, q) => {
       const cleanMirror = mirror.replace(/\/+$/, '');
@@ -139,7 +139,7 @@ class SearchService {
           'Accept': 'application/json'
         },
         ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
-        timeout: 5000
+        signal: AbortSignal.timeout(3500)
       });
 
       if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
@@ -180,11 +180,10 @@ class SearchService {
         const res = await fetchFromMirror(mirror, cleanQuery);
         if (res && res.length > 0) return res;
 
-        // If query has punctuation/brackets, try stripped fallback
-        const stripped = cleanQuery.replace(/[\(\)\[\]\{\}\:\-\_\.]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (stripped !== cleanQuery && stripped.length >= 2) {
-          const resStripped = await fetchFromMirror(mirror, stripped);
-          if (resStripped && resStripped.length > 0) return resStripped;
+        // Try original query if different from cleanQuery
+        if (query.trim() !== cleanQuery) {
+          const resOrig = await fetchFromMirror(mirror, query.trim());
+          if (resOrig && resOrig.length > 0) return resOrig;
         }
       } catch (err) {
         // Continue to next mirror
