@@ -102,13 +102,41 @@ router.post('/toggle', queueLimiter, (req, res) => {
   }
 });
 
+router.post('/sync', queueLimiter, (req, res) => {
+  try {
+    const { queue } = req.body;
+    const result = downloadQueueService.syncQueue(Array.isArray(queue) ? queue : []);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: sanitizeErrorMessage(err) || 'Failed to sync queue' });
+  }
+});
+
 router.post('/process-now', queueLimiter, async (req, res) => {
   try {
     await downloadQueueService.processNext();
-    res.json({ success: true, message: 'Processing triggered' });
+    const status = downloadQueueService.getQueueStatus();
+    res.json({ success: true, ...status });
   } catch (err) {
     res.status(500).json({ error: sanitizeErrorMessage(err) || 'Failed to trigger queue processing' });
   }
 });
+
+// Vercel Cron endpoint to regularly wake up queue processing on serverless
+const cronHandler = async (req, res) => {
+  try {
+    await downloadQueueService.processNext();
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      remaining: downloadQueueService.queue.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: sanitizeErrorMessage(err) || 'Failed cron run' });
+  }
+};
+
+router.get('/cron', cronHandler);
+router.post('/cron', cronHandler);
 
 module.exports = router;

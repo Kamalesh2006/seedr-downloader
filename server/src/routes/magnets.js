@@ -53,6 +53,21 @@ const postDeletedHandler = async (req, res) => {
 router.post('/recent', postDeletedHandler);
 router.post('/deleted', postDeletedHandler);
 
+// POST /api/magnets/sync
+// Merges an array of magnets from client local storage into server storage
+const syncHandler = async (req, res) => {
+  try {
+    const { magnets } = req.body;
+    const mergedList = await magnetStorage.syncDeletedMagnets(Array.isArray(magnets) ? magnets : []);
+    res.json({ success: true, magnets: mergedList });
+  } catch (error) {
+    console.error('Failed to sync magnets:', error);
+    res.status(500).json({ error: 'Failed to sync magnets', details: error.message || error });
+  }
+};
+
+router.post('/sync', syncHandler);
+
 // DELETE /api/magnets/recent/:id or /api/magnets/deleted/:id (permanently remove an item)
 const deleteSingleHandler = async (req, res) => {
   try {

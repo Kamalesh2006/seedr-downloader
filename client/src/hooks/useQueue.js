@@ -1,28 +1,63 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/client';
 
+const QUEUE_STORAGE_KEY = 'seedr_client_queue';
+
 export default function useQueue() {
-  const [queue, setQueue] = useState([]);
+  const [queue, setQueue] = useState(() => {
+    try {
+      const stored = localStorage.getItem(QUEUE_STORAGE_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [isAutoEnabled, setIsAutoEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
   const pollTimerRef = useRef(null);
 
+  const syncLocal = useCallback((items) => {
+    try {
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(items || []));
+    } catch (e) {
+      console.error('Failed to sync queue to local storage', e);
+    }
+  }, []);
+
   const fetchQueue = useCallback(async () => {
     try {
       const { data } = await api.get('/queue');
-      setQueue(data.queue || []);
+      const remoteQueue = Array.isArray(data.queue) ? data.queue : [];
       setIsAutoEnabled(data.isAutoEnabled !== undefined ? data.isAutoEnabled : true);
       setIsProcessing(!!data.isProcessing);
+
+      setQueue(prev => {
+        // Safe merge: if server returned 0 items but local had items (e.g. fresh lambda cold start), sync upstream
+        if (remoteQueue.length === 0 && prev.length > 0) {
+          api.post('/queue/sync', { queue: prev }).catch(() => {});
+          return prev;
+        }
+
+        // If server returned items, server is source of truth
+        syncLocal(remoteQueue);
+        return remoteQueue;
+      });
     } catch (err) {
-      console.error('Failed to fetch download queue', err);
+      console.warn('Failed to fetch download queue from server, using local mirror:', err.message);
     }
-  }, []);
+  }, [syncLocal]);
 
   const addToQueue = async (magnet, name = '', size = null) => {
     setLoading(true);
     try {
       const { data } = await api.post('/queue/add', { magnet, name, size });
+      const updatedQueue = data.queue || (data.item ? [...queue, data.item] : queue);
+      setQueue(updatedQueue);
+      syncLocal(updatedQueue);
       await fetchQueue();
       return data;
     } catch (err) {
@@ -35,6 +70,9 @@ export default function useQueue() {
 
   const removeFromQueue = async (id) => {
     try {
+      const updated = queue.filter(item => item.id !== id);
+      setQueue(updated);
+      syncLocal(updated);
       await api.delete(`/queue/${id}`);
       await fetchQueue();
     } catch (err) {
@@ -55,6 +93,8 @@ export default function useQueue() {
 
   const clearQueue = async () => {
     try {
+      setQueue([]);
+      syncLocal([]);
       await api.post('/queue/clear');
       await fetchQueue();
     } catch (err) {
@@ -75,12 +115,27 @@ export default function useQueue() {
 
   const processNow = async () => {
     try {
-      await api.post('/queue/process-now');
+      const { data } = await api.post('/queue/process-now');
+      if (data && data.queue) {
+        setQueue(data.queue);
+        syncLocal(data.queue);
+      }
       await fetchQueue();
     } catch (err) {
       console.error('Failed to trigger immediate queue process', err);
     }
   };
+
+  // Triggers immediate and delayed queue processing to guarantee Seedr space propagation is caught
+  const triggerDelayedQueueProcess = useCallback(() => {
+    api.post('/queue/process-now').catch(() => {});
+    setTimeout(() => {
+      api.post('/queue/process-now').then(() => fetchQueue()).catch(() => {});
+    }, 2500);
+    setTimeout(() => {
+      api.post('/queue/process-now').then(() => fetchQueue()).catch(() => {});
+    }, 5500);
+  }, [fetchQueue]);
 
   useEffect(() => {
     fetchQueue();
@@ -101,6 +156,7 @@ export default function useQueue() {
     moveItem,
     clearQueue,
     toggleAutoQueue,
-    processNow
+    processNow,
+    triggerDelayedQueueProcess
   };
 }

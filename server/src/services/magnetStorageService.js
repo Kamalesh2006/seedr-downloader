@@ -58,10 +58,15 @@ class MagnetStorageService {
     return !!(url && token);
   }
 
-  // Execute Upstash / Vercel KV REST command
-  async executeKvCommand(...command) {
+  getRemoteConfig() {
     const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || this.url;
     const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || this.token;
+    return { url, token };
+  }
+
+  // Execute Upstash / Vercel KV REST command
+  async executeKvCommand(...command) {
+    const { url, token } = this.getRemoteConfig();
 
     if (!url || !token) {
       throw new Error('KV credentials not configured');
@@ -324,11 +329,18 @@ class MagnetStorageService {
         return false;
       }
 
-      // Check deletion date within 30 days
-      const delTime = item.deletedAt ? new Date(item.deletedAt).getTime() : 0;
+      // Check date within past 30 days (support deletedAt, addedAt, timestamp, createdAt)
+      const rawDate = item.deletedAt || item.addedAt || item.timestamp || item.createdAt || item.date;
+      let delTime = rawDate ? new Date(rawDate).getTime() : Date.now();
       if (!delTime || isNaN(delTime)) {
-        return false;
+        delTime = Date.now();
       }
+
+      // Guarantee item has valid deletedAt ISO string
+      if (!item.deletedAt) {
+        item.deletedAt = new Date(delTime).toISOString();
+      }
+
       return delTime >= cutoff;
     });
   }
@@ -336,29 +348,51 @@ class MagnetStorageService {
   // Retrieve deleted magnet links for the past 30 days
   async getDeletedMagnets() {
     let list = [];
+    let kvAvailable = false;
+
     if (this.hasRemoteConfig()) {
       try {
         const raw = await this.executeKvCommand('GET', STORAGE_KEY);
         if (raw) {
           list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          kvAvailable = true;
         } else {
           // Check legacy key
           const legacyRaw = await this.executeKvCommand('GET', LEGACY_STORAGE_KEY);
           if (legacyRaw) {
             list = typeof legacyRaw === 'string' ? JSON.parse(legacyRaw) : legacyRaw;
+            kvAvailable = true;
           }
         }
       } catch (err) {
         console.error('Failed to get deleted magnets from KV, using local fallback:', err.message);
-        list = this.readLocalFallback();
       }
-    } else {
-      list = this.readLocalFallback();
     }
 
-    // Filter strictly for past 30 days and sort newest deleted first
-    const valid = this.filterPast30Days(list);
+    const localList = this.readLocalFallback();
+
+    // Merge KV data with local fallback data to guarantee no loss
+    const combinedMap = new Map();
+    for (const item of (Array.isArray(list) ? list : [])) {
+      if (!item) continue;
+      const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+      if (key) combinedMap.set(key, item);
+    }
+    for (const item of (Array.isArray(localList) ? localList : [])) {
+      if (!item) continue;
+      const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+      if (key && !combinedMap.has(key)) combinedMap.set(key, item);
+    }
+
+    const mergedList = Array.from(combinedMap.values());
+    const valid = this.filterPast30Days(mergedList);
     valid.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+
+    // If local fallback had items that were missing in KV, sync them to KV
+    if (kvAvailable && list.length < valid.length && this.hasRemoteConfig()) {
+      this.executeKvCommand('SET', STORAGE_KEY, JSON.stringify(valid.slice(0, MAX_DELETED_ITEMS))).catch(() => {});
+    }
+
     return valid;
   }
 
@@ -371,13 +405,42 @@ class MagnetStorageService {
     if (this.hasRemoteConfig()) {
       try {
         await this.executeKvCommand('SET', STORAGE_KEY, JSON.stringify(trimmed));
-        return trimmed;
       } catch (err) {
         console.error('Failed to save deleted magnets to KV, using local fallback:', err.message);
       }
     }
     this.writeLocalFallback(trimmed);
     return trimmed;
+  }
+
+  // Bi-directional synchronization of deleted magnets (e.g. from client local storage)
+  async syncDeletedMagnets(externalList = []) {
+    const currentList = await this.getDeletedMagnets();
+    const itemMap = new Map();
+
+    // Index current items
+    for (const item of currentList) {
+      const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+      if (key) itemMap.set(key, item);
+    }
+
+    // Merge external items
+    for (const item of (Array.isArray(externalList) ? externalList : [])) {
+      if (!item) continue;
+      const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+      if (key) {
+        const existing = itemMap.get(key);
+        if (!existing) {
+          itemMap.set(key, {
+            ...item,
+            deletedAt: item.deletedAt || item.addedAt || new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    const merged = Array.from(itemMap.values());
+    return await this.saveDeletedMagnets(merged);
   }
 
   // Record a deleted magnet link (past 30 days)
@@ -488,6 +551,10 @@ class MagnetStorageService {
 
   async clearRecentMagnets() {
     return await this.clearDeletedMagnets();
+  }
+
+  async syncRecentMagnets(list) {
+    return await this.syncDeletedMagnets(list);
   }
 }
 

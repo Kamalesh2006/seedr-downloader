@@ -171,6 +171,19 @@ export default function useSeedr() {
     }
   };
 
+  const triggerQueueProcessing = useCallback(() => {
+    // Stage 1: Immediate wake-up
+    api.post('/queue/process-now').catch(() => {});
+    // Stage 2: After 2 seconds for Seedr cloud space metric propagation
+    setTimeout(() => {
+      api.post('/queue/process-now').then(() => refreshFiles()).catch(() => {});
+    }, 2000);
+    // Stage 3: Follow-up check after 4.5 seconds
+    setTimeout(() => {
+      api.post('/queue/process-now').then(() => refreshFiles()).catch(() => {});
+    }, 4500);
+  }, [refreshFiles]);
+
   const deleteFile = async (fileId, parentFolderId = null, fileMeta = null) => {
     try {
       const fileName = (fileMeta && fileMeta.name) || '';
@@ -193,8 +206,7 @@ export default function useSeedr() {
         fetchFolderContents(parentFolderId);
       }
       refreshFiles();
-      // Immediately wake up queue to dispatch next scheduled torrent
-      api.post('/queue/process-now').catch(() => {});
+      triggerQueueProcessing();
     } catch (err) {
       console.error('Failed to delete file', err);
       throw err;
@@ -225,8 +237,7 @@ export default function useSeedr() {
         return next;
       });
       refreshFiles();
-      // Immediately wake up queue to dispatch next scheduled torrent
-      api.post('/queue/process-now').catch(() => {});
+      triggerQueueProcessing();
     } catch (err) {
       console.error('Failed to delete folder', err);
       throw err;
@@ -252,8 +263,7 @@ export default function useSeedr() {
 
       await api.delete(`/seedr/torrent/${torrentId}`, { data: enrichedMeta });
       refreshFiles();
-      // Immediately wake up queue to dispatch next scheduled torrent
-      api.post('/queue/process-now').catch(() => {});
+      triggerQueueProcessing();
     } catch (err) {
       console.error('Failed to delete torrent', err);
       throw err;
@@ -264,8 +274,7 @@ export default function useSeedr() {
     try {
       await api.delete(`/seedr/task/${taskId}`);
       refreshFiles();
-      // Immediately wake up queue to dispatch next scheduled torrent
-      api.post('/queue/process-now').catch(() => {});
+      triggerQueueProcessing();
     } catch (err) {
       console.error('Failed to delete task', err);
       throw err;

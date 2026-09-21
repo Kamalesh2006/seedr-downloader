@@ -226,6 +226,8 @@ function App() {
       }
       fetchQueue();
       setTimeout(fetchQueue, 1500);
+      setTimeout(fetchQueue, 3500);
+      setTimeout(fetchQueue, 6000);
     } catch (err) {
       showToast(`Failed to delete ${type}`, 'error');
       throw err;

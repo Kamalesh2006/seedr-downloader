@@ -67,9 +67,14 @@ class DownloadQueueService {
     return !!(url && token);
   }
 
-  async executeKvCommand(...command) {
+  getRemoteConfig() {
     const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || this.url;
     const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || this.token;
+    return { url, token };
+  }
+
+  async executeKvCommand(...command) {
+    const { url, token } = this.getRemoteConfig();
 
     if (!url || !token) {
       throw new Error('KV credentials not configured');
@@ -101,7 +106,22 @@ class DownloadQueueService {
       if (remoteData) {
         const parsed = typeof remoteData === 'string' ? JSON.parse(remoteData) : remoteData;
         if (Array.isArray(parsed.queue)) {
-          this.queue = parsed.queue;
+          // If server currently has 0 items but KV has items, load them
+          if (this.queue.length === 0) {
+            this.queue = parsed.queue;
+          } else {
+            // Merge by ID or magnet
+            const map = new Map();
+            for (const it of parsed.queue) {
+              const k = (it.id || it.magnet || '').toLowerCase();
+              if (k) map.set(k, it);
+            }
+            for (const it of this.queue) {
+              const k = (it.id || it.magnet || '').toLowerCase();
+              if (k) map.set(k, it);
+            }
+            this.queue = Array.from(map.values());
+          }
         }
         if (parsed.isAutoEnabled !== undefined) {
           this.isAutoEnabled = parsed.isAutoEnabled;
@@ -307,8 +327,38 @@ class DownloadQueueService {
     return { success: true, isAutoEnabled: this.isAutoEnabled };
   }
 
+  syncQueue(externalQueue = []) {
+    if (!Array.isArray(externalQueue) || externalQueue.length === 0) {
+      return { success: true, queue: this.queue };
+    }
+    const itemMap = new Map();
+    // Prioritize existing items on server
+    for (const item of this.queue) {
+      const key = (item.magnet || item.id || '').toLowerCase();
+      if (key) itemMap.set(key, item);
+    }
+    // Add items from external queue
+    for (const item of externalQueue) {
+      const key = (item.magnet || item.id || '').toLowerCase();
+      if (key && !itemMap.has(key)) {
+        itemMap.set(key, item);
+      }
+    }
+    this.queue = Array.from(itemMap.values());
+    this.saveData();
+    return { success: true, queue: this.queue };
+  }
+
   async processNext() {
-    if (!this.isAutoEnabled || this.isProcessing || this.queue.length === 0) {
+    if (!this.isAutoEnabled || this.isProcessing) {
+      return;
+    }
+
+    if (this.hasRemoteConfig()) {
+      await this.syncFromKv().catch(() => {});
+    }
+
+    if (this.queue.length === 0) {
       return;
     }
 
@@ -327,13 +377,13 @@ class DownloadQueueService {
       }
 
       const activeTorrents = folderData.torrents || [];
-      const activeTasks = folderData.tasks || [];
       const spaceUsed = folderData.space_used || 0;
       const spaceMax = folderData.space_max || (4.5 * 1024 * 1024 * 1024);
       const freeSpace = Math.max(0, spaceMax - spaceUsed);
 
-      // If there is already an active downloading torrent or processing task, wait
-      if (activeTorrents.length > 0 || activeTasks.length > 0) {
+      // Only wait if there is a torrent actively downloading right now (< 100% progress and not stopped)
+      const isActivelyDownloading = activeTorrents.some(t => !t.stopped && (t.progress === undefined || t.progress < 100));
+      if (isActivelyDownloading) {
         this.isProcessing = false;
         return;
       }

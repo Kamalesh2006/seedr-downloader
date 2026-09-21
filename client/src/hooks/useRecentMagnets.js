@@ -116,9 +116,10 @@ function isDummyTestMagnet(item) {
 }
 
 function isWithin30Days(item) {
-  if (!item || !item.deletedAt) return false;
-  const time = new Date(item.deletedAt).getTime();
-  if (isNaN(time)) return false;
+  if (!item) return false;
+  const raw = item.deletedAt || item.addedAt || item.timestamp || item.createdAt || item.date;
+  const time = raw ? new Date(raw).getTime() : Date.now();
+  if (isNaN(time)) return true;
   return Date.now() - time <= RETENTION_MS;
 }
 
@@ -191,16 +192,44 @@ export default function useRecentMagnets() {
     return record;
   }, []);
 
-  // Fetch 30-day deleted magnets from remote backend
+  // Fetch 30-day deleted magnets from remote backend with safe non-destructive merge
   const fetchRemoteMagnets = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.get('/magnets/recent');
       if (res.data && Array.isArray(res.data.magnets)) {
-        const cleanList = res.data.magnets.filter(item => !isDummyTestMagnet(item) && isWithin30Days(item));
-        cleanList.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
-        setDeletedMagnets(cleanList);
-        syncLocal(cleanList);
+        const remoteList = res.data.magnets.filter(item => !isDummyTestMagnet(item) && isWithin30Days(item));
+        
+        setDeletedMagnets(prev => {
+          // SAFE MERGE: Index existing local items so they are NEVER wiped out
+          const itemMap = new Map();
+          for (const item of (Array.isArray(prev) ? prev : [])) {
+            const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+            if (key) itemMap.set(key, item);
+          }
+
+          // Merge remote items
+          for (const item of remoteList) {
+            const key = (item.hash || item.magnet || item.id || '').toLowerCase();
+            if (key) itemMap.set(key, item);
+          }
+
+          const merged = Array.from(itemMap.values()).filter(isWithin30Days);
+          merged.sort((a, b) => {
+            const timeA = new Date(a.deletedAt || a.addedAt || a.timestamp || 0).getTime();
+            const timeB = new Date(b.deletedAt || b.addedAt || b.timestamp || 0).getTime();
+            return timeB - timeA;
+          });
+
+          syncLocal(merged);
+
+          // If local items existed that the remote database was missing, sync them upstream
+          if (remoteList.length < merged.length) {
+            api.post('/magnets/sync', { magnets: merged }).catch(() => {});
+          }
+
+          return merged;
+        });
       }
     } catch (err) {
       console.warn('Failed to load deleted magnets from remote server, using local cache:', err.message);
