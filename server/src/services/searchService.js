@@ -30,6 +30,16 @@ function getProxyAgent() {
   }
 }
 
+function getAxiosNetworkConfig() {
+  const agent = getProxyAgent();
+  if (agent) {
+    return { httpsAgent: agent, httpAgent: agent };
+  }
+  // When no custom proxy is configured, explicitly disable default env proxy inheritance
+  // to avoid local corporate proxies (e.g. 127.0.0.1:3128) from interfering with torrent traffic
+  return { proxy: false };
+}
+
 function parseSizeToBytes(sizeStr) {
   if (!sizeStr) return 0;
   
@@ -60,7 +70,7 @@ class SearchService {
       ? ytsCfg.urls
       : ['https://yts.am', 'https://yts.gg', 'https://yts.mx', 'https://yts.lt'];
 
-    const proxyAgent = getProxyAgent();
+    const networkCfg = getAxiosNetworkConfig();
 
     const mirrorPromises = mirrors.map(async (mirror) => {
       const cleanMirror = mirror.replace(/\/+$/, '');
@@ -70,8 +80,8 @@ class SearchService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json'
         },
-        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
-        timeout: 4000
+        ...networkCfg,
+        timeout: 5000
       });
 
       if (res.data?.data?.movies && Array.isArray(res.data.data.movies)) {
@@ -112,14 +122,9 @@ class SearchService {
     const tpbCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'thepiratebay') || {};
     const mirrors = (tpbCfg.urls && tpbCfg.urls.length > 0)
       ? tpbCfg.urls
-      : [
-          'https://apibay.org',
-          'https://pirateproxy.live',
-          'https://thepiratebay10.org',
-          'https://piratebayproxy.info/api.php?url='
-        ];
+      : ['https://apibay.org'];
 
-    const proxyAgent = getProxyAgent();
+    const networkCfg = getAxiosNetworkConfig();
     const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim() || query.trim();
 
     const fetchFromMirror = async (mirror, q) => {
@@ -127,8 +132,6 @@ class SearchService {
       let url;
       if (cleanMirror.includes('api.php')) {
         url = `${cleanMirror}${encodeURIComponent('/q.php?q=' + q)}`;
-      } else if (cleanMirror.includes('apibay.org')) {
-        url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
       } else {
         url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
       }
@@ -138,8 +141,8 @@ class SearchService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json'
         },
-        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
-        signal: AbortSignal.timeout(3500)
+        ...networkCfg,
+        signal: AbortSignal.timeout(6000)
       });
 
       if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
@@ -174,19 +177,19 @@ class SearchService {
       return null;
     };
 
-    // Try primary mirror first
-    for (const mirror of mirrors) {
-      try {
-        const res = await fetchFromMirror(mirror, cleanQuery);
-        if (res && res.length > 0) return res;
-
-        // Try original query if different from cleanQuery
-        if (query.trim() !== cleanQuery) {
-          const resOrig = await fetchFromMirror(mirror, query.trim());
-          if (resOrig && resOrig.length > 0) return resOrig;
-        }
-      } catch (err) {
-        // Continue to next mirror
+    // Query mirrors in parallel using Promise.any
+    try {
+      const mirrorPromises = mirrors.map(mirror => fetchFromMirror(mirror, cleanQuery));
+      const res = await Promise.any(mirrorPromises);
+      if (res && res.length > 0) return res;
+    } catch (err) {
+      // If cleanQuery had no results and differed from original query, try original
+      if (query.trim() !== cleanQuery) {
+        try {
+          const mirrorPromises = mirrors.map(mirror => fetchFromMirror(mirror, query.trim()));
+          const res = await Promise.any(mirrorPromises);
+          if (res && res.length > 0) return res;
+        } catch (e) {}
       }
     }
 
@@ -195,9 +198,9 @@ class SearchService {
       const providerInstance = TorrentSearchApi.getProvider('ThePirateBay', false);
       if (providerInstance) {
         const searchPromise = providerInstance.search(cleanQuery, 'All', Math.max(config.maxResults || 25, 40));
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000));
         const results = await Promise.race([searchPromise, timeoutPromise]);
-        if (Array.isArray(results)) {
+        if (Array.isArray(results) && results.length > 0) {
           return results.filter(t => t.magnet || (t.link && t.link.startsWith('magnet:?'))).map(t => ({
             title: t.title,
             size: t.size || 'Unknown',
@@ -218,11 +221,13 @@ class SearchService {
   async searchTorrentsCsv(query) {
     try {
       const cleanQuery = query.trim();
+      const networkCfg = getAxiosNetworkConfig();
       const res = await axios.get(`https://torrents-csv.com/service/search?q=${encodeURIComponent(cleanQuery)}&size=30`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36'
         },
-        signal: AbortSignal.timeout(4000)
+        ...networkCfg,
+        signal: AbortSignal.timeout(5000)
       });
 
       if (res.data && Array.isArray(res.data.torrents)) {
@@ -268,10 +273,12 @@ class SearchService {
           'https://1337x.to',
           'https://1337x.st',
           'https://x1337x.ws',
-          'https://1377x.to'
+          'https://x1337x.eu',
+          'https://x1337x.se',
+          'https://x1337x.cc'
         ];
 
-    const proxyAgent = getProxyAgent();
+    const networkCfg = getAxiosNetworkConfig();
     const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     if (!cleanQuery) return [];
 
@@ -281,10 +288,11 @@ class SearchService {
       const res = await axios.get(searchUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9'
         },
-        ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
-        signal: AbortSignal.timeout(2000)
+        ...networkCfg,
+        signal: AbortSignal.timeout(3500)
       });
 
       if (res.data && typeof res.data === 'string' && res.data.includes('table-list')) {
@@ -316,7 +324,7 @@ class SearchService {
           });
 
           if (list.length > 0) {
-            const topCandidates = list.slice(0, 5);
+            const topCandidates = list.slice(0, 6);
             await Promise.allSettled(topCandidates.map(async (item) => {
               try {
                 const dRes = await axios.get(item.detailUrl, {
@@ -324,13 +332,20 @@ class SearchService {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Referer': searchUrl
                   },
-                  ...(proxyAgent ? { httpsAgent: proxyAgent, httpAgent: proxyAgent } : {}),
-                  signal: AbortSignal.timeout(2000)
+                  ...networkCfg,
+                  signal: AbortSignal.timeout(3000)
                 });
                 if (dRes.data) {
                   const $d = cheerio.load(dRes.data);
                   const mag = $d('a[href^="magnet:"]').first().attr('href');
-                  if (mag) item.magnet = mag;
+                  if (mag) {
+                    item.magnet = mag;
+                  } else {
+                    const infoHash = $d('.infohash-box span').text().trim();
+                    if (infoHash && infoHash.length >= 32) {
+                      item.magnet = `magnet:?xt=urn:btih:${infoHash}&dn=${encodeURIComponent(item.title)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce`;
+                    }
+                  }
                 }
               } catch (e) {}
             }));
@@ -346,6 +361,42 @@ class SearchService {
     try {
       return await Promise.any(mirrors.map(m => fetchMirror(m)));
     } catch (e) {
+      // Fallback: Check TorrentSearchApi for 1337x
+      try {
+        const providerInstance = TorrentSearchApi.getProvider('1337x', false);
+        if (providerInstance) {
+          const searchPromise = providerInstance.search(cleanQuery, 'All', 20);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500));
+          const results = await Promise.race([searchPromise, timeoutPromise]);
+          if (Array.isArray(results) && results.length > 0) {
+            const list = [];
+            for (const t of results.slice(0, 5)) {
+              let magnet = t.magnet;
+              if (!magnet && t.desc) {
+                try {
+                  magnet = await Promise.race([
+                    TorrentSearchApi.getMagnet(t),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                  ]);
+                } catch (err) {}
+              }
+              if (magnet) {
+                list.push({
+                  title: t.title,
+                  size: t.size || 'Unknown',
+                  sizeBytes: parseSizeToBytes(t.size),
+                  seeds: parseInt(t.seeds, 10) || 0,
+                  leeches: parseInt(t.peers || t.leechs || 0, 10) || 0,
+                  magnet,
+                  provider: '1337x',
+                  time: t.time
+                });
+              }
+            }
+            if (list.length > 0) return list;
+          }
+        }
+      } catch (err) {}
       return [];
     }
   }
