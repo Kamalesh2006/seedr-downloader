@@ -118,7 +118,7 @@ class SearchService {
     }
   }
 
-  async searchThePirateBay(query) {
+  async searchThePirateBay(query, debugLog = null) {
     const tpbCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'thepiratebay') || {};
     const mirrors = (tpbCfg.urls && tpbCfg.urls.length > 0)
       ? tpbCfg.urls
@@ -136,45 +136,72 @@ class SearchService {
         url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
       }
 
-      const res = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'application/json'
-        },
-        ...networkCfg,
-        signal: AbortSignal.timeout(6000)
-      });
+      try {
+        const res = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://thepiratebay.org/',
+            'Origin': 'https://thepiratebay.org',
+            'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'cross-site'
+          },
+          ...networkCfg,
+          signal: AbortSignal.timeout(6000)
+        });
 
-      if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
-        const results = [];
-        for (const item of res.data) {
-          if (!item.info_hash) continue;
-          const sizeBytes = parseInt(item.size, 10) || 0;
-          let sizeStr = 'Unknown';
-          if (sizeBytes >= 1024 * 1024 * 1024) {
-            sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-          } else if (sizeBytes >= 1024 * 1024) {
-            sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
-          } else if (sizeBytes > 0) {
-            sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+        if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
+          const results = [];
+          for (const item of res.data) {
+            if (!item.info_hash) continue;
+            const sizeBytes = parseInt(item.size, 10) || 0;
+            let sizeStr = 'Unknown';
+            if (sizeBytes >= 1024 * 1024 * 1024) {
+              sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+            } else if (sizeBytes >= 1024 * 1024) {
+              sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
+            } else if (sizeBytes > 0) {
+              sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+            }
+
+            const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce`;
+
+            results.push({
+              title: item.name,
+              size: sizeStr,
+              sizeBytes,
+              seeds: parseInt(item.seeders, 10) || 0,
+              leeches: parseInt(item.leechers, 10) || 0,
+              magnet,
+              provider: 'ThePirateBay',
+              time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
+            });
           }
-
-          const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce`;
-
-          results.push({
-            title: item.name,
-            size: sizeStr,
-            sizeBytes,
-            seeds: parseInt(item.seeders, 10) || 0,
-            leeches: parseInt(item.leechers, 10) || 0,
-            magnet,
-            provider: 'ThePirateBay',
-            time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
+          if (results.length > 0) {
+            if (debugLog) debugLog.push({ mirror, status: res.status, count: results.length });
+            return results;
+          }
+        }
+        if (debugLog) debugLog.push({ mirror, status: res.status, raw: typeof res.data === 'string' ? res.data.slice(0, 200) : res.data });
+        throw new Error('No valid results returned from ' + mirror);
+      } catch (err) {
+        if (debugLog) {
+          debugLog.push({
+            mirror,
+            error: err.message,
+            statusCode: err.response?.status,
+            cfRay: err.response?.headers?.['cf-ray'],
+            server: err.response?.headers?.server,
+            bodySnippet: typeof err.response?.data === 'string' ? err.response?.data.slice(0, 200) : err.response?.data
           });
         }
-        if (results.length > 0) return results;
+        throw err;
       }
-      return null;
     };
 
     // Query mirrors in parallel using Promise.any
@@ -201,7 +228,7 @@ class SearchService {
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000));
         const results = await Promise.race([searchPromise, timeoutPromise]);
         if (Array.isArray(results) && results.length > 0) {
-          return results.filter(t => t.magnet || (t.link && t.link.startsWith('magnet:?'))).map(t => ({
+          const mapped = results.filter(t => t.magnet || (t.link && t.link.startsWith('magnet:?'))).map(t => ({
             title: t.title,
             size: t.size || 'Unknown',
             sizeBytes: parseSizeToBytes(t.size),
@@ -211,9 +238,13 @@ class SearchService {
             provider: 'ThePirateBay',
             time: t.time
           }));
+          if (debugLog) debugLog.push({ fallback: 'TorrentSearchApi', count: mapped.length });
+          return mapped;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      if (debugLog) debugLog.push({ fallback: 'TorrentSearchApi', error: e.message });
+    }
 
     return [];
   }
@@ -499,6 +530,13 @@ class SearchService {
       console.error('Search error:', error);
       throw error;
     }
+  }
+
+  async searchWithDebug(query, source = 'all') {
+    const debugInfo = { tpb: [] };
+    const tpbResults = await this.searchThePirateBay(query, debugInfo.tpb);
+    const results = await this.search(query, source);
+    return { results, debugInfo, tpbCount: tpbResults.length };
   }
 }
 

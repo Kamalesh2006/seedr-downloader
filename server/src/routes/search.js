@@ -7,7 +7,11 @@ const { sanitizeErrorMessage } = require('../middleware/errorHandler');
 
 router.get('/', searchLimiter, validateSearchQuery, async (req, res) => {
   try {
-    const { q, source } = req.query;
+    const { q, source, debug } = req.query;
+    if (debug === '1' || debug === 'true') {
+      const debugData = await searchService.searchWithDebug(q, source);
+      return res.json(debugData);
+    }
     const results = await searchService.search(q, source);
     res.json({ results });
   } catch (error) {
