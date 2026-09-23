@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const downloadQueueService = require('../services/downloadQueueService');
+const seedrService = require('../services/seedrService');
 const { queueLimiter } = require('../middleware/rateLimiter');
 const { validateMagnet, validateIdParam } = require('../middleware/validator');
 const { sanitizeErrorMessage } = require('../middleware/errorHandler');
@@ -24,6 +25,15 @@ router.get('/', async (req, res) => {
     if (downloadQueueService.hasRemoteConfig && downloadQueueService.hasRemoteConfig()) {
       await downloadQueueService.syncFromKv().catch(() => {});
     }
+
+    // Opportunistically reconcile with cloud storage if items are queued
+    if (downloadQueueService.queue.length > 0) {
+      try {
+        const folderData = await seedrService.listFolder();
+        downloadQueueService.reconcileWithCloud(folderData);
+      } catch (e) {}
+    }
+
     const status = downloadQueueService.getQueueStatus();
     res.json(status);
 

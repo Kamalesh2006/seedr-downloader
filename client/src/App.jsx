@@ -24,7 +24,7 @@ import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
-import { isOversizedForSeedr, formatBytes } from './utils/magnet';
+import { isOversizedForSeedr, formatBytes, isItemInCloud } from './utils/magnet';
 
 function App() {
   const navigate = useNavigate();
@@ -68,8 +68,16 @@ function App() {
     removeFromQueue,
     moveItem,
     clearQueue,
-    toggleAutoQueue
+    toggleAutoQueue,
+    reconcileQueue
   } = useQueue();
+
+  // Auto-reconcile upcoming queue with items already present in Cloud Storage
+  useEffect(() => {
+    if (queue.length > 0 && (completedFiles.length > 0 || cloudTorrents.length > 0)) {
+      reconcileQueue(completedFiles, cloudTorrents);
+    }
+  }, [completedFiles, cloudTorrents, queue, reconcileQueue]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
@@ -172,10 +180,23 @@ function App() {
       return;
     }
 
+    // Check if already present in Cloud Storage
+    if (isItemInCloud({ magnet, name, size }, completedFiles, cloudTorrents)) {
+      await removeFromQueue(queueId);
+      showToast(`"${name}" is already in your Cloud Storage!`, 'info');
+      return;
+    }
+
     try {
       const res = await addMagnet(magnet, name, size);
       await removeFromQueue(queueId);
-      showToast(`Sent "${name}" to Cloud immediately!`, 'success');
+      if (res && res.alreadyInCloud) {
+        showToast(`"${name}" is already in your Cloud Storage!`, 'info');
+      } else if (res && res.autoQueued) {
+        showToast(`Cloud storage is full. Kept in Upcoming Queue.`, 'info');
+      } else {
+        showToast(`Sent "${name}" to Cloud immediately!`, 'success');
+      }
     } catch (err) {
       showToast('Failed to send to Cloud', 'error');
     }

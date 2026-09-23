@@ -249,6 +249,145 @@ class DownloadQueueService {
     return newItem;
   }
 
+  extractMagnetHash(magnet) {
+    if (!magnet || typeof magnet !== 'string') return '';
+    const match = magnet.match(/[?&]xt=urn:btih:([a-zA-Z0-9]+)/i);
+    return match ? match[1].toLowerCase() : '';
+  }
+
+  normalizeTitle(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str.trim().toLowerCase().replace(/[\s\.\-_\[\]\(\)\+]+/g, ' ');
+  }
+
+  cleanTitleTokens(str) {
+    if (!str || typeof str !== 'string') return [];
+    const clean = str
+      .toLowerCase()
+      .replace(/https?:\/\/\S+/gi, ' ')
+      .replace(/www\.[a-z0-9\-_.]+/gi, ' ')
+      .replace(/1tamilmv|tamilmv|tamilblasters|yts|tgx|rarbg|eztv|torrentgalaxy|psa|galaxytv/gi, ' ')
+      .replace(/1080p|720p|2160p|4k|hevc|x264|x265|h264|h265|web-dl|webrip|bluray|hdrip|dvdrip|untouched|unrated|hq|avc|ddp5\.1|ddp5|dd5\.1|esub|complete/gi, ' ')
+      .replace(/hindi|tamil|telugu|malayalam|kannada|english|dual audio|multi audio|clean/gi, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .trim();
+    return clean.split(/\s+/).filter(t => t.length >= 2);
+  }
+
+  isItemInCloud(queueItem, folderData) {
+    if (!queueItem || !folderData) return false;
+    const qHash = this.extractMagnetHash(queueItem.magnet);
+    const qName = queueItem.name || '';
+    const normQ = this.normalizeTitle(qName);
+    const qTokens = this.cleanTitleTokens(qName);
+
+    const activeTorrents = folderData.torrents || [];
+    const activeTasks = folderData.tasks || [];
+    const completedFolders = folderData.folders || [];
+    const completedFiles = folderData.files || [];
+
+    // 1. Check active downloading torrents
+    for (const t of activeTorrents) {
+      const tHash = (t.torrent_hash || t.hash || '').toLowerCase();
+      if (qHash && tHash && qHash === tHash) return true;
+      const normT = this.normalizeTitle(t.name || t.title || '');
+      if (normQ && normT && normQ === normT) return true;
+    }
+
+    // 2. Check active tasks
+    for (const task of activeTasks) {
+      const normTask = this.normalizeTitle(task.name || task.title || '');
+      if (normQ && normTask && normQ === normTask) return true;
+    }
+
+    // 3. Check completed folders and files
+    const allCloudItems = [...completedFolders, ...completedFiles];
+    for (const f of allCloudItems) {
+      const fName = f.name || f.path || f.title || '';
+      const normF = this.normalizeTitle(fName);
+
+      // Exact normalized title match
+      if (normQ && normF && normQ === normF) return true;
+
+      // Long substring match
+      if (normQ.length >= 15 && normF.length >= 15) {
+        if (normQ.includes(normF) || normF.includes(normQ)) return true;
+      }
+
+      // Content token overlap match
+      if (qTokens.length >= 2) {
+        const fTokens = this.cleanTitleTokens(fName);
+        if (fTokens.length >= 2) {
+          let matches = 0;
+          for (const tok of qTokens) {
+            if (fTokens.includes(tok)) matches++;
+          }
+          const overlap = matches / Math.min(qTokens.length, fTokens.length);
+          if (overlap >= 0.8 && matches >= 2) return true;
+        }
+      }
+    }
+
+    // 4. Check active magnet registry
+    if (qHash && magnetStorage.findActiveMagnet) {
+      const activeRec = magnetStorage.findActiveMagnet({ hash: qHash, name: qName });
+      if (activeRec && activeRec.id) {
+        const existsInCloud = allCloudItems.some(f => String(f.id) === String(activeRec.id)) ||
+                              activeTorrents.some(t => String(t.id) === String(activeRec.id));
+        if (existsInCloud) return true;
+      }
+    }
+
+    return false;
+  }
+
+  reconcileWithCloud(folderData) {
+    if (!folderData || !Array.isArray(this.queue) || this.queue.length === 0) {
+      return { removed: 0, queue: this.queue };
+    }
+
+    const initialCount = this.queue.length;
+    const purged = [];
+    this.queue = this.queue.filter(item => {
+      if (this.isItemInCloud(item, folderData)) {
+        purged.push(item);
+        return false;
+      }
+      return true;
+    });
+
+    if (this.queue.length !== initialCount) {
+      this.saveData();
+      for (const p of purged) {
+        console.log(`[Queue] 🎯 Cleared "${p.name}" from Upcoming Queue (already exists in Cloud Storage).`);
+      }
+    }
+
+    return { removed: purged.length, queue: this.queue };
+  }
+
+  removeByMagnetOrHash(magnetOrHash, name = '') {
+    if (!magnetOrHash && !name) return false;
+    const targetHash = this.extractMagnetHash(magnetOrHash);
+    const targetMagnet = (magnetOrHash || '').trim().toLowerCase();
+    const normName = this.normalizeTitle(name);
+
+    const prevCount = this.queue.length;
+    this.queue = this.queue.filter(item => {
+      if (targetHash && this.extractMagnetHash(item.magnet) === targetHash) return false;
+      if (targetMagnet && item.magnet.toLowerCase() === targetMagnet) return false;
+      if (normName && this.normalizeTitle(item.name) === normName) return false;
+      return true;
+    });
+
+    if (this.queue.length !== prevCount) {
+      this.saveData();
+      console.log(`[Queue] 🗑️ Removed magnet from upcoming queue (${prevCount - this.queue.length} item(s)).`);
+      return true;
+    }
+    return false;
+  }
+
   removeFromQueue(id) {
     const itemToRemove = this.queue.find(item => item.id === id);
     const prevCount = this.queue.length;
@@ -372,6 +511,14 @@ class DownloadQueueService {
       } catch (listErr) {
         const safeListMsg = sanitizeErrorMessage(listErr);
         console.warn(`[Queue] ⚠️ Could not inspect Seedr storage state (${safeListMsg}). Will retry later.`);
+        this.isProcessing = false;
+        return;
+      }
+
+      // Reconcile queue with current cloud items immediately
+      this.reconcileWithCloud(folderData);
+
+      if (this.queue.length === 0) {
         this.isProcessing = false;
         return;
       }

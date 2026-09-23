@@ -60,6 +60,16 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
     const hasActiveDownloads = activeTorrents.length > 0 || activeTasks.length > 0;
     const sizeInBytes = sizeInGB * 1024 * 1024 * 1024;
 
+    // Check if this item is already present in Cloud Storage
+    if (downloadQueue.isItemInCloud({ magnet, name, size }, folderData)) {
+      downloadQueue.removeByMagnetOrHash(magnet, name);
+      return res.json({
+        success: true,
+        alreadyInCloud: true,
+        message: `"${name || 'Torrent'}" is already in your Cloud Storage!`
+      });
+    }
+
     // If there is already an active download or free space cannot fit this torrent:
     // Automatically schedule in Upcoming Queue!
     const notEnoughSpace = (sizeInBytes > 0 && freeSpaceBytes < sizeInBytes) || (hasExistingFiles && freeSpaceBytes < 600 * 1024 * 1024);
@@ -101,6 +111,9 @@ router.post('/add', seedrActionLimiter, validateMagnet, async (req, res) => {
         });
       }
     }
+
+    // Successfully added to Seedr: Remove from upcoming queue if it was queued
+    downloadQueue.removeByMagnetOrHash(magnet, name);
 
     // Register magnet link in active registry for 30-day deletion tracking
     magnetStorage.registerActiveMagnet({ 
@@ -165,6 +178,10 @@ router.get('/status/:transferId', validateIdParam('transferId'), async (req, res
 router.get('/folders', async (req, res) => {
   try {
     const result = await seedrService.listFolder();
+
+    // Auto-reconcile queue with current cloud files/torrents
+    downloadQueue.reconcileWithCloud(result);
+
     res.json(result);
 
     // Opportunistically check if queued items can now start in the cloud

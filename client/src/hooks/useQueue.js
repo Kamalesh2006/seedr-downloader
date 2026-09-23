@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/client';
+import { isItemInCloud } from '../utils/magnet';
 
 const QUEUE_STORAGE_KEY = 'seedr_client_queue';
 
@@ -28,6 +29,18 @@ export default function useQueue() {
     }
   }, []);
 
+  const reconcileQueue = useCallback((completedFiles = [], cloudTorrents = [], cloudTasks = []) => {
+    setQueue(prev => {
+      if (!Array.isArray(prev) || prev.length === 0) return prev;
+      const filtered = prev.filter(item => !isItemInCloud(item, completedFiles, cloudTorrents, cloudTasks));
+      if (filtered.length !== prev.length) {
+        syncLocal(filtered);
+        api.post('/queue/sync', { queue: filtered }).catch(() => {});
+      }
+      return filtered;
+    });
+  }, [syncLocal]);
+
   const fetchQueue = useCallback(async () => {
     try {
       const { data } = await api.get('/queue');
@@ -35,17 +48,8 @@ export default function useQueue() {
       setIsAutoEnabled(data.isAutoEnabled !== undefined ? data.isAutoEnabled : true);
       setIsProcessing(!!data.isProcessing);
 
-      setQueue(prev => {
-        // Safe merge: if server returned 0 items but local had items (e.g. fresh lambda cold start), sync upstream
-        if (remoteQueue.length === 0 && prev.length > 0) {
-          api.post('/queue/sync', { queue: prev }).catch(() => {});
-          return prev;
-        }
-
-        // If server returned items, server is source of truth
-        syncLocal(remoteQueue);
-        return remoteQueue;
-      });
+      syncLocal(remoteQueue);
+      setQueue(remoteQueue);
     } catch (err) {
       console.warn('Failed to fetch download queue from server, using local mirror:', err.message);
     }
@@ -157,6 +161,7 @@ export default function useQueue() {
     clearQueue,
     toggleAutoQueue,
     processNow,
-    triggerDelayedQueueProcess
+    triggerDelayedQueueProcess,
+    reconcileQueue
   };
 }

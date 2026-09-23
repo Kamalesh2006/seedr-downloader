@@ -178,3 +178,88 @@ export function ensureMagnetUri(magnet, name = '') {
   return trimmed;
 }
 
+/**
+ * Normalizes title for consistent cross-system comparisons
+ */
+export function normalizeTitle(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.trim().toLowerCase().replace(/[\s\.\-_\[\]\(\)\+]+/g, ' ');
+}
+
+/**
+ * Extracts searchable, meaningful content tokens from movie/torrent titles
+ */
+export function cleanTitleTokens(str) {
+  if (!str || typeof str !== 'string') return [];
+  const clean = str
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/www\.[a-z0-9\-_.]+/gi, ' ')
+    .replace(/1tamilmv|tamilmv|tamilblasters|yts|tgx|rarbg|eztv|torrentgalaxy|psa|galaxytv/gi, ' ')
+    .replace(/1080p|720p|2160p|4k|hevc|x264|x265|h264|h265|web-dl|webrip|bluray|hdrip|dvdrip|untouched|unrated|hq|avc|ddp5\.1|ddp5|dd5\.1|esub|complete/gi, ' ')
+    .replace(/hindi|tamil|telugu|malayalam|kannada|english|dual audio|multi audio|clean/gi, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
+  return clean.split(/\s+/).filter(t => t.length >= 2);
+}
+
+/**
+ * Determines if a queued item is already present in Cloud Storage (completed files, active torrents, or tasks)
+ */
+export function isItemInCloud(queueItem, completedFiles = [], cloudTorrents = [], cloudTasks = []) {
+  if (!queueItem) return false;
+  const qHash = extractMagnetHash(queueItem.magnet);
+  const qName = queueItem.name || extractMagnetName(queueItem.magnet) || '';
+  const normQ = normalizeTitle(qName);
+  const qTokens = cleanTitleTokens(qName);
+
+  // 1. Check active downloading cloud torrents
+  if (Array.isArray(cloudTorrents)) {
+    for (const t of cloudTorrents) {
+      const tHash = (t.torrent_hash || t.hash || '').toLowerCase();
+      if (qHash && tHash && qHash === tHash) return true;
+      const normT = normalizeTitle(t.name || t.title || '');
+      if (normQ && normT && normQ === normT) return true;
+    }
+  }
+
+  // 2. Check active cloud tasks
+  if (Array.isArray(cloudTasks)) {
+    for (const task of cloudTasks) {
+      const normTask = normalizeTitle(task.name || task.title || '');
+      if (normQ && normTask && normQ === normTask) return true;
+    }
+  }
+
+  // 3. Check completed files and folders
+  if (Array.isArray(completedFiles)) {
+    for (const f of completedFiles) {
+      const fName = f.name || f.path || f.title || '';
+      const normF = normalizeTitle(fName);
+
+      // Exact normalized name match
+      if (normQ && normF && normQ === normF) return true;
+
+      // Substring match if sufficiently descriptive
+      if (normQ.length >= 15 && normF.length >= 15) {
+        if (normQ.includes(normF) || normF.includes(normQ)) return true;
+      }
+
+      // Token overlap match
+      if (qTokens.length >= 2) {
+        const fTokens = cleanTitleTokens(fName);
+        if (fTokens.length >= 2) {
+          let matches = 0;
+          for (const tok of qTokens) {
+            if (fTokens.includes(tok)) matches++;
+          }
+          const overlap = matches / Math.min(qTokens.length, fTokens.length);
+          if (overlap >= 0.8 && matches >= 2) return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
