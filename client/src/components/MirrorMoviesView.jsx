@@ -9,6 +9,7 @@ import {
   ShieldAlert, 
   Flame, 
   ChevronDown,
+  ChevronUp,
   Sparkles,
   Loader2,
   Clock,
@@ -172,6 +173,21 @@ export default function MirrorMoviesView({
   // Per-movie selected language tab (for movies with multiple language releases)
   const [selectedLangMap, setSelectedLangMap] = useState({});
 
+  // Expanded releases state in list view
+  const [expandedMovieIds, setExpandedMovieIds] = useState(new Set());
+
+  const toggleMovieExpand = (movieId) => {
+    setExpandedMovieIds(prev => {
+      const next = new Set(prev);
+      if (next.has(movieId)) {
+        next.delete(movieId);
+      } else {
+        next.add(movieId);
+      }
+      return next;
+    });
+  };
+
   // Copied state tracker
   const [copiedId, setCopiedId] = useState(null);
 
@@ -267,12 +283,35 @@ export default function MirrorMoviesView({
     }
   }, [searchQuery, viewMode]);
 
-  const handleCopy = (magnet, id) => {
+  const handleCopy = (magnet, id, title = '') => {
     if (!magnet) return;
-    navigator.clipboard.writeText(magnet);
+    const fullMagnet = ensureMagnetUri(magnet, title);
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullMagnet);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = fullMagnet;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch (e) {
+      console.warn('Clipboard write error:', e);
+    }
+
     setCopiedId(id);
-    onShowToast?.('Magnet link copied to clipboard', 'success');
+    onShowToast?.('Magnet link copied to clipboard & opening torrent app...', 'success');
     setTimeout(() => setCopiedId(null), 2500);
+
+    // Also trigger opening the torrent application via magnet URI
+    try {
+      window.location.href = fullMagnet;
+    } catch (e) {}
   };
 
   const handleFetchMovieLinks = async (movie) => {
@@ -868,26 +907,20 @@ export default function MirrorMoviesView({
                         )}
 
                         {torrent.magnet && (
-                          <a
-                            href={ensureMagnetUri(torrent.magnet, torrent.title)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.('Opening torrent app...', 'info');
-                            }}
-                            className="p-2 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95"
-                            title="Open in Torrent App (Soft link)"
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(torrent.magnet, `global-${idx}`, torrent.title)}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 flex items-center gap-1.5 ${
+                              isCopied
+                                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-[#00DF81] border-emerald-500/40'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-[#1E293B]'
+                            }`}
+                            title="Copy magnet link & open in torrent app"
                           >
-                            <Magnet className="w-4 h-4" />
-                          </a>
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{isCopied ? 'Copied!' : 'Copy Magnet'}</span>
+                          </button>
                         )}
-
-                        <button
-                          onClick={() => handleCopy(torrent.magnet, `global-${idx}`)}
-                          className="p-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-[#1E293B] transition-colors"
-                          title="Copy magnet link"
-                        >
-                          {isCopied ? <Check className="w-4 h-4 text-[#00DF81]" /> : <Copy className="w-4 h-4" />}
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -989,26 +1022,20 @@ export default function MirrorMoviesView({
                       )}
 
                       {torrent.magnet && (
-                        <a
-                          href={ensureMagnetUri(torrent.magnet, torrent.title)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onShowToast?.('Opening torrent app...', 'info');
-                          }}
-                          className="p-1.5 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95"
-                          title="Open in Torrent App (Soft link)"
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(torrent.magnet, `global-list-${idx}`, torrent.title)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                            isCopied
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 text-[#00DF81] border-emerald-500/40'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-[#1E293B]'
+                          }`}
+                          title="Copy magnet link & open in torrent app"
                         >
-                          <Magnet className="w-3.5 h-3.5" />
-                        </a>
+                          {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{isCopied ? 'Copied!' : 'Copy Magnet'}</span>
+                        </button>
                       )}
-
-                      <button
-                        onClick={() => handleCopy(torrent.magnet, `global-list-${idx}`)}
-                        className="p-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#090F1C] dark:hover:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-[#1E293B] transition-colors"
-                        title="Copy magnet link"
-                      >
-                        {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
                     </div>
                   </div>
                 );
@@ -1165,9 +1192,12 @@ export default function MirrorMoviesView({
                 const activeLang = selectedLangMap[movie.id] || 'ALL';
                 const hasMultipleLangs = movie.languages && movie.languages.length > 1;
 
-                const magnets = (movie.magnets && movie.magnets.length > 0)
+                const rawMagnets = (movie.magnets && movie.magnets.length > 0)
                   ? movie.magnets
-                  : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title, language: movie.languages?.[0] || '' }] : []);
+                  : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title, language: movie.languages?.[0] || '', provider: '1TamilMV' }] : []);
+
+                // Filter to authentic 1TamilMV releases only
+                const magnets = rawMagnets.filter(m => !m.provider || m.provider === '1TamilMV');
 
                 const visibleMagnets = (!hasMultipleLangs || activeLang === 'ALL')
                   ? magnets
@@ -1300,19 +1330,7 @@ export default function MirrorMoviesView({
                                       {displaySize}
                                     </span>
 
-                                    {link.provider && (
-                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                                        link.provider === 'YTS'
-                                          ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
-                                          : link.provider === 'ThePirateBay'
-                                            ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
-                                            : link.provider === '1337x'
-                                              ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
-                                              : 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30'
-                                      }`}>
-                                        {link.provider}
-                                      </span>
-                                    )}
+
 
                                     {hasMultipleLangs && activeLang === 'ALL' && link.language && (
                                       <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-500/15 px-1.5 py-0.2 rounded border border-sky-300 dark:border-sky-500/30 shrink-0">
@@ -1361,26 +1379,20 @@ export default function MirrorMoviesView({
                                   )}
 
                                   {link.magnet && (
-                                    <a
-                                      href={ensureMagnetUri(link.magnet, link.title || movie.title)}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onShowToast?.('Opening torrent app...', 'info');
-                                      }}
-                                      className="p-2 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 transition-all hover:scale-105 active:scale-95 shrink-0"
-                                      title="Open in Torrent App (Soft link)"
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`, magnetTitle)}
+                                      className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 flex items-center gap-1.5 ${
+                                        isCopied
+                                          ? 'bg-emerald-50 dark:bg-emerald-950/20 text-[#00DF81] border-emerald-500/40'
+                                          : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                      }`}
+                                      title="Copy magnet link & open in torrent app"
                                     >
-                                      <Magnet className="w-3.5 h-3.5" />
-                                    </a>
+                                      {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                                      <span>{isCopied ? 'Copied!' : 'Copy'}</span>
+                                    </button>
                                   )}
-
-                                  <button
-                                    onClick={() => handleCopy(link.magnet, `${movie.id}-${lIdx}`)}
-                                    className="p-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors shrink-0"
-                                    title="Copy magnet link"
-                                  >
-                                    {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
-                                  </button>
                                 </div>
                               </div>
                             );
@@ -1442,153 +1454,267 @@ export default function MirrorMoviesView({
             </div>
           )}
 
-          {/* 1TAMILMV - LIST VIEW (NO PHOTOS - HIGH-DENSITY HORIZONTAL ROWS) */}
+          {/* 1TAMILMV - LIST VIEW (STRUCTURED HIGH-DENSITY EXPANDABLE CARDS) */}
           {!loading && layoutMode === 'list' && displayedMovies.length > 0 && (
-            <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl divide-y divide-slate-100 dark:divide-[#1E293B] shadow-sm overflow-hidden">
+            <div className="space-y-3.5">
               {displayedMovies.map((movie) => {
-                const magnets = (movie.magnets && movie.magnets.length > 0)
+                const activeLang = selectedLangMap[movie.id] || 'ALL';
+                const hasMultipleLangs = movie.languages && movie.languages.length > 1;
+
+                const rawMagnets = (movie.magnets && movie.magnets.length > 0)
                   ? movie.magnets
-                  : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title, language: movie.languages?.[0] || '' }] : []);
+                  : (movie.magnet ? [{ magnet: movie.magnet, quality: movie.quality, size: movie.size, title: movie.title, language: movie.languages?.[0] || '', provider: '1TamilMV' }] : []);
+
+                // Filter to authentic 1TamilMV releases only
+                const magnets = rawMagnets.filter(m => !m.provider || m.provider === '1TamilMV');
+
+                const visibleMagnets = (!hasMultipleLangs || activeLang === 'ALL')
+                  ? magnets
+                  : magnets.filter(m => !m.language || m.language.toLowerCase() === activeLang.toLowerCase());
 
                 const isFetchingThis = loadingLinksMap[movie.id];
+                const isExpanded = expandedMovieIds.has(movie.id);
+                const displayedMagnets = isExpanded ? visibleMagnets : visibleMagnets.slice(0, 3);
+                const hasMore = visibleMagnets.length > 3;
 
                 return (
                   <div
                     key={`list-${movie.id}`}
-                    className="p-4 hover:bg-slate-50 dark:hover:bg-[#0E1523] transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                    className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] hover:border-slate-300 dark:hover:border-slate-700/80 rounded-2xl p-4 sm:p-5 transition-all shadow-sm space-y-3.5"
                   >
-                    {/* Left Info: Movie Title, Badges, Resolutions, Languages */}
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30">
-                          {movie.quality || 'HD'}
-                        </span>
-                        {movie.isTopRelease && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                            <Flame className="w-3 h-3 text-orange-500 fill-orange-500/20" />
-                            TOP
+                    {/* Header Row: Title, Badges, Audio Filters, Options count */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                            movie.quality === '4K' || movie.quality === '2160P'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
+                          }`}>
+                            {movie.quality || 'HD'}
                           </span>
-                        )}
+                          {movie.isTopRelease && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <Flame className="w-3 h-3 text-orange-500 fill-orange-500/20" />
+                              TOP
+                            </span>
+                          )}
+                          {movie.languages?.length > 0 && !hasMultipleLangs && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25">
+                              {movie.languages[0]} Audio
+                            </span>
+                          )}
+                        </div>
+
+                        <h3
+                          className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug hover:text-emerald-600 dark:hover:text-[#00DF81] transition-colors"
+                          title={movie.title}
+                        >
+                          {movie.title}
+                        </h3>
                       </div>
 
-                      <h3
-                        className="text-base font-bold text-slate-900 dark:text-white leading-snug hover:text-emerald-600 dark:hover:text-[#00DF81] transition-colors"
-                        title={movie.title}
-                      >
-                        {movie.title}
-                      </h3>
-
-                      <div className="flex items-center gap-2 flex-wrap text-xs">
-
-                        {movie.languages?.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            {movie.languages.map(lang => (
-                              <span key={lang} className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25">
-                                {lang}
-                              </span>
-                            ))}
+                      {/* Right Header: Audio Selector (if multi-language) & Available count */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap md:justify-end">
+                        {hasMultipleLangs && (
+                          <div className="flex items-center gap-1 flex-wrap bg-slate-50 dark:bg-[#090F1C] p-1 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                              Audio:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLangMap(prev => ({ ...prev, [movie.id]: 'ALL' }))}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                                activeLang === 'ALL'
+                                  ? 'bg-[#00DF81] text-[#071911] shadow-sm'
+                                  : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              All ({magnets.length})
+                            </button>
+                            {movie.languages.map(lang => {
+                              const langCount = magnets.filter(m => m.language?.toLowerCase() === lang.toLowerCase()).length;
+                              return (
+                                <button
+                                  key={lang}
+                                  type="button"
+                                  onClick={() => setSelectedLangMap(prev => ({ ...prev, [movie.id]: lang }))}
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                                    activeLang.toLowerCase() === lang.toLowerCase()
+                                      ? 'bg-[#00DF81] text-[#071911] shadow-sm'
+                                      : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                                  }`}
+                                >
+                                  {lang} {langCount > 0 ? `(${langCount})` : ''}
+                                </button>
+                              );
+                            })}
                           </div>
+                        )}
+
+                        {visibleMagnets.length > 0 && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 flex items-center gap-1.5">
+                            <CloudDownload className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>{visibleMagnets.length} {visibleMagnets.length === 1 ? 'Option' : 'Options'}</span>
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Right Download Links / Streams Strip */}
-                    <div className="shrink-0 flex items-center gap-2 flex-wrap lg:max-w-md justify-end">
-                      {magnets.length > 0 ? (
-                        <div className="flex items-center gap-2 flex-wrap justify-end">
-                          {magnets.slice(0, 3).map((link, lIdx) => {
+                    {/* Releases Body */}
+                    {visibleMagnets.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className={isExpanded ? "max-h-80 overflow-y-auto pr-1 space-y-2" : "space-y-2"}>
+                          {displayedMagnets.map((link, lIdx) => {
                             const isOversized = link.size && isOversizedForSeedr(link.size);
                             const linkHash = extractMagnetHash(link.magnet);
                             const isAddingThis = addingMagnet === link.magnet;
                             const isQueued = queuedHashSet.has(linkHash);
                             const isDownloading = activeHashSet.has(linkHash);
                             const isCopied = copiedId === `list-${movie.id}-${lIdx}`;
+                            const magnetTitle = link.title || movie.title;
+                            const displaySize = link.size || 'Direct';
 
                             return (
                               <div
                                 key={lIdx}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs ${
+                                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border transition-all ${
                                   isQueued
-                                    ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-500/30'
+                                    ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-500/40'
                                     : isDownloading
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500/30'
-                                      : 'bg-slate-50 dark:bg-[#0A0F1D] border-slate-200 dark:border-slate-800'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500/40'
+                                      : 'bg-slate-50 dark:bg-[#0A0F1D] border-slate-200/80 dark:border-[#1E293B] hover:border-slate-300 dark:hover:border-slate-700'
                                 }`}
                               >
-                                <span className="font-bold text-[10px] text-emerald-600 dark:text-[#00DF81]">
-                                  {link.quality || 'HD'}
-                                </span>
-                                {link.provider && (
-                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                    link.provider === 'YTS'
-                                      ? 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30'
-                                      : link.provider === 'ThePirateBay'
-                                        ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
-                                        : link.provider === '1337x'
-                                          ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
-                                          : 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30'
+                                {/* Release Info: Quality Badge, Provider, Language, File Size */}
+                                <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                                  <span className={`w-14 text-center px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider shrink-0 ${
+                                    link.quality === '4K' || link.quality === '2160P'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30'
+                                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-[#00DF81] dark:border-emerald-500/30'
                                   }`}>
-                                    {link.provider}
+                                    {link.quality || 'HD'}
                                   </span>
-                                )}
-                                <span className={`font-mono text-[11px] ${isOversized ? 'text-rose-500 font-bold' : 'text-slate-600 dark:text-slate-300'}`}>
-                                  {link.size || ''}
-                                </span>
 
-                                {isAddingThis ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00DF81]" />
-                                ) : isQueued ? (
-                                  <span className="text-[10px] text-amber-500 font-semibold">Queued</span>
-                                ) : isDownloading ? (
-                                  <span className="text-[10px] text-[#00DF81] font-semibold">In Cloud</span>
-                                ) : (
-                                  <button
-                                    onClick={() => handleAddMagnetClick(link, link.title || movie.title)}
-                                    disabled={isOversized}
-                                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                                      isOversized
-                                        ? 'opacity-40 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400'
-                                        : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-sm'
-                                    }`}
-                                    title={isOversized ? 'Exceeds 4.5 GB limit' : 'Add to Cloud'}
-                                  >
-                                    Add to Cloud
-                                  </button>
-                                )}
 
-                                {link.magnet && (
-                                  <a
-                                    href={ensureMagnetUri(link.magnet, link.title || movie.title)}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onShowToast?.('Opening torrent app...', 'info');
-                                    }}
-                                    className="text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 p-0.5 transition-colors"
-                                    title="Open in Torrent App (Soft link)"
-                                  >
-                                    <Magnet className="w-3.5 h-3.5" />
-                                  </a>
-                                )}
 
-                                <button
-                                  onClick={() => handleCopy(link.magnet, `list-${movie.id}-${lIdx}`)}
-                                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-0.5"
-                                  title="Copy magnet"
-                                >
-                                  {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
-                                </button>
+                                  {hasMultipleLangs && activeLang === 'ALL' && link.language && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30 shrink-0">
+                                      {link.language}
+                                    </span>
+                                  )}
+
+                                  <span className={`font-mono text-xs font-bold shrink-0 ${isOversized ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                                    {displaySize}
+                                  </span>
+
+                                  {isOversized && (
+                                    <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/10 px-2 py-0.5 rounded border border-rose-300 dark:border-rose-500/20 shrink-0">
+                                      &gt; 4.5 GB Limit
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Release Actions */}
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                  {isAddingThis ? (
+                                    <button disabled className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-[#00DF81] border border-emerald-500/30 flex items-center gap-1.5">
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Adding...</span>
+                                    </button>
+                                  ) : isQueued ? (
+                                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                      <span>In Queue</span>
+                                    </span>
+                                  ) : isDownloading ? (
+                                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-[#00DF81] border border-emerald-500/30 flex items-center gap-1.5">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-[#00DF81]" />
+                                      <span>In Cloud</span>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddMagnetClick(link, magnetTitle)}
+                                      disabled={isOversized}
+                                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                        isOversized
+                                          ? 'opacity-40 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700'
+                                          : 'bg-[#00DF81] hover:bg-[#05D686] text-[#071911] shadow-sm active:scale-95'
+                                      }`}
+                                      title={isOversized ? 'Exceeds 4.5 GB Cloud limit' : 'Add to Cloud (Direct download)'}
+                                    >
+                                      <CloudDownload className="w-3.5 h-3.5 shrink-0" />
+                                      <span>Add to Cloud</span>
+                                    </button>
+                                  )}
+
+                                  {link.magnet && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(link.magnet, `list-${movie.id}-${lIdx}`, magnetTitle)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                                        isCopied
+                                          ? 'bg-emerald-50 dark:bg-emerald-950/20 text-[#00DF81] border-emerald-500/40'
+                                          : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                      }`}
+                                      title="Copy magnet link & open in torrent app"
+                                    >
+                                      {isCopied ? <Check className="w-3.5 h-3.5 text-[#00DF81]" /> : <Copy className="w-3.5 h-3.5" />}
+                                      <span>{isCopied ? 'Copied!' : 'Copy Magnet'}</span>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
-
-                          {magnets.length > 3 && (
-                            <span className="text-[11px] text-slate-400 font-mono">
-                              +{magnets.length - 3} more
-                            </span>
-                          )}
                         </div>
-                      ) : (
+
+                        {/* Expand / Collapse Button if > 3 options */}
+                        {hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => toggleMovieExpand(movie.id)}
+                            className="w-full py-2 px-3 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center gap-1.5 active:scale-[0.99] group mt-1"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <span>Show fewer options</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white transition-colors" />
+                              </>
+                            ) : (
+                              <>
+                                <span>View all {visibleMagnets.length} options ({visibleMagnets.length - 3} more releases)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white transition-colors" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    ) : movie.linksChecked && movie.noLinksFound ? (
+                      <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-center space-y-1">
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                          No direct torrent links found for this release yet.
+                        </p>
                         <button
+                          type="button"
+                          onClick={() => {
+                            setViewMode('global');
+                            executeGlobalSearch(movie.title);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                        >
+                          <Globe className="w-3 h-3" />
+                          <span>Search in Global Torrents</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#0A0F1D] border border-slate-200/80 dark:border-slate-800">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Direct torrent links available on demand
+                        </span>
+                        <button
+                          type="button"
                           onClick={() => handleFetchMovieLinks(movie)}
                           disabled={isFetchingThis}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 hover:bg-sky-100 transition-all disabled:opacity-50"
@@ -1596,8 +1722,8 @@ export default function MirrorMoviesView({
                           {isFetchingThis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudDownload className="w-3.5 h-3.5" />}
                           <span>{isFetchingThis ? 'Fetching...' : 'Fetch Links'}</span>
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -505,37 +505,6 @@ class MovieScraperService {
           }
         }
 
-        // 2. Global Public Indexers (ThePirateBay, YTS, 1337x)
-        try {
-          const searchService = require('./searchService');
-          const globalTorrents = await searchService.search(fallbackQuery, 'global');
-          for (const gt of globalTorrents) {
-            if (!gt.magnet) continue;
-            const meta = this.parseMagnetMetadata(gt.magnet);
-            const exists = magnetLinks.some(m => 
-              (m.infoHash && meta.infoHash && m.infoHash === meta.infoHash) || 
-              m.magnet === gt.magnet
-            );
-            if (!exists) {
-              const quality = this.extractQuality(gt.title) || 'HD';
-              const size = gt.size || (gt.sizeBytes ? `${(gt.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : '');
-              const provider = gt.provider || 'Public';
-              magnetLinks.push({
-                magnet: gt.magnet,
-                label: `${quality}${size ? ' • ' + size : ''} • [${provider}]`,
-                quality,
-                size,
-                sizeBytes: gt.sizeBytes || 0,
-                language: this.extractLanguage(gt.title) || '',
-                provider,
-                infoHash: meta.infoHash || '',
-                title: gt.title
-              });
-            }
-          }
-        } catch (gErr) {
-          console.warn('[MovieScraper] Global multi-provider search error in fetchMovieDetail:', gErr.message);
-        }
       }
     }
 
