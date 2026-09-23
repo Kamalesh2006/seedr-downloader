@@ -1,90 +1,67 @@
 import React from 'react';
-import { Folder, History, Database, Search, ListOrdered } from 'lucide-react';
+import { Folder, History, Settings, Search, ListOrdered } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function BottomNav({ 
-  currentTab, 
-  setCurrentTab, 
-  telegramUrl = 'https://t.me/seedr_download_bot',
   recentCount = 0,
   queueCount = 0
 }) {
+  const location = useLocation();
+  const currentPath = location.pathname;
+
   const tabs = [
     {
       id: 'dashboard',
+      path: '/',
       label: 'Files',
       icon: Folder,
-      onClick: () => setCurrentTab('dashboard')
     },
     {
       id: 'search',
+      path: '/search',
       label: 'Search',
       icon: Search,
-      badge: 'Hot',
-      onClick: () => setCurrentTab('search')
+      badge: null,
     },
     {
       id: 'queue',
+      path: '/upcoming',
       label: 'Queue',
       icon: ListOrdered,
       badge: queueCount > 0 ? queueCount : null,
-      onClick: () => setCurrentTab('queue')
     },
     {
       id: 'recent',
+      path: '/recent',
       label: 'Recent',
       icon: History,
       badge: recentCount > 0 ? recentCount : null,
-      onClick: () => setCurrentTab('recent')
     },
     {
-      id: 'storage',
-      label: 'Storage',
-      icon: Database,
-      onClick: () => setCurrentTab('storage')
+      id: 'settings',
+      path: '/settings',
+      label: 'Settings',
+      icon: Settings,
+      badge: null,
     }
   ];
 
   return (
     <nav 
       aria-label="Mobile Navigation"
-      className="md:hidden mobile-bottom-nav bg-[#0D1424]/95 backdrop-blur-xl border-t border-[#1E293B] px-1 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] select-none"
+      className="md:hidden mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-[#0D1424]/95 backdrop-blur-xl border-t border-[#1E293B] px-1 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] select-none"
     >
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = currentTab === tab.id || (tab.id === 'search' && currentTab === 'discover');
-
-          if (tab.href) {
-            return (
-              <a
-                key={tab.id}
-                href={tab.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-slate-400 hover:text-sky-400 active:scale-95 transition-all group"
-                title="Open Telegram Bot"
-              >
-                <div className="relative flex items-center justify-center">
-                  <div className="px-3 py-1 rounded-full group-hover:bg-sky-500/10 transition-colors">
-                    <Icon className="w-5 h-5 text-slate-400 group-hover:text-sky-400 stroke-[1.75]" />
-                  </div>
-                  {tab.badge && (
-                    <span className="absolute -top-1 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#00DF81] text-[#071911] shadow-sm">
-                      {tab.badge}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[11px] mt-0.5 tracking-tight font-medium text-slate-400 group-hover:text-sky-400 truncate max-w-full">
-                  {tab.label}
-                </span>
-              </a>
-            );
-          }
+          const isActive = currentPath === tab.path || 
+            (tab.path === '/' && (currentPath === '/home' || currentPath === '')) ||
+            (tab.path === '/upcoming' && currentPath === '/queue');
 
           return (
-            <button
+            <Link
               key={tab.id}
-              onClick={tab.onClick}
+              to={tab.path}
               className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all relative ${
                 isActive
                   ? 'text-emerald-600 dark:text-[#00DF81]'
@@ -100,11 +77,7 @@ export default function BottomNav({
                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.2] text-emerald-600 dark:text-[#00DF81]' : 'stroke-[1.75]'}`} />
                 </div>
                 {tab.badge && !isActive && (
-                  <span className={`absolute -top-1 right-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold shadow-sm ${
-                    tab.badge === 'Hot' 
-                      ? 'bg-rose-500 text-white' 
-                      : 'bg-[#00DF81] text-[#071911]'
-                  }`}>
+                  <span className="absolute -top-1 right-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold shadow-sm bg-[#00DF81] text-[#071911]">
                     {tab.badge}
                   </span>
                 )}
@@ -116,7 +89,7 @@ export default function BottomNav({
               }`}>
                 {tab.label}
               </span>
-            </button>
+            </Link>
           );
         })}
       </div>

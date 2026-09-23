@@ -3,22 +3,20 @@ import {
   Sun, 
   Moon,
   Settings,
-  Send
+  Send,
+  Bot
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Navbar({ 
-  currentTab = 'dashboard', 
-  setCurrentTab,
   isDarkMode = true,
-  onToggleTheme,
-  onOpenSettings,
-  telegramUrl = 'https://t.me/seedr_download_bot'
+  onToggleTheme
 }) {
   return (
     <header className="h-14 sm:h-16 bg-[#070B14]/90 backdrop-blur-md border-b border-[#1E293B] px-3.5 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Left: Brand Logo */}
-      <div 
-        onClick={() => setCurrentTab('dashboard')} 
+      <Link 
+        to="/" 
         className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group"
       >
         {/* Seedr Cloud Logo SVG */}
@@ -37,27 +35,23 @@ export default function Navbar({
         <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#00DF81] font-sans">
           Seedr
         </span>
-      </div>
+      </Link>
 
       {/* Right: Action Controls */}
       <div className="flex items-center gap-1 sm:gap-2">
         {/* Telegram Bot Link */}
-        {telegramUrl && (
-          <a
-            href={telegramUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`p-2 rounded-xl transition-all active:scale-95 ${
-              isDarkMode 
-                ? 'text-slate-400 hover:text-sky-400 hover:bg-slate-800/60' 
-                : 'text-slate-500 hover:text-sky-600 hover:bg-slate-100'
-            }`}
-            title="Open Telegram Bot"
-            aria-label="Telegram Bot"
-          >
-            <Send className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
-          </a>
-        )}
+        <Link
+          to="/bot"
+          className={`p-2 rounded-xl transition-all active:scale-95 ${
+            isDarkMode 
+              ? 'text-slate-400 hover:text-sky-400 hover:bg-slate-800/60' 
+              : 'text-slate-500 hover:text-sky-600 hover:bg-slate-100'
+          }`}
+          title="Open Telegram Bot"
+          aria-label="Telegram Bot"
+        >
+          <Bot className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
+        </Link>
 
         {/* Theme Toggle (Moon / Sun Icon) */}
         <button
@@ -77,20 +71,19 @@ export default function Navbar({
           )}
         </button>
 
-
-        {/* Settings Button - Accessible on both mobile and desktop */}
-        <button
-          onClick={onOpenSettings}
+        {/* Settings Button - Navigates to /settings */}
+        <Link
+          to="/settings"
           className={`p-2 rounded-xl transition-all active:scale-95 ${
             isDarkMode 
               ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' 
               : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
           }`}
-          title="Settings & Proxies"
+          title="Settings & Storage Details"
           aria-label="Settings"
         >
           <Settings className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
-        </button>
+        </Link>
       </div>
     </header>
   );

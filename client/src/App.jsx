@@ -1,31 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  CloudRain, 
-  Send, 
   AlertTriangle, 
   CheckCircle, 
   Info, 
-  XCircle, 
-  HardDrive, 
-  Sparkles, 
-  ExternalLink,
-  RefreshCw,
-  Folder,
-  Loader2
+  XCircle
 } from 'lucide-react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import api from './api/client';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import StorageCard from './components/StorageCard';
 import SearchBar from './components/SearchBar';
-import SearchResults from './components/SearchResults';
 import ActiveDownloads from './components/ActiveDownloads';
 import CompletedFiles from './components/CompletedFiles';
 import QueueManager from './components/QueueManager';
 import RecentMagnetsModal from './components/RecentMagnetsModal';
 import RecentLinksView from './components/RecentLinksView';
 import MirrorMoviesView from './components/MirrorMoviesView';
-import SettingsModal from './components/SettingsModal';
+import SettingsView from './components/SettingsView';
+import TelegramBotView from './components/TelegramBotView';
+import UserGuideCard from './components/UserGuideCard';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
@@ -33,6 +27,8 @@ import useQueue from './hooks/useQueue';
 import { isOversizedForSeedr, formatBytes } from './utils/magnet';
 
 function App() {
+  const navigate = useNavigate();
+
   const { 
     search, 
     results, 
@@ -42,6 +38,7 @@ function App() {
     lastQuery, 
     clearResults 
   } = useSearch();
+
   const { 
     activeTransfers, 
     cloudTorrents, 
@@ -74,11 +71,9 @@ function App() {
     toggleAutoQueue
   } = useQueue();
   
-  const [currentTab, setCurrentTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/seedr_download_bot');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
@@ -118,7 +113,7 @@ function App() {
   };
 
   const handleSearch = (query) => {
-    setCurrentTab('search');
+    navigate('/search');
     setSearchQuery(query);
     search(query);
   };
@@ -203,7 +198,6 @@ function App() {
         itemMeta = cloudTorrents.find(t => String(t.id) === String(id));
       } else if (type === 'folder' || type === 'file') {
         itemMeta = completedFiles.find(f => String(f.id) === String(id));
-        // If not in root files, look up in folderContents if item was inside a folder
         if (!itemMeta && parentFolderId && folderContents[parentFolderId]) {
           const contents = folderContents[parentFolderId];
           const pool = type === 'folder' ? (contents.folders || []) : (contents.files || []);
@@ -213,16 +207,16 @@ function App() {
 
       if (type === 'folder') {
         await deleteFolder(id, itemMeta);
-        showToast('Folder deleted from Cloud (Saved to 30-day deleted links)');
+        showToast('Folder deleted from Cloud');
       } else if (type === 'torrent') {
         await deleteTorrent(id, itemMeta);
-        showToast('Active torrent cancelled & removed from Cloud (Saved to 30-day deleted links)');
+        showToast('Active torrent cancelled & removed from Cloud');
       } else if (type === 'task') {
         await deleteTask(id);
         showToast('Task removed from Cloud');
       } else {
         await deleteFile(id, parentFolderId, itemMeta);
-        showToast('File deleted from Cloud (Saved to 30-day deleted links)');
+        showToast('File deleted from Cloud');
       }
       fetchQueue();
       setTimeout(fetchQueue, 1500);
@@ -231,6 +225,14 @@ function App() {
     } catch (err) {
       showToast(`Failed to delete ${type}`, 'error');
       throw err;
+    }
+  };
+
+  const handleCancelTransfer = async (id) => {
+    try {
+      await handleDelete(id, 'torrent');
+    } catch (e) {
+      showToast('Failed to cancel active download', 'error');
     }
   };
 
@@ -272,10 +274,6 @@ function App() {
     }
   };
 
-  const used = storage.spaceUsed || 0;
-  const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024);
-  const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
-
   return (
     <div className={`min-h-screen min-h-[100dvh] ${isDarkMode ? 'dark bg-[#070B14] text-slate-100' : 'light bg-[#F8FAFC] text-slate-900'} font-sans antialiased selection:bg-[#00DF81]/30 transition-colors duration-200 relative`}>
       
@@ -284,14 +282,10 @@ function App() {
         {/* Desktop Left Sidebar (Fixed / Sticky at top of viewport) */}
         <div className="hidden md:block sticky top-0 h-screen z-40 shrink-0">
           <Sidebar 
-            currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
             storage={storage}
             queueCount={queue.length}
             recentCount={recentMagnets.length}
-            telegramUrl={telegramUrl}
-            onOpenRecent={() => setIsMagnetsOpen(true)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => navigate('/settings')}
           />
         </div>
 
@@ -299,193 +293,154 @@ function App() {
         <div className={`flex-1 flex flex-col min-w-0 ${isDarkMode ? 'bg-[#070B14]' : 'bg-[#F8FAFC]'}`}>
           {/* Top Navbar */}
           <Navbar 
-            currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
-            onOpenRecent={() => setIsMagnetsOpen(true)}
-            queueCount={queue.length}
             isDarkMode={isDarkMode}
             onToggleTheme={() => setIsDarkMode(!isDarkMode)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            telegramUrl={telegramUrl}
           />
 
-        {/* Page Body */}
-        <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-4xl lg:max-w-5xl w-full mx-auto pb-28 md:pb-12">
-          {currentTab === 'dashboard' && (
-            <>
-              {/* Storage Capacity Card */}
-              <StorageCard 
-                storage={storage} 
-                onClickDetails={() => setCurrentTab('storage')}
+          {/* Page Body with React Router Views */}
+          <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-4xl lg:max-w-5xl w-full mx-auto pb-28 md:pb-12">
+            <Routes>
+              {/* 1. Home / All Files Dashboard */}
+              <Route 
+                path="/" 
+                element={
+                  <>
+                    <StorageCard 
+                      storage={storage} 
+                      onClickDetails={() => navigate('/settings')}
+                    />
+
+                    {searchError && (
+                      <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
+                        {searchError}
+                      </div>
+                    )}
+
+                    <ActiveDownloads 
+                      transfers={activeTransfers} 
+                      onCancel={(id, type) => handleDelete(id, type || 'torrent')}
+                    />
+
+                    <CompletedFiles 
+                      files={completedFiles} 
+                      activeTorrents={cloudTorrents}
+                      storage={storage}
+                      folderContents={folderContents}
+                      loading={seedrLoading}
+                      onRefresh={refreshFiles}
+                      onFetchFolder={fetchFolderContents}
+                      onDownload={handleDownloadFile} 
+                      onDelete={handleDelete} 
+                      getDownloadUrl={getDownloadUrl}
+                    />
+
+                    {queue.length > 0 && (
+                      <QueueManager 
+                        queue={queue}
+                        isAutoEnabled={isAutoEnabled}
+                        onMoveItem={moveItem}
+                        onRemoveItem={removeFromQueue}
+                        onClearQueue={clearQueue}
+                        onToggleAuto={toggleAutoQueue}
+                        onSendNow={handleSendFromQueueNow}
+                      />
+                    )}
+
+                    <UserGuideCard />
+                  </>
+                } 
+              />
+              <Route path="/home" element={<Navigate to="/" replace />} />
+
+              {/* 2. Torrent & Movie Search */}
+              <Route 
+                path="/search" 
+                element={
+                  <MirrorMoviesView 
+                    onAddMagnet={handleAddMagnet}
+                    queue={queue}
+                    activeTransfers={activeTransfers}
+                    onShowToast={(msg, type) => showToast(msg, type)}
+                    onOpenSettings={() => navigate('/settings')}
+                    onSearch={handleSearch}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                  />
+                } 
               />
 
-              {searchError && (
-                <div className="bg-red-950/40 border border-red-800 text-red-400 p-4 rounded-2xl mb-6 text-sm">
-                  {searchError}
-                </div>
-              )}
+              {/* 3. Upcoming Queue */}
+              <Route 
+                path="/upcoming" 
+                element={
+                  <div className="space-y-5">
+                    {activeTransfers.length > 0 && (
+                      <ActiveDownloads transfers={activeTransfers} onCancel={handleCancelTransfer} />
+                    )}
 
-              {/* Active Cloud Downloads in Seedr */}
-              <ActiveDownloads 
-                transfers={activeTransfers} 
-                onCancel={(id, type) => handleDelete(id, type || 'torrent')}
-              />
+                    <SearchBar 
+                      onAddMagnet={handleAddMagnet} 
+                      loading={searchLoading} 
+                      isQueueTab={true}
+                    />
 
-              {/* Files in Seedr Cloud Storage */}
-              <CompletedFiles 
-                files={completedFiles} 
-                activeTorrents={cloudTorrents}
-                storage={storage}
-                folderContents={folderContents}
-                loading={seedrLoading}
-                onRefresh={refreshFiles}
-                onFetchFolder={fetchFolderContents}
-                onDownload={handleDownloadFile} 
-                onDelete={handleDelete} 
-                getDownloadUrl={getDownloadUrl}
-              />
-
-              {/* Upcoming Download Schedule / Queue Manager - Visible when items are queued */}
-              {queue.length > 0 && (
-                <QueueManager 
-                  queue={queue}
-                  isAutoEnabled={isAutoEnabled}
-                  onMoveItem={moveItem}
-                  onRemoveItem={removeFromQueue}
-                  onClearQueue={clearQueue}
-                  onToggleAuto={toggleAutoQueue}
-                  onSendNow={handleSendFromQueueNow}
-                />
-              )}
-
-              {/* Paste Magnet Link with Step-by-Step Guide at the Bottom */}
-              <SearchBar 
-                onAddMagnet={handleAddMagnet} 
-                loading={searchLoading} 
-              />
-            </>
-          )}
-
-          {currentTab === 'queue' && (
-            <div className="space-y-5">
-              {/* Active Cloud Downloads if any torrent is currently downloading in Seedr */}
-              {activeTransfers.length > 0 && (
-                <ActiveDownloads transfers={activeTransfers} onCancel={handleCancelTransfer} />
-              )}
-
-              {/* Input for pasting or adding magnet links to the upcoming queue */}
-              <SearchBar 
-                onAddMagnet={handleAddMagnet} 
-                loading={searchLoading} 
-                isQueueTab={true}
-              />
-
-              {/* Upcoming Download Queue List (Always visible) */}
-              <QueueManager 
-                queue={queue}
-                isAutoEnabled={isAutoEnabled}
-                onMoveItem={moveItem}
-                onRemoveItem={removeFromQueue}
-                onClearQueue={clearQueue}
-                onToggleAuto={toggleAutoQueue}
-                onSendNow={handleSendFromQueueNow}
-                onShowToast={(msg, type) => showToast(msg, type)}
-              />
-
-
-            </div>
-          )}
-
-          {currentTab === 'storage' && (
-            <div className="space-y-6 max-w-3xl">
-              <div className="pb-3 border-b border-slate-200 dark:border-[#1E293B]">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Cloud Storage Details</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Overview of your account storage quota and cloud allocation.
-                </p>
-              </div>
-
-              <StorageCard storage={storage} />
-
-              <div className="bg-white dark:bg-[#111927] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-[#1E293B] shadow-sm dark:shadow-xl space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20">
-                      <HardDrive className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Free Tier Account</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Total capacity: {formatBytes(max)}</p>
-                    </div>
+                    <QueueManager 
+                      queue={queue}
+                      isAutoEnabled={isAutoEnabled}
+                      onMoveItem={moveItem}
+                      onRemoveItem={removeFromQueue}
+                      onClearQueue={clearQueue}
+                      onToggleAuto={toggleAutoQueue}
+                      onSendNow={handleSendFromQueueNow}
+                      onShowToast={(msg, type) => showToast(msg, type)}
+                    />
                   </div>
-                  <span className="text-xs sm:text-sm font-bold text-[#00DF81] font-mono">
-                    {formatBytes(used)} Used
-                  </span>
-                </div>
-
-                <div className="pt-4 border-t border-slate-200 dark:border-[#1E293B] flex items-center justify-between">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">Want more than 4.5 GB?</span>
-                  <a
-                    href="https://www.seedr.cc/premium"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#00DF81] hover:underline"
-                  >
-                    <span>Upgrade on Seedr.cc</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
-
-              <CompletedFiles 
-                files={completedFiles} 
-                activeTorrents={cloudTorrents}
-                storage={storage}
-                folderContents={folderContents}
-                loading={seedrLoading}
-                onRefresh={refreshFiles}
-                onFetchFolder={fetchFolderContents}
-                onDownload={handleDownloadFile} 
-                onDelete={handleDelete} 
-                getDownloadUrl={getDownloadUrl}
+                } 
               />
-            </div>
-          )}
+              <Route path="/queue" element={<Navigate to="/upcoming" replace />} />
 
-          {currentTab === 'recent' && (
-            <RecentLinksView 
-              magnets={recentMagnets}
-              onRemove={removeManualMagnet}
-              onClearAll={clearRecentMagnets}
-              onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
-              onSearch={handleSearch}
-              onAddMagnet={handleAddMagnet}
-              searchLoading={searchLoading}
-            />
-          )}
+              {/* 4. Recent Links */}
+              <Route 
+                path="/recent" 
+                element={
+                  <RecentLinksView 
+                    magnets={recentMagnets}
+                    onRemove={removeManualMagnet}
+                    onClearAll={clearRecentMagnets}
+                    onRetry={(magnet, name) => handleAddMagnet(magnet, name)}
+                    onSearch={handleSearch}
+                    onAddMagnet={handleAddMagnet}
+                    searchLoading={searchLoading}
+                  />
+                } 
+              />
 
-          {(currentTab === 'search' || currentTab === 'discover') && (
-            <MirrorMoviesView 
-              onAddMagnet={handleAddMagnet}
-              queue={queue}
-              activeTransfers={activeTransfers}
-              onShowToast={(msg, type) => showToast(msg, type)}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-              onSearch={handleSearch}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
-          )}
-        </main>
-      </div>
+              {/* 5. Telegram Bot */}
+              <Route path="/bot" element={<TelegramBotView />} />
+              <Route path="/telegram" element={<Navigate to="/bot" replace />} />
+
+              {/* 6. Settings (with Storage Details) */}
+              <Route 
+                path="/settings" 
+                element={
+                  <SettingsView 
+                    storage={storage}
+                    onShowToast={(msg, type) => showToast(msg, type)}
+                    isDarkMode={isDarkMode}
+                    onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+                  />
+                } 
+              />
+
+              {/* Catch-all redirect to Home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
       </div>
 
       {/* Mobile Fixed Bottom Navigation Bar */}
       <BottomNav 
-        currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
-        onOpenRecent={() => setIsMagnetsOpen(true)}
-        telegramUrl={telegramUrl}
         recentCount={recentMagnets.length}
         queueCount={queue.length}
       />
@@ -499,13 +454,6 @@ function App() {
         onClearAll={clearRecentMagnets}
         onRetry={(magnet, name, size) => handleAddMagnet(magnet, name, size)}
         onAddMagnet={handleAddMagnet}
-      />
-
-      {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onShowToast={(msg, type) => showToast(msg, type)}
       />
 
       {/* Toast Notification */}
