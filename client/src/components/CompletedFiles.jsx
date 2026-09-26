@@ -27,6 +27,7 @@ import { formatBytes, formatRelativeTime } from '../utils/magnet';
 import MediaPreviewModal from './MediaPreviewModal';
 import FileActionSheet from './FileActionSheet';
 import VLCStreamModal, { VlcIcon } from './VLCStreamModal';
+import { copyToClipboard } from '../utils/clipboard';
 
 function getFileIcon(fileName) {
   if (!fileName) return <File className="w-5 h-5 text-slate-400" />;
@@ -140,9 +141,11 @@ export default function CompletedFiles({
     try {
       const url = await getDownloadUrl(fileId);
       if (url) {
-        await navigator.clipboard.writeText(url);
-        setCopiedFileId(fileId);
-        setTimeout(() => setCopiedFileId(null), 2500);
+        const success = await copyToClipboard(url);
+        if (success) {
+          setCopiedFileId(fileId);
+          setTimeout(() => setCopiedFileId(null), 2500);
+        }
       }
     } catch (err) {
       console.error('Failed to copy download link', err);

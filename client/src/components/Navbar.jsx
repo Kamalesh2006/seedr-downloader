@@ -4,7 +4,8 @@ import {
   Moon,
   Settings,
   Send,
-  Bot
+  Bot,
+  Tv
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -39,6 +40,20 @@ export default function Navbar({
 
       {/* Right: Action Controls */}
       <div className="flex items-center gap-1 sm:gap-2">
+        {/* Android TV Mode Link */}
+        <Link
+          to="/tv"
+          className={`p-2 rounded-xl transition-all active:scale-95 ${
+            isDarkMode 
+              ? 'text-slate-400 hover:text-orange-400 hover:bg-slate-800/60' 
+              : 'text-slate-500 hover:text-orange-600 hover:bg-slate-100'
+          }`}
+          title="Android TV Companion Mode (VLC)"
+          aria-label="Android TV"
+        >
+          <Tv className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
+        </Link>
+
         {/* Telegram Bot Link */}
         <Link
           to="/bot"
@@ -53,21 +68,21 @@ export default function Navbar({
           <Bot className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
         </Link>
 
-        {/* Theme Toggle (Moon / Sun Icon) */}
+        {/* Theme Toggle (Sun / Moon Icon) */}
         <button
           onClick={onToggleTheme}
           className={`p-2 rounded-xl transition-all active:scale-95 ${
             isDarkMode 
-              ? 'text-slate-300 hover:text-white hover:bg-slate-800/60' 
+              ? 'text-amber-400 hover:text-amber-300 hover:bg-slate-800/60' 
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Night Mode"}
+          aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Night Mode"}
         >
           {isDarkMode ? (
-            <Moon className="w-5 h-5 stroke-[1.75] text-slate-300 hover:text-amber-300 transition-colors" />
+            <Sun className="w-5 h-5 stroke-[1.75] text-amber-400 hover:text-amber-300 transition-colors" />
           ) : (
-            <Sun className="w-5 h-5 stroke-[1.75] text-amber-500 hover:text-amber-600 transition-colors" />
+            <Moon className="w-5 h-5 stroke-[1.75] text-slate-600 hover:text-indigo-600 transition-colors" />
           )}
         </button>
 

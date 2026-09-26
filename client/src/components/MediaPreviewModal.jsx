@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 import VLCStreamModal, { VlcIcon } from './VLCStreamModal';
-import { openInVLC, downloadM3UPlaylist, copyVLCStreamUrl, getDeviceInfo } from '../utils/vlc';
+import { openInVLC, downloadM3UPlaylist, copyVLCStreamUrl, copyToClipboard, getDeviceInfo } from '../utils/vlc';
 
 export default function MediaPreviewModal({ 
   isOpen, 
@@ -251,11 +251,13 @@ export default function MediaPreviewModal({
 
   const streamUrlToUse = downloadUrl || hlsUrl;
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (!streamUrlToUse) return;
-    navigator.clipboard.writeText(streamUrlToUse);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    const success = await copyToClipboard(streamUrlToUse);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
   };
 
   const handleCopyVlcStream = async () => {
@@ -503,6 +505,17 @@ export default function MediaPreviewModal({
                         >
                           <Play className="w-3 h-3 fill-current" />
                           <span>Open in VLC</span>
+                        </button>
+
+                        {/* Stream directly to Android TV */}
+                        <button
+                          onClick={() => openInVLC(streamUrlToUse, fileName, { target: 'android-tv' })}
+                          disabled={!streamUrlToUse}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/30 font-bold transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                          title="Stream directly to Android TV VLC"
+                        >
+                          <Tv className="w-3 h-3" />
+                          <span>Android TV</span>
                         </button>
 
                         {/* Copy Stream Link for VLC Network Stream */}

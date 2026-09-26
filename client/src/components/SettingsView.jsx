@@ -12,11 +12,24 @@ import {
   Sun,
   ShieldCheck,
   Sliders,
-  Sparkles
+  Sparkles,
+  Tv,
+  Wifi,
+  Radio,
+  Play
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import StorageCard from './StorageCard';
 import { formatBytes } from '../utils/magnet';
+import { 
+  getSavedAndroidTvIp, 
+  setSavedAndroidTvIp, 
+  getSavedVlcTarget, 
+  setSavedVlcTarget, 
+  testAndroidTvConnection 
+} from '../utils/vlc';
+import { VlcIcon } from './VLCStreamModal';
 
 export default function SettingsView({ 
   storage = { spaceUsed: 0, spaceMax: 0 }, 
@@ -32,6 +45,41 @@ export default function SettingsView({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rediscovering, setRediscovering] = useState(false);
+
+  const [tvIp, setTvIp] = useState(() => getSavedAndroidTvIp());
+  const [vlcTarget, setVlcTarget] = useState(() => getSavedVlcTarget());
+  const [testingTv, setTestingTv] = useState(false);
+  const [tvTestResult, setTvTestResult] = useState(null);
+
+  const handleSaveTvSettings = (newIp, newTarget) => {
+    const ipToSave = newIp !== undefined ? newIp : tvIp;
+    const targetToSave = newTarget !== undefined ? newTarget : vlcTarget;
+    setSavedAndroidTvIp(ipToSave);
+    setSavedVlcTarget(targetToSave);
+    onShowToast?.('Android TV VLC preferences saved!', 'success');
+  };
+
+  const handleTestTv = async () => {
+    if (!tvIp.trim()) {
+      setTvTestResult({ success: false, message: 'Please enter your Android TV IP address' });
+      return;
+    }
+    setTestingTv(true);
+    setTvTestResult(null);
+    try {
+      const res = await testAndroidTvConnection(tvIp.trim());
+      setTvTestResult(res);
+      if (res.success) {
+        onShowToast?.('Connected to Android TV!', 'success');
+      } else {
+        onShowToast?.(res.message || 'Android TV did not respond', 'warning');
+      }
+    } catch (e) {
+      setTvTestResult({ success: false, message: 'Connection test failed' });
+    } finally {
+      setTestingTv(false);
+    }
+  };
 
   const used = storage.spaceUsed || 0;
   const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024);
@@ -276,7 +324,117 @@ export default function SettingsView({
         </form>
       </div>
 
-      {/* SECTION 3: Appearance Preferences */}
+      {/* SECTION 3: Android TV & VLC Player Integration */}
+      <div className="space-y-3 pt-2">
+        <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <Tv className="w-4 h-4 text-orange-500" />
+          <span>Android TV & VLC Player Integration</span>
+        </h2>
+
+        <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-orange-500/10 text-orange-500 rounded-xl border border-orange-500/20 shrink-0">
+                <VlcIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  VLC Remote Streaming to Android TV
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Configure your Android TV IP to play videos directly on your TV when clicking "Open in VLC"
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/tv"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all self-start sm:self-auto shrink-0"
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span>Open TV Companion Mode</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* TV IP Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Wifi className="w-4 h-4 text-orange-500" />
+                  Android TV IP Address
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">e.g. 192.168.1.50</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={tvIp}
+                  onChange={(e) => {
+                    setTvIp(e.target.value);
+                    setTvTestResult(null);
+                  }}
+                  placeholder="192.168.1.xxx"
+                  className="flex-1 bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-orange-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestTv}
+                  disabled={testingTv || !tvIp.trim()}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#1E293B] dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#2E3D52] transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {testingTv ? 'Testing...' : 'Test IP'}
+                </button>
+              </div>
+            </div>
+
+            {/* Default VLC Target */}
+            <div className="space-y-1.5">
+              <label className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                <Play className="w-4 h-4 text-orange-500" />
+                Default "Open in VLC" Action
+              </label>
+              <select
+                value={vlcTarget}
+                onChange={(e) => {
+                  setVlcTarget(e.target.value);
+                  handleSaveTvSettings(tvIp, e.target.value);
+                }}
+                className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-orange-500"
+              >
+                <option value="device">Launch on This Device (Desktop / Phone VLC)</option>
+                <option value="android-tv">Launch on Android TV VLC (Remote Stream)</option>
+                <option value="both">Launch on Both (This Device + Android TV)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Test Status Feedback */}
+          {tvTestResult && (
+            <div className={`p-3 rounded-xl text-xs flex items-center gap-2.5 ${
+              tvTestResult.success 
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#00DF81] border border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+            }`}>
+              {tvTestResult.success ? <Check className="w-4 h-4 shrink-0 text-[#00DF81]" /> : <Radio className="w-4 h-4 shrink-0 text-amber-400" />}
+              <span>{tvTestResult.message}</span>
+            </div>
+          )}
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleSaveTvSettings(tvIp, vlcTarget)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-orange-500/20 transition-all active:scale-95"
+            >
+              <Save className="w-4 h-4" />
+              <span>Save Android TV Preferences</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 4: Appearance Preferences */}
       <div className="space-y-3 pt-2">
         <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[#00DF81]" />

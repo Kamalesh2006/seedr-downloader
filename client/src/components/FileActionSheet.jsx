@@ -11,7 +11,8 @@ import {
   Folder, 
   FileText, 
   ExternalLink,
-  Radio
+  Radio,
+  Tv
 } from 'lucide-react';
 import { formatBytes, formatRelativeTime } from '../utils/magnet';
 import { VlcIcon } from './VLCStreamModal';
@@ -58,6 +59,31 @@ export default function FileActionSheet({
       }
     } catch (e) {
       console.error('Failed to get VLC stream URL', e);
+    } finally {
+      setVlcLoading(false);
+    }
+  };
+
+  const handleStreamAndroidTv = async () => {
+    if (onOpenVlcModal) {
+      onClose();
+      onOpenVlcModal(file);
+      return;
+    }
+
+    if (!getDownloadUrl) {
+      onStream(file);
+      return;
+    }
+
+    try {
+      setVlcLoading(true);
+      const url = await getDownloadUrl(file.id);
+      if (url) {
+        openInVLC(url, file.name, { target: 'android-tv' });
+      }
+    } catch (e) {
+      console.error('Failed to stream to Android TV', e);
     } finally {
       setVlcLoading(false);
     }
@@ -139,6 +165,21 @@ export default function FileActionSheet({
                     </div>
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-700 dark:text-orange-300">
                       Mobile & Desktop
+                    </span>
+                  </button>
+
+                  {/* Stream on Android TV */}
+                  <button
+                    onClick={handleStreamAndroidTv}
+                    disabled={vlcLoading}
+                    className="flex items-center justify-between w-full p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/25 text-orange-400 font-bold text-sm hover:bg-orange-500/20 transition-all active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Tv className="w-5 h-5" />
+                      <span>Stream on Android TV VLC</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-300">
+                      Android TV
                     </span>
                   </button>
 

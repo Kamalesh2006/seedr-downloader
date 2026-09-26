@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Send, Bot, CheckCircle2, Copy, Check, ExternalLink, X, Terminal, Shield, FolderGit2, Search, ArrowRight } from 'lucide-react';
 import api from '../api/client';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function TelegramModal({ isOpen, onClose }) {
   const [botStatus, setBotStatus] = useState({ enabled: false, botUsername: null, botName: 'Seedr Bot' });
@@ -16,10 +17,12 @@ export default function TelegramModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCmd(id);
-    setTimeout(() => setCopiedCmd(null), 2000);
+  const handleCopyCmd = async (text, id) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedCmd(id);
+      setTimeout(() => setCopiedCmd(null), 2000);
+    }
   };
 
   const botUrl = botStatus.botUsername ? `https://t.me/${botStatus.botUsername}` : null;
@@ -132,7 +135,7 @@ export default function TelegramModal({ isOpen, onClose }) {
                     <span className="text-slate-600 dark:text-slate-400 truncate text-[11px]">{item.desc}</span>
                   </div>
                   <button
-                    onClick={() => copyToClipboard(item.cmd.split(' ')[0], idx)}
+                    onClick={() => handleCopyCmd(item.cmd.split(' ')[0], idx)}
                     className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
                     title="Copy"
                   >

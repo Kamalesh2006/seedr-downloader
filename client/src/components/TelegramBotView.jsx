@@ -14,6 +14,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import api from '../api/client';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function TelegramBotView() {
   const [botStatus, setBotStatus] = useState({ enabled: false, botUsername: null, botName: 'Seedr Bot' });
@@ -25,10 +26,12 @@ export default function TelegramBotView() {
       .catch(() => setBotStatus({ enabled: false, botUsername: null, botName: 'Seedr Bot' }));
   }, []);
 
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCmd(id);
-    setTimeout(() => setCopiedCmd(null), 2000);
+  const handleCopyCmd = async (text, id) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedCmd(id);
+      setTimeout(() => setCopiedCmd(null), 2000);
+    }
   };
 
   const botUrl = botStatus.botUsername ? `https://t.me/${botStatus.botUsername}` : 'https://t.me/seedr_download_bot';
@@ -157,7 +160,7 @@ export default function TelegramBotView() {
                 </span>
               </div>
               <button
-                onClick={() => copyToClipboard(item.cmd.split(' ')[0], idx)}
+                onClick={() => handleCopyCmd(item.cmd.split(' ')[0], idx)}
                 className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors shrink-0"
                 title="Copy command"
               >

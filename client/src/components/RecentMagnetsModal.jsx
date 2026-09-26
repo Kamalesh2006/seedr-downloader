@@ -15,6 +15,7 @@ import {
   Magnet
 } from 'lucide-react';
 import { extractMagnetName, formatBytes, ensureMagnetUri } from '../utils/magnet';
+import { copyToClipboard } from '../utils/clipboard';
 
 function getFileIcon(fileName) {
   if (!fileName) return <FileText className="w-4 h-4 text-slate-400" />;
@@ -74,11 +75,13 @@ export default function RecentMagnetsModal({
 
   if (!isOpen) return null;
 
-  const handleCopyMagnet = (e, magnet, id) => {
+  const handleCopyMagnet = async (e, magnet, id) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(magnet);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    const success = await copyToClipboard(magnet);
+    if (success) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
   const handleRestore = async (magnet, name, size, id) => {

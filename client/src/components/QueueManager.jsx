@@ -18,6 +18,7 @@ import {
   Magnet
 } from 'lucide-react';
 import { formatBytes, formatRelativeTime, ensureMagnetUri } from '../utils/magnet';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function QueueManager({ 
   queue = [], 
@@ -44,12 +45,14 @@ export default function QueueManager({
     }
   };
 
-  const handleCopy = (magnet, id) => {
+  const handleCopy = async (magnet, id) => {
     if (!magnet) return;
-    navigator.clipboard.writeText(magnet);
-    setCopiedId(id);
-    onShowToast?.('Magnet link copied to clipboard', 'success');
-    setTimeout(() => setCopiedId(null), 2500);
+    const success = await copyToClipboard(magnet);
+    if (success) {
+      setCopiedId(id);
+      onShowToast?.('Magnet link copied to clipboard', 'success');
+      setTimeout(() => setCopiedId(null), 2500);
+    }
   };
 
   return (

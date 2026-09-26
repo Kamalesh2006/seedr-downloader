@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CloudDownload, ArrowDown, ArrowUp, AlertOctagon, Copy, Check, Magnet } from 'lucide-react';
 import { isOversizedForSeedr, ensureMagnetUri } from '../utils/magnet';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function SearchResults({ results, onDownload, onShowToast }) {
   const [copiedKey, setCopiedKey] = useState(null);
@@ -11,21 +12,14 @@ export default function SearchResults({ results, onDownload, onShowToast }) {
     e?.stopPropagation();
     if (!magnet) return;
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(magnet);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = magnet;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
+      const success = await copyToClipboard(magnet);
+      if (success) {
+        setCopiedKey(key);
+        onShowToast?.('Magnet link copied to clipboard', 'success');
+        setTimeout(() => {
+          setCopiedKey((prev) => (prev === key ? null : prev));
+        }, 2000);
       }
-      setCopiedKey(key);
-      onShowToast?.('Magnet link copied to clipboard', 'success');
-      setTimeout(() => {
-        setCopiedKey((prev) => (prev === key ? null : prev));
-      }, 2000);
     } catch (err) {
       console.error('Failed to copy magnet:', err);
       onShowToast?.('Failed to copy magnet link', 'error');

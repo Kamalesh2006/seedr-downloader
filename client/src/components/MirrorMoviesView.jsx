@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import { isOversizedForSeedr, ensureMagnetUri } from '../utils/magnet';
+import { copyToClipboard } from '../utils/clipboard';
 
 function extractMagnetHash(magnet) {
   if (!magnet) return '';
@@ -283,26 +284,10 @@ export default function MirrorMoviesView({
     }
   }, [searchQuery, viewMode]);
 
-  const handleCopy = (magnet, id, title = '') => {
+  const handleCopy = async (magnet, id, title = '') => {
     if (!magnet) return;
     const fullMagnet = ensureMagnetUri(magnet, title);
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(fullMagnet);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = fullMagnet;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-    } catch (e) {
-      console.warn('Clipboard write error:', e);
-    }
+    await copyToClipboard(fullMagnet);
 
     setCopiedId(id);
     onShowToast?.('Magnet link copied to clipboard & opening torrent app...', 'success');

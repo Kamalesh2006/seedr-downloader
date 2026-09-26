@@ -7,7 +7,8 @@ import {
   Cloud, 
   History, 
   Settings, 
-  Search 
+  Search,
+  Tv 
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { formatBytes } from '../utils/magnet';
@@ -63,6 +64,14 @@ export default function Sidebar({
       icon: Send, 
       badge: 'Active',
       badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+    },
+    { 
+      id: 'tv', 
+      path: '/tv',
+      label: 'Android TV', 
+      icon: Tv, 
+      badge: 'VLC',
+      badgeColor: 'bg-orange-500/20 text-orange-400 border-orange-500/30'
     }
   ];
 

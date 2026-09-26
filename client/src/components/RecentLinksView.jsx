@@ -18,6 +18,7 @@ import {
   Magnet
 } from 'lucide-react';
 import { extractMagnetName, formatBytes, ensureMagnetUri } from '../utils/magnet';
+import { copyToClipboard } from '../utils/clipboard';
 
 function getFileIcon(fileName) {
   if (!fileName) return <FileText className="w-5 h-5 text-slate-400" />;
@@ -74,11 +75,13 @@ export default function RecentLinksView({
   const [searchFilter, setSearchFilter] = useState('');
   const [restoringId, setRestoringId] = useState(null);
 
-  const handleCopyMagnet = (e, magnet, id) => {
+  const handleCopyMagnet = async (e, magnet, id) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(magnet);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    const success = await copyToClipboard(magnet);
+    if (success) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
   const handleRestore = async (magnet, name, size, id) => {

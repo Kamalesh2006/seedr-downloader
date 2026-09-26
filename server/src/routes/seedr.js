@@ -471,10 +471,10 @@ router.delete('/task/:taskId', validateIdParam('taskId'), async (req, res) => {
   }
 });
 
-// Launch VLC media player directly on desktop
+// Launch VLC media player directly on desktop or Android TV
 router.post('/open-vlc', async (req, res) => {
   try {
-    const { url } = req.body;
+    const { url, fileName, target = 'device', tvIp } = req.body;
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Valid stream URL is required' });
     }
@@ -483,12 +483,122 @@ router.post('/open-vlc', async (req, res) => {
       return res.status(400).json({ error: 'Only HTTP/HTTPS URLs are allowed' });
     }
 
-    await vlcService.launchVlcApp(url);
-    res.json({ success: true, message: 'VLC app launched successfully' });
+    const result = await vlcService.launchVlcApp(url, {
+      target,
+      tvIp: tvIp || process.env.ANDROID_TV_IP,
+      fileName: fileName || 'Seedr Stream'
+    });
+
+    res.json({ 
+      success: true, 
+      message: result.message || 'VLC player launched successfully',
+      target,
+      tvIp: tvIp || process.env.ANDROID_TV_IP || null
+    });
   } catch (error) {
     console.error('Failed to launch VLC app:', error.message);
     res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to launch VLC player' });
   }
+});
+
+// Get all completed playable video files across root and downloaded folders for TV browsing
+router.get('/completed', async (req, res) => {
+  try {
+    const rootData = await seedrService.listFolder();
+    const allVideos = [];
+
+    const isVideoFile = (f) => {
+      const name = f?.name || f?.path || '';
+      return /\.(mp4|mkv|webm|mov|avi|m4v|flv|ts|mp3)$/i.test(name);
+    };
+
+    // 1. Collect video files in root folder
+    if (Array.isArray(rootData.files)) {
+      for (const file of rootData.files) {
+        if (isVideoFile(file)) {
+          allVideos.push(file);
+        }
+      }
+    }
+
+    // 2. Check downloaded subfolders for video files
+    if (Array.isArray(rootData.folders)) {
+      for (const folder of rootData.folders.slice(0, 10)) {
+        try {
+          const subData = await seedrService.listFolder(folder.id);
+          if (Array.isArray(subData.files)) {
+            for (const subFile of subData.files) {
+              if (isVideoFile(subFile)) {
+                allVideos.push({
+                  ...subFile,
+                  folderName: folder.name
+                });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    res.json({ files: allVideos });
+  } catch (err) {
+    console.error('Failed to get completed files for TV:', err.message);
+    res.status(500).json({ error: sanitizeErrorMessage(err), files: [] });
+  }
+});
+
+// SSE endpoint for Android TV companion receiver
+router.get('/tv-events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders?.();
+
+  // Send initial connection event
+  res.write(`data: ${JSON.stringify({ type: 'connected', time: Date.now() })}\n\n`);
+
+  vlcService.addTvSubscriber(res);
+
+  const keepAliveTimer = setInterval(() => {
+    try {
+      res.write(': keep-alive\n\n');
+    } catch (_) {
+      clearInterval(keepAliveTimer);
+    }
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepAliveTimer);
+  });
+});
+
+// Test reachability of an Android TV IP
+router.post('/test-tv', async (req, res) => {
+  try {
+    const { tvIp } = req.body;
+    if (!tvIp || typeof tvIp !== 'string') {
+      return res.status(400).json({ error: 'Android TV IP is required' });
+    }
+
+    const status = await vlcService.testTvReachable(tvIp);
+    res.json({
+      success: status.reachable,
+      openPort: status.openPort || null,
+      message: status.message
+    });
+  } catch (error) {
+    res.status(500).json({ error: sanitizeErrorMessage(error) || 'Failed to test TV reachability' });
+  }
+});
+
+// Get Android TV integration status & host network info
+router.get('/tv-status', (req, res) => {
+  res.json({
+    localIp: vlcService.getLocalIp(),
+    defaultTvIp: process.env.ANDROID_TV_IP || null,
+    connectedTvs: vlcService.getTvSubscribersCount()
+  });
 });
 
 router.get('/watchdog', (req, res) => {
