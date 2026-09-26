@@ -4,6 +4,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const os = require('os');
 const config = require('../../config.json');
+const { getAxiosNetworkConfig } = require('../utils/networkHelper');
 
 class MirrorDiscoveryService {
   constructor() {
@@ -169,6 +170,7 @@ class MirrorDiscoveryService {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9'
       },
+      ...getAxiosNetworkConfig(),
       timeout: 8000
     });
 
@@ -202,7 +204,7 @@ class MirrorDiscoveryService {
     // 1. If official Google CSE is configured, use it
     if (cfg.googleApiKey && cfg.googleCseId) {
       const endpoint = `https://www.googleapis.com/customsearch/v1?key=${cfg.googleApiKey}&cx=${cfg.googleCseId}&q=${encodeURIComponent(keyword)}`;
-      const res = await axios.get(endpoint, { timeout: 8000 });
+      const res = await axios.get(endpoint, { timeout: 8000, ...getAxiosNetworkConfig() });
       if (res.data?.items?.length > 0) {
         return res.data.items
           .map(item => item.link)
@@ -217,6 +219,7 @@ class MirrorDiscoveryService {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       },
+      ...getAxiosNetworkConfig(),
       timeout: 8000
     });
 
@@ -239,6 +242,7 @@ class MirrorDiscoveryService {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         },
+        ...getAxiosNetworkConfig(),
         timeout: 7000,
         maxRedirects: 5,
         validateStatus: (status) => status < 500
@@ -290,6 +294,8 @@ class MirrorDiscoveryService {
     const kwLower = cfg.keyword.toLowerCase();
     if (kwLower.includes('tamilmv')) {
       const knownMirrors = [
+        'https://www.1tamilmv.lease',
+        'https://1tamilmv.lease',
         'https://www.1tamilmv.rocks',
         'https://1tamilmv.rocks',
         cfg.fallbackDomain || 'https://www.1tamilmv.meme',

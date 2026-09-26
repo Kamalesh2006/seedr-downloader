@@ -15,7 +15,9 @@ import {
   Cast,
   QrCode,
   Sparkles,
-  Info
+  Info,
+  Globe,
+  Share2
 } from 'lucide-react';
 import { 
   openInVLC, 
@@ -47,9 +49,11 @@ export default function VLCStreamModal({
   isOpen,
   onClose,
   file,
-  streamUrl
+  streamUrl,
+  initialTarget = null
 }) {
   const [copied, setCopied] = useState(false);
+  const [pairCopied, setPairCopied] = useState(false);
   const [launched, setLaunched] = useState(false);
   const [tvIp, setTvIp] = useState('');
   const [targetDevice, setTargetDevice] = useState('device');
@@ -59,22 +63,50 @@ export default function VLCStreamModal({
   const [tvStatusMsg, setTvStatusMsg] = useState('');
   const [alwaysTv, setAlwaysTv] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [qrType, setQrType] = useState('stream'); // 'stream' | 'companion'
   const [guideTab, setGuideTab] = useState('android-tv');
+  const [tvNetworkInfo, setTvNetworkInfo] = useState(null);
 
   const device = getDeviceInfo();
   const fileName = file?.name || 'Media Stream';
   const urlToUse = streamUrl || file?.hlsUrl || '';
+
+  const tvPairUrl = tvNetworkInfo?.localIp 
+    ? `http://${tvNetworkInfo.localIp}:${window.location.port || '5175'}` 
+    : window.location.origin;
 
   useEffect(() => {
     if (isOpen) {
       const savedIp = getSavedAndroidTvIp();
       const savedTarget = getSavedVlcTarget();
       setTvIp(savedIp);
-      setTargetDevice(device.isAndroidTV ? 'device' : (savedTarget || 'device'));
-      setAlwaysTv(savedTarget === 'android-tv');
-      setGuideTab(device.isAndroidTV ? 'android-tv' : (savedTarget === 'android-tv' ? 'android-tv' : 'desktop'));
+      const target = initialTarget || (device.isAndroidTV ? 'device' : (savedTarget || 'device'));
+      setTargetDevice(target);
+      setAlwaysTv(target === 'android-tv');
+      setGuideTab(device.isAndroidTV || target === 'android-tv' ? 'android-tv' : 'desktop');
+
+      // Fetch live TV status & host LAN info for TV Companion pairing
+      fetch('/api/seedr/tv-status')
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setTvNetworkInfo(data);
+            if (!savedIp && data.defaultTvIp) {
+              setTvIp(data.defaultTvIp);
+            }
+          }
+        })
+        .catch(() => {});
     }
-  }, [isOpen, device.isAndroidTV]);
+  }, [isOpen, initialTarget, device.isAndroidTV]);
+
+  const handleCopyPairUrl = async () => {
+    const success = await copyVLCStreamUrl(tvPairUrl);
+    if (success) {
+      setPairCopied(true);
+      setTimeout(() => setPairCopied(false), 2500);
+    }
+  };
 
   if (!isOpen || !file) return null;
 
@@ -273,42 +305,98 @@ export default function VLCStreamModal({
                     className="self-start sm:self-auto px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 shadow-sm hover:border-orange-500/50 transition-colors"
                   >
                     <QrCode className="w-3.5 h-3.5 text-orange-500" />
-                    <span>{showQr ? 'Hide TV QR' : 'TV QR Code'}</span>
+                    <span>{showQr ? 'Hide QR' : 'TV / Stream QR'}</span>
                   </button>
                 )}
               </div>
 
+              {/* TV Companion Live Status Banner */}
+              {tvNetworkInfo?.connectedTvs > 0 ? (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-700 dark:text-[#00DF81]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#00DF81] shadow-lg shadow-emerald-500/50 animate-pulse" />
+                    <span className="font-bold">
+                      {tvNetworkInfo.connectedTvs} TV Companion Screen{tvNetworkInfo.connectedTvs > 1 ? 's' : ''} Online
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+                    Stream will open automatically on your TV
+                  </span>
+                </div>
+              ) : tvNetworkInfo?.localIp ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-orange-500/5 dark:bg-[#0B111D] border border-orange-500/15 text-xs">
+                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Wifi className="w-3.5 h-3.5 text-orange-500" />
+                    <span>Host IP: <strong className="font-mono text-slate-800 dark:text-slate-200">{tvNetworkInfo.localIp}</strong></span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+                    Local Wi-Fi Streaming
+                  </span>
+                </div>
+              ) : null}
+
               {/* QR Code Container if toggled */}
               {showQr && (
-                <div className="p-4 rounded-xl bg-white dark:bg-[#0A101D] border border-orange-500/20 flex flex-col items-center justify-center space-y-2 text-center animate-in fade-in duration-200">
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    Scan with Android TV Camera or Phone to Stream
-                  </p>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(urlToUse)}`}
-                    alt="VLC Stream QR Code"
-                    className="w-36 h-36 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5 bg-white shadow-sm"
-                  />
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs">
-                    Point your TV QR scanner or phone camera at this QR code to stream directly into VLC.
-                  </p>
+                <div className="p-4 rounded-xl bg-white dark:bg-[#0A101D] border border-orange-500/20 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-center p-0.5 bg-slate-100 dark:bg-[#131D2F] rounded-lg border border-slate-200 dark:border-slate-800 max-w-xs mx-auto">
+                    <button
+                      type="button"
+                      onClick={() => setQrType('stream')}
+                      className={`flex-1 py-1 px-2.5 rounded-md text-[11px] font-bold transition-all ${
+                        qrType === 'stream' 
+                          ? 'bg-orange-500 text-white shadow-sm' 
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Stream Video QR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrType('companion')}
+                      className={`flex-1 py-1 px-2.5 rounded-md text-[11px] font-bold transition-all ${
+                        qrType === 'companion' 
+                          ? 'bg-orange-500 text-white shadow-sm' 
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      TV Screen Pair QR
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center text-center space-y-2">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrType === 'companion' ? tvPairUrl : urlToUse)}`}
+                      alt={qrType === 'companion' ? "TV Companion QR" : "VLC Stream QR"}
+                      className="w-36 h-36 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5 bg-white shadow-sm"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs">
+                      {qrType === 'companion' 
+                        ? 'Scan with TV camera/browser to open this web receiver on your TV.'
+                        : 'Point your TV QR scanner or phone camera at this QR code to stream directly into VLC.'}
+                    </p>
+                  </div>
                 </div>
               )}
 
               {/* IP Input & Test (for remote launch from PC / phone) */}
               {!device.isAndroidTV && (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <Wifi className="w-3.5 h-3.5 text-orange-500" />
+                      <span>Android TV IP Address</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500">Find in TV Settings &gt; Network</span>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                        <Wifi className="w-4 h-4" />
-                      </div>
                       <input
                         type="text"
                         placeholder="Enter Android TV IP (e.g. 192.168.1.50)"
                         value={tvIp}
                         onChange={(e) => handleSaveTvIp(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-[#080D17] border border-slate-300 dark:border-[#1E293B] text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#080D17] border border-slate-300 dark:border-[#1E293B] text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
                       />
                     </div>
 
@@ -350,6 +438,37 @@ export default function VLCStreamModal({
                 </div>
               )}
 
+              {/* Zero-Config TV Companion Web Screen */}
+              {!device.isAndroidTV && (
+                <div className="p-3 rounded-xl bg-white/80 dark:bg-[#0E1624] border border-orange-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <Globe className="w-3.5 h-3.5 text-orange-500" />
+                      <span>Zero-Config TV Receiver</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">Open on TV browser</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Open this app on your Android TV browser (TV Bro, Silk, Puffin) at:
+                  </p>
+                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#070C15] p-1.5 pl-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span className="text-xs font-mono text-slate-800 dark:text-slate-300 truncate flex-1 select-all">
+                      {tvPairUrl}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyPairUrl}
+                      className="px-2.5 py-1 rounded bg-white dark:bg-slate-800 hover:bg-slate-200 text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0 transition-colors"
+                    >
+                      {pairCopied ? 'Copied' : 'Copy TV Link'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Keep that TV browser tab open. Streams will launch in TV VLC automatically!
+                  </p>
+                </div>
+              )}
+
               {/* Status Message */}
               {tvStatusMsg && (
                 <div className="p-3 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-700 dark:text-orange-300 text-xs font-semibold animate-pulse flex items-center gap-2">
@@ -358,25 +477,39 @@ export default function VLCStreamModal({
                 </div>
               )}
 
-              {/* Main Android TV Launch Button */}
-              <button
-                type="button"
-                onClick={device.isAndroidTV ? handleLaunch : handleStreamToAndroidTv}
-                disabled={tvStreaming || launched}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70"
-              >
-                <Tv className="w-4 h-4" />
-                <span>
-                  {tvStreaming 
-                    ? 'Launching on Android TV VLC...' 
-                    : launched 
-                    ? 'Opening in VLC...' 
-                    : device.isAndroidTV 
-                    ? 'Launch VLC on this Android TV' 
-                    : 'Stream to VLC on Android TV'}
-                </span>
-                <Play className="w-3.5 h-3.5 fill-current ml-1" />
-              </button>
+              {/* Action Buttons in Android TV Mode */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Main Android TV Launch Button */}
+                <button
+                  type="button"
+                  onClick={device.isAndroidTV ? handleLaunch : handleStreamToAndroidTv}
+                  disabled={tvStreaming || launched}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70"
+                >
+                  <Tv className="w-4 h-4" />
+                  <span>
+                    {tvStreaming 
+                      ? 'Launching on Android TV VLC...' 
+                      : launched 
+                      ? 'Opening in VLC...' 
+                      : device.isAndroidTV 
+                      ? 'Launch VLC on this Android TV' 
+                      : 'Stream to VLC on Android TV'}
+                  </span>
+                  <Play className="w-3.5 h-3.5 fill-current ml-1" />
+                </button>
+
+                {/* Secondary: Download .m3u playlist file */}
+                <button
+                  type="button"
+                  onClick={handleDownloadM3U}
+                  className="py-3 px-3.5 rounded-xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-[0.98] shrink-0"
+                  title="Download .m3u playlist for Android TV USB or player apps"
+                >
+                  <FileCode2 className="w-4 h-4 text-emerald-500" />
+                  <span>.m3u File</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -545,7 +678,7 @@ export default function VLCStreamModal({
                       3
                     </span>
                     <span>
-                      <strong className="text-slate-900 dark:text-white">Method C (Using TV Browser):</strong> Open this web app directly on your Android TV browser (TV Bro, Puffin, or Silk) and click <strong className="text-[#00DF81]">Open in VLC</strong> to play immediately.
+                      <strong className="text-slate-900 dark:text-white">Method C (TV Browser Companion Receiver):</strong> Open this web app on your Android TV browser (TV Bro, Silk, or Puffin) using the TV link or QR code above. Once open on your TV, clicking <strong className="text-orange-500 font-bold">Stream to VLC on Android TV</strong> from your phone or PC launches VLC on your TV automatically!
                     </span>
                   </li>
                 </ol>

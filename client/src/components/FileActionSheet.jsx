@@ -153,7 +153,7 @@ export default function FileActionSheet({
             <>
               {isMedia && (
                 <>
-                  {/* Stream in VLC Mobile App */}
+                  {/* Stream in VLC (Device / Android TV) */}
                   <button
                     onClick={handleLaunchVLC}
                     disabled={vlcLoading}
@@ -161,10 +161,10 @@ export default function FileActionSheet({
                   >
                     <div className="flex items-center gap-3">
                       <VlcIcon className="w-5 h-5" />
-                      <span>{vlcLoading ? 'Preparing VLC Stream...' : 'Stream in VLC App'}</span>
+                      <span>{vlcLoading ? 'Preparing VLC Stream...' : 'Stream via VLC Player'}</span>
                     </div>
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-700 dark:text-orange-300">
-                      Mobile & Desktop
+                      Device & TV
                     </span>
                   </button>
 

@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const mirrorDiscovery = require('./mirrorDiscoveryService');
 const config = require('../../config.json');
+const { getAxiosNetworkConfig } = require('../utils/networkHelper');
 
 class MovieScraperService {
   constructor() {
@@ -12,19 +13,8 @@ class MovieScraperService {
   getBrowserHeaders(referer = '') {
     return {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"macOS"',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': referer ? 'same-origin' : 'none',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1',
       ...(referer ? { 'Referer': referer } : {})
     };
   }
@@ -196,6 +186,7 @@ class MovieScraperService {
     try {
       const response = await axios.get(targetUrl, {
         headers: this.getBrowserHeaders(),
+        ...getAxiosNetworkConfig(),
         timeout: this.timeoutMs,
         maxRedirects: 5,
         validateStatus: (status) => status < 500
@@ -542,6 +533,7 @@ class MovieScraperService {
       const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(query.trim())}&type=forums_topic`;
       const res = await axios.get(searchUrl, {
         headers: this.getBrowserHeaders(domain),
+        ...getAxiosNetworkConfig(),
         timeout: 8000,
         validateStatus: (status) => status < 400
       });
@@ -581,10 +573,10 @@ class MovieScraperService {
       const results = [];
       const maxFileSizeBytes = (parseFloat(process.env.MAX_FILE_SIZE_GB || config.maxFileSizeGB || 4.5)) * 1024 * 1024 * 1024;
 
-      // Scrape detail pages in parallel for matched topics
+      // Scrape detail pages in parallel for matched topics (disable search fallback to prevent recursion)
       await Promise.allSettled(prioritizedTopics.map(async (topic) => {
         try {
-          const detail = await this.fetchMovieDetail(topic.url, topic.title, allowDetailFallback);
+          const detail = await this.fetchMovieDetail(topic.url, topic.title, false);
           if (detail.magnets && detail.magnets.length > 0) {
             for (const m of detail.magnets) {
               const meta = this.parseMagnetMetadata(m.magnet);
@@ -617,6 +609,132 @@ class MovieScraperService {
     } catch (err) {
       console.warn('[MovieScraper] searchTorrents failed:', err.message);
       return [];
+    }
+  }
+
+  /**
+   * Search movies from 1TamilMV forum and return grouped releases for the UI
+   */
+  async searchMovies(query) {
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      return { success: true, movies: [], count: 0, query: query || '' };
+    }
+
+    try {
+      const cleanQ = query.trim();
+      const discoveryResult = await mirrorDiscovery.discover();
+      const domain = discoveryResult.domain;
+      if (!domain) {
+        return { success: false, error: 'No active mirror domain', movies: [], count: 0, query: cleanQ };
+      }
+
+      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(cleanQ)}&type=forums_topic`;
+      console.log(`[MovieScraper] Searching 1TamilMV releases: ${searchUrl}`);
+      let res;
+      try {
+        res = await axios.get(searchUrl, {
+          headers: this.getBrowserHeaders(domain),
+          ...getAxiosNetworkConfig(),
+          timeout: 9000,
+          validateStatus: (status) => status < 400
+        });
+      } catch (firstErr) {
+        if (firstErr.message && (firstErr.message.includes('ECONNRESET') || firstErr.message.includes('timeout'))) {
+          // Transient reset; brief pause and retry once
+          await new Promise(r => setTimeout(r, 600));
+          res = await axios.get(searchUrl, {
+            headers: this.getBrowserHeaders(domain),
+            ...getAxiosNetworkConfig(),
+            timeout: 9000,
+            validateStatus: (status) => status < 400
+          });
+        } else {
+          throw firstErr;
+        }
+      }
+
+      if (!res.data || typeof res.data !== 'string') {
+        return { success: true, movies: [], count: 0, query: cleanQ, domain };
+      }
+
+      const $ = cheerio.load(res.data);
+      const rawMovies = [];
+      const seenUrls = new Set();
+      const seenTitles = new Set();
+
+      $('li.ipsStreamItem').each((idx, el) => {
+        const titleEl = $(el).find('.ipsStreamItem_title a').first();
+        let href = titleEl.attr('href');
+        if (!href) return;
+        href = href.split('&do=findComment')[0].split('#')[0];
+        const rawTitle = titleEl.text().trim();
+        if (!rawTitle || rawTitle.includes('Languages') || rawTitle.length < 3) return;
+        if (seenUrls.has(href)) return;
+        seenUrls.add(href);
+
+        const cleanT = this.cleanTitle(rawTitle);
+        const resolvedUrl = this.resolveUrl(href, domain);
+        const quality = this.extractQuality(rawTitle);
+        const size = this.extractSize(rawTitle);
+
+        rawMovies.push({
+          id: `search-${idx}-${Date.now()}`,
+          title: cleanT || rawTitle,
+          rawTitle,
+          magnet: null,
+          poster: '',
+          size: size || 'Multi Quality',
+          quality: quality || 'HD',
+          seeds: 60,
+          leeches: 6,
+          detailUrl: resolvedUrl,
+          detailUrls: [resolvedUrl],
+          discoveredFrom: domain,
+          hasDetailPending: true,
+          isSearchResult: true
+        });
+      });
+
+      // Auto-resolve magnets in parallel for top candidates so primary options are immediately clickable
+      const topCandidates = rawMovies.slice(0, 4);
+      if (topCandidates.length > 0) {
+        await Promise.allSettled(topCandidates.map(async (item) => {
+          try {
+            const detailData = await this.fetchMovieDetail(item.detailUrl, item.title, false);
+            if (detailData.magnets && detailData.magnets.length > 0) {
+              item.magnet = detailData.magnet || detailData.magnets[0].magnet;
+              item.magnets = detailData.magnets;
+              item.hasDetailPending = false;
+              if (detailData.poster && !item.poster) item.poster = detailData.poster;
+              if (detailData.magnets[0].size && item.size === 'Multi Quality') {
+                item.size = detailData.magnets[0].size;
+              }
+            }
+          } catch (e) {
+            // Keep pending
+          }
+        }));
+      }
+
+      const grouped = this.groupMovies(rawMovies);
+
+      return {
+        success: true,
+        domain,
+        query: cleanQ,
+        movies: grouped,
+        count: grouped.length,
+        totalFound: rawMovies.length
+      };
+    } catch (err) {
+      console.warn('[MovieScraper] searchMovies failed:', err.message);
+      return {
+        success: false,
+        error: err.message,
+        movies: [],
+        count: 0,
+        query
+      };
     }
   }
 

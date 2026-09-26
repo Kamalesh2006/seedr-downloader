@@ -26,6 +26,7 @@ import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
 import { isOversizedForSeedr, formatBytes, isItemInCloud } from './utils/magnet';
+import { getDeviceInfo, launchAndroidVlcIntent } from './utils/vlc';
 
 function App() {
   const navigate = useNavigate();
@@ -114,6 +115,35 @@ function App() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  // TV Companion Receiver: Automatically listen for remote VLC launch events
+  // When running on an Android TV browser or device, clicking "Stream to Android TV" launches VLC
+  useEffect(() => {
+    let eventSource;
+    try {
+      eventSource = new EventSource('/api/seedr/tv-events');
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'launch-vlc' && data.url) {
+            const deviceInfo = getDeviceInfo();
+            if (deviceInfo.isAndroidTV || deviceInfo.isAndroid) {
+              launchAndroidVlcIntent(data.url);
+              showToast(`Launching "${data.fileName || 'video'}" in VLC Player...`, 'success');
+            }
+          }
+        } catch (err) {
+          console.error('Error handling TV event', err);
+        }
+      };
+    } catch (e) {
+      // EventSource failed or unsupported
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+    };
   }, []);
 
   const showToast = (message, type = 'success') => {

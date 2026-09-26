@@ -507,15 +507,15 @@ export default function MediaPreviewModal({
                           <span>Open in VLC</span>
                         </button>
 
-                        {/* Stream directly to Android TV */}
+                        {/* VLC & Android TV Options Modal */}
                         <button
-                          onClick={() => openInVLC(streamUrlToUse, fileName, { target: 'android-tv' })}
+                          onClick={() => setIsVlcModalOpen(true)}
                           disabled={!streamUrlToUse}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/30 font-bold transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
-                          title="Stream directly to Android TV VLC"
+                          title="VLC player options, Android TV remote streaming & guides"
                         >
                           <Tv className="w-3 h-3" />
-                          <span>Android TV</span>
+                          <span>Android TV & Options</span>
                         </button>
 
                         {/* Copy Stream Link for VLC Network Stream */}
@@ -550,15 +550,6 @@ export default function MediaPreviewModal({
                             <span>.m3u File</span>
                           </button>
                         )}
-
-                        {/* Full VLC Guide Modal */}
-                        <button
-                          onClick={() => setIsVlcModalOpen(true)}
-                          className="inline-flex items-center gap-1 p-1.5 text-slate-400 hover:text-white bg-[#172338] hover:bg-[#1E2E46] rounded-xl border border-[#1E293B] transition-colors"
-                          title="VLC Network Stream instructions and guide"
-                        >
-                          <HelpCircle className="w-4 h-4 text-slate-300" />
-                        </button>
                       </div>
                     </div>
                   </div>

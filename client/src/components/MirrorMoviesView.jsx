@@ -83,12 +83,42 @@ export default function MirrorMoviesView({
   const [globalHasSearched, setGlobalHasSearched] = useState(false);
   const [globalProviderFilter, setGlobalProviderFilter] = useState('ALL');
 
+  // 1TamilMV Search State (dedicated search for 1TamilMV mirror catalog)
+  const [tamilmvSearchResults, setTamilmvSearchResults] = useState([]);
+  const [tamilmvSearching, setTamilmvSearching] = useState(false);
+  const [tamilmvError, setTamilmvError] = useState(null);
+  const [tamilmvHasSearched, setTamilmvHasSearched] = useState(false);
+  const [tamilmvSearchQuery, setTamilmvSearchQuery] = useState('');
+
+  const executeTamilMVSearch = async (queryText) => {
+    const q = (queryText !== undefined ? queryText : searchInput || '').trim();
+    if (!q) return;
+    setTamilmvSearching(true);
+    setTamilmvError(null);
+    setTamilmvHasSearched(true);
+    setTamilmvSearchQuery(q);
+    try {
+      const res = await api.get(`/mirror/search?q=${encodeURIComponent(q)}`);
+      const results = res.data?.movies || [];
+      setTamilmvSearchResults(results);
+      if (results.length > 0) {
+        onShowToast?.(`Found ${results.length} 1TamilMV releases for "${q}"!`, 'success');
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message || '1TamilMV search failed';
+      setTamilmvError(msg);
+      setTamilmvSearchResults([]);
+    } finally {
+      setTamilmvSearching(false);
+    }
+  };
+
   // Sync searchInput when searchQuery prop changes
   useEffect(() => {
     if (searchQuery !== undefined && searchQuery !== searchInput) {
       setSearchInput(searchQuery);
       setGlobalQuery(searchQuery);
-      if (searchQuery && searchQuery.trim()) {
+      if (searchQuery && searchQuery.trim() && viewMode === 'global') {
         setViewMode('global');
       }
     }
@@ -98,10 +128,20 @@ export default function MirrorMoviesView({
     if (e) e.preventDefault();
     const q = (searchInput || '').trim();
     if (!q) return;
-    setGlobalQuery(q);
-    onSearchChange?.(q);
-    setViewMode('global');
-    executeGlobalSearch(q);
+
+    if (viewMode === 'global') {
+      setGlobalQuery(q);
+      onSearchChange?.(q);
+      executeGlobalSearch(q);
+    } else if (viewMode === 'all') {
+      onSearchChange?.(q);
+      executeTamilMVSearch(q);
+    } else {
+      // viewMode === 'top' -> Switch to 'all' and search 1TamilMV's catalog
+      setViewMode('all');
+      onSearchChange?.(q);
+      executeTamilMVSearch(q);
+    }
   };
 
   const handleClearSearch = () => {
@@ -109,15 +149,23 @@ export default function MirrorMoviesView({
     setGlobalQuery('');
     setGlobalResults([]);
     setGlobalHasSearched(false);
+    setTamilmvSearchResults([]);
+    setTamilmvHasSearched(false);
+    setTamilmvSearchQuery('');
+    setTamilmvError(null);
     onSearchChange?.('');
   };
 
   const handleQuickSearch = (term) => {
     setSearchInput(term);
-    setGlobalQuery(term);
     onSearchChange?.(term);
-    setViewMode('global');
-    executeGlobalSearch(term);
+    if (viewMode === 'global') {
+      setGlobalQuery(term);
+      executeGlobalSearch(term);
+    } else {
+      setViewMode('all');
+      executeTamilMVSearch(term);
+    }
   };
 
   // Per-magnet addition tracking & visual queued state
@@ -356,6 +404,7 @@ export default function MirrorMoviesView({
 
       setTopReleases(prev => prev.map(updater));
       setAllMovies(prev => prev.map(updater));
+      setTamilmvSearchResults(prev => prev.map(updater));
     } catch (err) {
       onShowToast?.('Failed to fetch download links: ' + (err.message || 'Unknown error'), 'error');
     } finally {
@@ -366,7 +415,9 @@ export default function MirrorMoviesView({
   // Group movies by title so each movie appears cleanly with all its available sizes/languages
   const displayedMovies = useMemo(() => {
     if (viewMode === 'global') return [];
-    const list = viewMode === 'top' ? topReleases : allMovies;
+    const list = viewMode === 'top' 
+      ? topReleases 
+      : (tamilmvHasSearched && tamilmvSearchQuery.trim() ? tamilmvSearchResults : allMovies);
     if (!Array.isArray(list)) return [];
 
     const map = new Map();
@@ -486,7 +537,13 @@ export default function MirrorMoviesView({
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search movies, TV shows, anime, games, or release titles..."
+              placeholder={
+                viewMode === 'all'
+                  ? "Search 1TamilMV releases (e.g. Leo, GOAT, Vikram, quality, audio)..."
+                  : viewMode === 'top'
+                  ? "Search Top Releases or 1TamilMV movies..."
+                  : "Search movies, TV shows, anime, games, or release titles..."
+              }
               className="w-full bg-slate-50 dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl pl-12 pr-32 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#00DF81] focus:ring-2 focus:ring-[#00DF81]/20 transition-all shadow-inner"
             />
             <div className="absolute right-1.5 flex items-center gap-1">
@@ -503,10 +560,10 @@ export default function MirrorMoviesView({
               )}
               <button
                 type="submit"
-                disabled={globalLoading}
+                disabled={globalLoading || tamilmvSearching}
                 className="px-3 sm:px-4 py-2 bg-[#00DF81] hover:bg-[#00DF81]/90 text-[#071911] font-bold text-xs sm:text-sm rounded-lg shadow-md shadow-emerald-500/25 transition-all active:scale-95 flex items-center gap-1.5 shrink-0"
               >
-                {globalLoading ? (
+                {(globalLoading || tamilmvSearching) ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Search className="w-4 h-4" />
@@ -545,7 +602,13 @@ export default function MirrorMoviesView({
 
             <button
               type="button"
-              onClick={() => setViewMode('all')}
+              onClick={() => {
+                setViewMode('all');
+                const q = (searchInput || '').trim();
+                if (q && (!tamilmvHasSearched || tamilmvSearchQuery !== q)) {
+                  executeTamilMVSearch(q);
+                }
+              }}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all w-full sm:w-auto sm:shrink-0 whitespace-nowrap ${
                 viewMode === 'all'
                   ? 'bg-[#00DF81] text-[#071911] shadow-md shadow-emerald-500/25'
@@ -554,11 +617,11 @@ export default function MirrorMoviesView({
             >
               <Film className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
               <span>All Releases</span>
-              {allMovies.length > 0 && (
+              {((tamilmvHasSearched && tamilmvSearchQuery.trim()) ? tamilmvSearchResults.length > 0 : allMovies.length > 0) && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   viewMode === 'all' ? 'bg-[#071911]/20 text-[#071911]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}>
-                  {allMovies.length}
+                  {(tamilmvHasSearched && tamilmvSearchQuery.trim()) ? tamilmvSearchResults.length : allMovies.length}
                 </span>
               )}
             </button>
@@ -1033,11 +1096,63 @@ export default function MirrorMoviesView({
       {/* 1TAMILMV VIEWS (TOP RELEASES / ALL RELEASES) */}
       {viewMode !== 'global' && (
         <>
-          {/* Active Search Query Filter Pill */}
-          {searchQuery && searchQuery.trim() && (
+          {/* Active 1TamilMV Search Results Banner (in All Releases) */}
+          {viewMode === 'all' && tamilmvHasSearched && tamilmvSearchQuery && (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-xl text-xs text-slate-700 dark:text-slate-300 shadow-sm">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-slate-500 dark:text-slate-400">1TamilMV Search Results:</span>
+                <span className="font-bold text-emerald-600 dark:text-[#00DF81] bg-emerald-50 dark:bg-[#00DF81]/10 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-[#00DF81]/20">
+                  "{tamilmvSearchQuery}"
+                </span>
+                {tamilmvSearchResults.length > 0 && (
+                  <span className="text-slate-500">
+                    ({tamilmvSearchResults.length} {tamilmvSearchResults.length === 1 ? 'release found' : 'releases found'})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => executeTamilMVSearch(tamilmvSearchQuery)}
+                  disabled={tamilmvSearching}
+                  className="inline-flex items-center gap-1 text-xs text-[#00DF81] hover:underline font-semibold"
+                >
+                  <RefreshCw className={`w-3 h-3 ${tamilmvSearching ? 'animate-spin' : ''}`} />
+                  <span>Re-search</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('global');
+                    executeGlobalSearch(tamilmvSearchQuery);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Search Global Trackers</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTamilmvSearchResults([]);
+                    setTamilmvHasSearched(false);
+                    setTamilmvSearchQuery('');
+                    setSearchInput('');
+                    onSearchChange?.('');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-white underline ml-1"
+                >
+                  Clear search
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Active Search Query Filter Pill for Top Releases */}
+          {viewMode === 'top' && searchQuery && searchQuery.trim() && (
             <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#090F1C] border border-slate-200 dark:border-[#1E293B] rounded-xl text-xs text-slate-700 dark:text-slate-300 shadow-sm">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-slate-500 dark:text-slate-400">Filtering 1TamilMV:</span>
+                <span className="text-slate-500 dark:text-slate-400">Filtering Top Releases:</span>
                 <span className="font-bold text-emerald-600 dark:text-[#00DF81] bg-emerald-50 dark:bg-[#00DF81]/10 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-[#00DF81]/20">
                   "{searchQuery}"
                 </span>
@@ -1049,13 +1164,24 @@ export default function MirrorMoviesView({
                 <button
                   type="button"
                   onClick={() => {
+                    setViewMode('all');
+                    executeTamilMVSearch(searchQuery);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-[#00DF81] hover:underline"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  <span>Search All 1TamilMV Releases</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setViewMode('global');
                     executeGlobalSearch(searchQuery);
                   }}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline"
                 >
                   <Globe className="w-3.5 h-3.5" />
-                  <span>Search in Global Torrents</span>
+                  <span>Search Global Trackers</span>
                 </button>
                 {onSearchChange && (
                   <button
@@ -1087,17 +1213,21 @@ export default function MirrorMoviesView({
           )}
 
           {/* Loading / Scraping Skeleton (NO PHOTOS) */}
-          {(loading || rediscovering) && (
+          {(loading || rediscovering || tamilmvSearching) && (
             <div className="space-y-4">
               <div className="bg-white dark:bg-[#111927] border border-emerald-500/20 rounded-2xl p-6 text-center shadow-sm">
                 <div className="flex items-center justify-center gap-2.5">
                   <Loader2 className="w-5 h-5 animate-spin text-[#00DF81]" />
                   <span className="text-base font-bold text-slate-900 dark:text-white">
-                    Connecting to 1TamilMV mirror & extracting latest releases...
+                    {tamilmvSearching
+                      ? `Searching 1TamilMV forum releases for "${tamilmvSearchQuery}"...`
+                      : 'Connecting to 1TamilMV mirror & extracting latest releases...'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Parsing forum topics, language streams, audio tracks, and multi-resolution magnets...
+                  {tamilmvSearching
+                    ? 'Querying mirror topics, matching multi-audio releases, and preparing magnets...'
+                    : 'Parsing forum topics, language streams, audio tracks, and multi-resolution magnets...'}
                 </p>
               </div>
 
@@ -1114,29 +1244,32 @@ export default function MirrorMoviesView({
           )}
 
           {/* Empty State */}
-          {!loading && displayedMovies.length === 0 && (
+          {!loading && !tamilmvSearching && displayedMovies.length === 0 && (
             <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4 shadow-sm">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
                 <Film className="w-7 h-7" />
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                  {searchQuery && searchQuery.trim() ? `No 1TamilMV releases matching "${searchQuery}"` : 'No Releases Found'}
+                  {tamilmvSearchQuery || (searchQuery && searchQuery.trim()) 
+                    ? `No 1TamilMV releases matching "${tamilmvSearchQuery || searchQuery}"` 
+                    : 'No Releases Found'}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  {searchQuery && searchQuery.trim() 
-                    ? `We couldn't find "${searchQuery}" on the 1TamilMV mirror. Try searching on Global Public Trackers!`
+                  {tamilmvSearchQuery || (searchQuery && searchQuery.trim()) 
+                    ? `We couldn't find "${tamilmvSearchQuery || searchQuery}" on the 1TamilMV mirror. Try searching on Global Public Trackers!`
                     : 'Searching for active mirror and top releases...'}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                {searchQuery && searchQuery.trim() && (
+                {(tamilmvSearchQuery || (searchQuery && searchQuery.trim())) && (
                   <button
                     type="button"
                     onClick={() => {
+                      const q = tamilmvSearchQuery || searchQuery;
                       setViewMode('global');
-                      executeGlobalSearch(searchQuery);
+                      executeGlobalSearch(q);
                     }}
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00DF81] text-[#071911] shadow-lg shadow-emerald-500/20 hover:bg-[#00c572] transition-all active:scale-95"
                   >
@@ -1145,18 +1278,38 @@ export default function MirrorMoviesView({
                   </button>
                 )}
 
-                {searchQuery && searchQuery.trim() && viewMode === 'top' && (
+                {tamilmvSearchQuery && (
                   <button
                     type="button"
-                    onClick={() => setViewMode('all')}
+                    onClick={() => {
+                      setTamilmvSearchResults([]);
+                      setTamilmvHasSearched(false);
+                      setTamilmvSearchQuery('');
+                      setSearchInput('');
+                      onSearchChange?.('');
+                    }}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
                   >
                     <Film className="w-4 h-4" />
-                    <span>Check All Releases</span>
+                    <span>View All Latest Releases</span>
                   </button>
                 )}
 
-                {(!searchQuery || !searchQuery.trim()) && (
+                {!tamilmvSearchQuery && searchQuery && searchQuery.trim() && viewMode === 'top' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('all');
+                      executeTamilMVSearch(searchQuery);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Search 1TamilMV All Releases</span>
+                  </button>
+                )}
+
+                {!tamilmvSearchQuery && (!searchQuery || !searchQuery.trim()) && (
                   <button
                     onClick={() => fetchMovies(true)}
                     disabled={rediscovering}
@@ -1171,7 +1324,7 @@ export default function MirrorMoviesView({
           )}
 
           {/* 1TAMILMV - GRID VIEW (NO PHOTOS - CLEAN COMPACT DESIGN) */}
-          {!loading && layoutMode === 'grid' && displayedMovies.length > 0 && (
+          {!loading && !tamilmvSearching && layoutMode === 'grid' && displayedMovies.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {displayedMovies.map((movie) => {
                 const activeLang = selectedLangMap[movie.id] || 'ALL';
@@ -1440,7 +1593,7 @@ export default function MirrorMoviesView({
           )}
 
           {/* 1TAMILMV - LIST VIEW (STRUCTURED HIGH-DENSITY EXPANDABLE CARDS) */}
-          {!loading && layoutMode === 'list' && displayedMovies.length > 0 && (
+          {!loading && !tamilmvSearching && layoutMode === 'list' && displayedMovies.length > 0 && (
             <div className="space-y-3.5">
               {displayedMovies.map((movie) => {
                 const activeLang = selectedLangMap[movie.id] || 'ALL';

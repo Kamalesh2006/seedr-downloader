@@ -346,7 +346,6 @@ export default function SettingsView({
                 </p>
               </div>
             </div>
-
             <Link
               to="/tv"
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all self-start sm:self-auto shrink-0"

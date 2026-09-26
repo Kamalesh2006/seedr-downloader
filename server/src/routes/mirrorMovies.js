@@ -3,10 +3,33 @@ const router = express.Router();
 const movieScraper = require('../services/movieScraperService');
 const mirrorDiscovery = require('../services/mirrorDiscoveryService');
 
+// GET /api/mirror/search
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.json({ success: true, movies: [], count: 0, query: '' });
+    }
+    const data = await movieScraper.searchMovies(q.trim());
+    res.json(data);
+  } catch (error) {
+    console.error('[MirrorRoute] Search failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to search 1TamilMV releases'
+    });
+  }
+});
+
 // GET /api/mirror/movies
 router.get('/movies', async (req, res) => {
   try {
-    const forceRefresh = req.query.refresh === 'true';
+    const { q, refresh } = req.query;
+    if (q && q.trim()) {
+      const data = await movieScraper.searchMovies(q.trim());
+      return res.json(data);
+    }
+    const forceRefresh = refresh === 'true';
     const data = await movieScraper.getMovies(forceRefresh);
     res.json(data);
   } catch (error) {

@@ -15,30 +15,7 @@ for (const provider of config.searchProviders || []) {
   }
 }
 
-function getProxyAgent() {
-  const proxyUrl = process.env.PROXY_URL || config.proxyUrl || config.proxy;
-  if (!proxyUrl || typeof proxyUrl !== 'string' || !proxyUrl.trim()) return null;
-  const clean = proxyUrl.trim();
-  try {
-    if (clean.startsWith('socks')) {
-      return new SocksProxyAgent(clean);
-    }
-    return new HttpsProxyAgent(clean);
-  } catch (err) {
-    console.warn('[SearchService] Invalid proxy configuration:', clean, err.message);
-    return null;
-  }
-}
-
-function getAxiosNetworkConfig() {
-  const agent = getProxyAgent();
-  if (agent) {
-    return { httpsAgent: agent, httpAgent: agent };
-  }
-  // When no custom proxy is configured, explicitly disable default env proxy inheritance
-  // to avoid local corporate proxies (e.g. 127.0.0.1:3128) from interfering with torrent traffic
-  return { proxy: false };
-}
+const { getAxiosNetworkConfig } = require('../utils/networkHelper');
 
 function parseSizeToBytes(sizeStr) {
   if (!sizeStr) return 0;
@@ -526,7 +503,7 @@ class SearchService {
   async search1TamilMV(query) {
     try {
       const searchPromise = movieScraperService.searchTorrents(query);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('1TamilMV timeout')), 4500));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('1TamilMV timeout')), 7000));
       const res = await Promise.race([searchPromise, timeoutPromise]);
       return Array.isArray(res) ? res : [];
     } catch (e) {
