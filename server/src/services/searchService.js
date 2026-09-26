@@ -120,88 +120,179 @@ class SearchService {
 
   async searchThePirateBay(query, debugLog = null) {
     const tpbCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'thepiratebay') || {};
-    const mirrors = (tpbCfg.urls && tpbCfg.urls.length > 0)
+    
+    // Support custom environment overrides for API / Worker / Reverse Proxy
+    const envCustomMirrors = [
+      process.env.APIBAY_URL,
+      process.env.TPB_API_URL,
+      process.env.TPB_MIRROR_URL
+    ].filter(u => u && typeof u === 'string' && u.trim());
+
+    const defaultMirrors = [
+      'https://apibay.org',
+      'https://thepiratebay10.org',
+      'https://tpb.party',
+      'https://thehiddenbay.com',
+      'https://piratebayproxy.live',
+      'https://pirateproxy.live',
+      'https://thepiratebay.zone',
+      'https://thepiratebay0.org'
+    ];
+
+    const configuredMirrors = (tpbCfg.urls && tpbCfg.urls.length > 0)
       ? tpbCfg.urls
-      : ['https://apibay.org'];
+      : defaultMirrors;
+
+    const mirrors = [...new Set([...envCustomMirrors, ...configuredMirrors])];
 
     const networkCfg = getAxiosNetworkConfig();
     const cleanQuery = query.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim() || query.trim();
 
-    const fetchFromMirror = async (mirror, q) => {
-      const cleanMirror = mirror.replace(/\/+$/, '');
-      let url;
-      if (cleanMirror.includes('api.php')) {
-        url = `${cleanMirror}${encodeURIComponent('/q.php?q=' + q)}`;
-      } else {
-        url = `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`;
-      }
-
+    // Helper: Parse HTML search result table from TPB proxy / mirror
+    const parseTpbHtml = (html) => {
       try {
-        const res = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://thepiratebay.org/',
-            'Origin': 'https://thepiratebay.org',
-            'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'cross-site'
-          },
-          ...networkCfg,
-          signal: AbortSignal.timeout(6000)
-        });
+        const $ = cheerio.load(html);
+        const results = [];
 
-        if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
-          const results = [];
-          for (const item of res.data) {
-            if (!item.info_hash) continue;
-            const sizeBytes = parseInt(item.size, 10) || 0;
-            let sizeStr = 'Unknown';
-            if (sizeBytes >= 1024 * 1024 * 1024) {
-              sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-            } else if (sizeBytes >= 1024 * 1024) {
-              sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
-            } else if (sizeBytes > 0) {
-              sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+        $('table#searchResult tr, table tr').each((_, el) => {
+          const $row = $(el);
+          const magnetLink = $row.find('a[href^="magnet:"]').first().attr('href');
+          if (!magnetLink) return;
+
+          const titleLink = $row.find('.detName a, a.detLink, td:nth-child(2) a').first();
+          const title = titleLink.text().trim();
+          if (!title) return;
+
+          let seeds = 0;
+          let leeches = 0;
+          const alignRightTds = $row.find('td[align="right"]');
+          if (alignRightTds.length >= 2) {
+            seeds = parseInt($(alignRightTds[0]).text().trim(), 10) || 0;
+            leeches = parseInt($(alignRightTds[1]).text().trim(), 10) || 0;
+          } else {
+            const tds = $row.find('td');
+            if (tds.length >= 4) {
+              seeds = parseInt($(tds[tds.length - 2]).text().trim(), 10) || 0;
+              leeches = parseInt($(tds[tds.length - 1]).text().trim(), 10) || 0;
             }
+          }
 
-            const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce`;
-
-            results.push({
-              title: item.name,
-              size: sizeStr,
-              sizeBytes,
-              seeds: parseInt(item.seeders, 10) || 0,
-              leeches: parseInt(item.leechers, 10) || 0,
-              magnet,
-              provider: 'ThePirateBay',
-              time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
+          let sizeStr = 'Unknown';
+          const detDesc = $row.find('.detDesc, font.detDesc').text();
+          const sizeMatch = detDesc.match(/Size\s+([\d.]+\s*(?:[KMGT]i?B|bytes))/i);
+          if (sizeMatch) {
+            sizeStr = sizeMatch[1].trim();
+          } else {
+            $row.find('td').each((_, td) => {
+              const text = $(td).text().trim();
+              if (/^[\d.]+\s*(?:[KMGT]i?B|bytes)$/i.test(text)) {
+                sizeStr = text;
+              }
             });
           }
-          if (results.length > 0) {
-            if (debugLog) debugLog.push({ mirror, status: res.status, count: results.length });
-            return results;
+
+          results.push({
+            title,
+            size: sizeStr,
+            sizeBytes: parseSizeToBytes(sizeStr),
+            seeds,
+            leeches,
+            magnet: magnetLink,
+            provider: 'ThePirateBay'
+          });
+        });
+
+        return results;
+      } catch (err) {
+        return [];
+      }
+    };
+
+    const fetchFromMirror = async (mirror, q) => {
+      const cleanMirror = mirror.replace(/\/+$/, '');
+      const isApibay = cleanMirror.includes('apibay') || cleanMirror.includes('api.php') || envCustomMirrors.includes(mirror);
+
+      // Candidate request targets for this mirror:
+      // 1. JSON API endpoint (/q.php?q=...)
+      // 2. HTML search page (/search/.../1/99/0) for mirrors serving HTML
+      const targets = [];
+      if (cleanMirror.includes('api.php')) {
+        targets.push({ url: `${cleanMirror}${encodeURIComponent('/q.php?q=' + q)}`, isJson: true });
+      } else if (isApibay) {
+        targets.push({ url: `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`, isJson: true });
+      } else {
+        targets.push({ url: `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`, isJson: true });
+        targets.push({ url: `${cleanMirror}/search/${encodeURIComponent(q)}/1/99/0`, isJson: false });
+      }
+
+      for (const target of targets) {
+        try {
+          const res = await axios.get(target.url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': target.isJson ? 'application/json, text/plain, */*' : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Referer': `${cleanMirror}/`
+            },
+            ...networkCfg,
+            signal: AbortSignal.timeout(4500)
+          });
+
+          // Check if response is JSON array (Apibay format)
+          if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].id !== '0' && res.data[0].name !== 'No results returned') {
+            const results = [];
+            for (const item of res.data) {
+              if (!item.info_hash) continue;
+              const sizeBytes = parseInt(item.size, 10) || 0;
+              let sizeStr = 'Unknown';
+              if (sizeBytes >= 1024 * 1024 * 1024) {
+                sizeStr = `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+              } else if (sizeBytes >= 1024 * 1024) {
+                sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
+              } else if (sizeBytes > 0) {
+                sizeStr = `${(sizeBytes / 1024).toFixed(1)} KB`;
+              }
+
+              const magnet = `magnet:?xt=urn:btih:${item.info_hash}&dn=${encodeURIComponent(item.name)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce`;
+
+              results.push({
+                title: item.name,
+                size: sizeStr,
+                sizeBytes,
+                seeds: parseInt(item.seeders, 10) || 0,
+                leeches: parseInt(item.leechers, 10) || 0,
+                magnet,
+                provider: 'ThePirateBay',
+                time: item.added ? new Date(parseInt(item.added, 10) * 1000).toLocaleDateString() : undefined
+              });
+            }
+            if (results.length > 0) {
+              if (debugLog) debugLog.push({ mirror, status: res.status, format: 'json', count: results.length });
+              return results;
+            }
+          }
+
+          // Check if response is HTML search table
+          if (typeof res.data === 'string' && (res.data.includes('searchResult') || res.data.includes('magnet:?'))) {
+            const htmlResults = parseTpbHtml(res.data);
+            if (htmlResults.length > 0) {
+              if (debugLog) debugLog.push({ mirror, status: res.status, format: 'html', count: htmlResults.length });
+              return htmlResults;
+            }
+          }
+        } catch (err) {
+          if (debugLog) {
+            debugLog.push({
+              mirror,
+              url: target.url,
+              error: err.message,
+              statusCode: err.response?.status
+            });
           }
         }
-        if (debugLog) debugLog.push({ mirror, status: res.status, raw: typeof res.data === 'string' ? res.data.slice(0, 200) : res.data });
-        throw new Error('No valid results returned from ' + mirror);
-      } catch (err) {
-        if (debugLog) {
-          debugLog.push({
-            mirror,
-            error: err.message,
-            statusCode: err.response?.status,
-            cfRay: err.response?.headers?.['cf-ray'],
-            server: err.response?.headers?.server,
-            bodySnippet: typeof err.response?.data === 'string' ? err.response?.data.slice(0, 200) : err.response?.data
-          });
-        }
-        throw err;
       }
+
+      throw new Error('No valid results returned from ' + mirror);
     };
 
     // Query mirrors in parallel using Promise.any
@@ -220,12 +311,12 @@ class SearchService {
       }
     }
 
-    // Fallback to TorrentSearchApi for ThePirateBay if direct apibay failed
+    // Fallback to TorrentSearchApi for ThePirateBay if direct mirrors failed
     try {
       const providerInstance = TorrentSearchApi.getProvider('ThePirateBay', false);
       if (providerInstance) {
         const searchPromise = providerInstance.search(cleanQuery, 'All', Math.max(config.maxResults || 25, 40));
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
         const results = await Promise.race([searchPromise, timeoutPromise]);
         if (Array.isArray(results) && results.length > 0) {
           const mapped = results.filter(t => t.magnet || (t.link && t.link.startsWith('magnet:?'))).map(t => ({
