@@ -19,7 +19,6 @@ import RecentLinksView from './components/RecentLinksView';
 import MirrorMoviesView from './components/MirrorMoviesView';
 import SettingsView from './components/SettingsView';
 import TelegramBotView from './components/TelegramBotView';
-import AndroidTVCompanionView from './components/AndroidTVCompanionView';
 import UserGuideCard from './components/UserGuideCard';
 import BottomNav from './components/BottomNav';
 import useSearch from './hooks/useSearch';
@@ -484,17 +483,9 @@ function App() {
                 } 
               />
 
-              {/* 7. Android TV Companion Receiver */}
-              <Route 
-                path="/tv" 
-                element={
-                  <AndroidTVCompanionView 
-                    isDarkMode={isDarkMode} 
-                    onToggleTheme={() => setIsDarkMode(!isDarkMode)} 
-                  />
-                } 
-              />
-              <Route path="/android-tv" element={<Navigate to="/tv" replace />} />
+              {/* 7. Android TV routes redirect to Home */}
+              <Route path="/tv" element={<Navigate to="/" replace />} />
+              <Route path="/android-tv" element={<Navigate to="/" replace />} />
 
               {/* Catch-all redirect to Home */}
               <Route path="*" element={<Navigate to="/" replace />} />

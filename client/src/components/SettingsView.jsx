@@ -18,7 +18,6 @@ import {
   Radio,
   Play
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import api from '../api/client';
 import StorageCard from './StorageCard';
 import { formatBytes } from '../utils/magnet';
@@ -346,13 +345,6 @@ export default function SettingsView({
                 </p>
               </div>
             </div>
-            <Link
-              to="/tv"
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all self-start sm:self-auto shrink-0"
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span>Open TV Companion Mode</span>
-            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

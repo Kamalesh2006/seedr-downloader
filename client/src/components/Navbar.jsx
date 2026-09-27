@@ -4,8 +4,7 @@ import {
   Moon,
   Settings,
   Send,
-  Bot,
-  Tv
+  Bot
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -40,20 +39,6 @@ export default function Navbar({
 
       {/* Right: Action Controls */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Android TV Mode Link */}
-        <Link
-          to="/tv"
-          className={`p-2 rounded-xl transition-all active:scale-95 ${
-            isDarkMode 
-              ? 'text-slate-400 hover:text-orange-400 hover:bg-slate-800/60' 
-              : 'text-slate-500 hover:text-orange-600 hover:bg-slate-100'
-          }`}
-          title="Android TV Companion Mode (VLC)"
-          aria-label="Android TV"
-        >
-          <Tv className="w-5 h-5 sm:w-4 sm:h-4 stroke-[1.75]" />
-        </Link>
-
         {/* Telegram Bot Link */}
         <Link
           to="/bot"
