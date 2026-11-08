@@ -1,19 +1,44 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sun, 
   Moon,
   Settings,
-  Send,
-  Bot
+  Bot,
+  User,
+  LogIn,
+  LogOut,
+  ChevronDown,
+  UserCheck,
+  Shield,
+  Sparkles,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { formatBytes } from '../utils/magnet';
 
 export default function Navbar({ 
   isDarkMode = true,
-  onToggleTheme
+  onToggleTheme,
+  onOpenAuth
 }) {
+  const { isGuest, hasUserSession, user, logout, switchToGuest, switchToUser } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="h-14 sm:h-16 bg-[#070B14]/90 backdrop-blur-md border-b border-[#1E293B] px-3.5 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none">
+    <header className="h-14 sm:h-16 bg-[#070B14]/90 backdrop-blur-md border-b border-[#1E293B] px-3 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Left: Brand Logo */}
       <Link 
         to="/" 
@@ -37,8 +62,134 @@ export default function Navbar({
         </span>
       </Link>
 
-      {/* Right: Action Controls */}
-      <div className="flex items-center gap-1 sm:gap-2">
+      {/* Right: Action Controls & User Account Switcher */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
+        
+        {/* User / Guest Account Pill */}
+        <div className="relative" ref={dropdownRef}>
+          {isGuest ? (
+            <div className="flex items-center gap-1">
+              {hasUserSession ? (
+                // Guest mode active, but user has signed in previously
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 dark:text-amber-400 text-xs font-semibold transition-all active:scale-95"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="hidden sm:inline">Guest View</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                // No personal session: show Guest pill with Sign In button
+                <button
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E293B] bg-slate-100/80 dark:bg-slate-800/60 hover:border-[#00DF81]/50 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all active:scale-95 group"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#00DF81] transition-colors" />
+                  <span>Guest</span>
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-md bg-[#00DF81]/15 text-[#00DF81] text-[10px] font-bold ml-1">
+                    Log In
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : (
+            // User Mode Active: show personal account pill
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-[#00DF81]/30 bg-[#00DF81]/10 hover:bg-[#00DF81]/15 text-slate-900 dark:text-white text-xs font-semibold transition-all active:scale-95"
+            >
+              <span className="w-2 h-2 rounded-full bg-[#00DF81]" />
+              <span className="max-w-[100px] sm:max-w-[140px] truncate text-slate-900 dark:text-white font-bold">
+                {user?.username || user?.email || 'My Account'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          )}
+
+          {/* Account Menu Dropdown */}
+          {dropdownOpen && (
+            <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              {/* Account Summary */}
+              <div className="p-3 bg-slate-50 dark:bg-[#090F1C] rounded-xl border border-slate-100 dark:border-[#1E293B] mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    {isGuest ? 'Current: Guest Mode' : 'Connected Seedr'}
+                  </span>
+                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                    user?.premium 
+                      ? 'bg-amber-500/15 text-amber-500 border border-amber-500/20' 
+                      : 'bg-[#00DF81]/15 text-[#00DF81]'
+                  }`}>
+                    {user?.packageName || (user?.premium ? 'Premium' : 'Free 2GB+')}
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {isGuest ? 'Shared Server Storage (4.5 GB)' : (user?.email || 'Personal Seedr Cloud')}
+                </p>
+                {!isGuest && user?.spaceMax > 0 && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Storage: {formatBytes(user.spaceUsed || 0)} / {formatBytes(user.spaceMax || 0)}
+                  </p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-1">
+                {isGuest ? (
+                  <>
+                    {hasUserSession && (
+                      <button
+                        onClick={() => {
+                          switchToUser();
+                          setDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-[#00DF81]" />
+                        <span>Switch to My Account</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        onOpenAuth();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#00DF81] hover:bg-[#00DF81]/10 rounded-xl transition-colors text-left"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Connect Personal Seedr</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        switchToGuest();
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Switch to Guest View</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors text-left"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log Out</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Telegram Bot Link */}
         <Link
           to="/bot"

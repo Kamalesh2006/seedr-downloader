@@ -274,67 +274,82 @@ class DownloadQueueService {
     return clean.split(/\s+/).filter(t => t.length >= 2);
   }
 
+  isGenericName(name) {
+    if (!name || typeof name !== 'string') return true;
+    const n = this.normalizeTitle(name);
+    if (!n) return true;
+    if (
+      n === 'magnet download' ||
+      n === 'torrent download' ||
+      n === 'scheduled torrent' ||
+      n === 'cloud torrent' ||
+      n === 'cloud task' ||
+      n === 'file' ||
+      n === 'download' ||
+      n === 'torrent'
+    ) {
+      return true;
+    }
+    if (/^torrent\s*[a-f0-9]+(\.\.\.)?$/i.test(n)) {
+      return true;
+    }
+    return false;
+  }
+
   isItemInCloud(queueItem, folderData) {
     if (!queueItem || !folderData) return false;
     const qHash = this.extractMagnetHash(queueItem.magnet);
     const qName = queueItem.name || '';
     const normQ = this.normalizeTitle(qName);
-    const qTokens = this.cleanTitleTokens(qName);
+    const isGeneric = this.isGenericName(qName);
 
     const activeTorrents = folderData.torrents || [];
     const activeTasks = folderData.tasks || [];
     const completedFolders = folderData.folders || [];
     const completedFiles = folderData.files || [];
 
-    // 1. Check active downloading torrents
+    // 1. Check active downloading torrents by exact info hash or exact non-generic title
     for (const t of activeTorrents) {
       const tHash = (t.torrent_hash || t.hash || '').toLowerCase();
       if (qHash && tHash && qHash === tHash) return true;
-      const normT = this.normalizeTitle(t.name || t.title || '');
-      if (normQ && normT && normQ === normT) return true;
+      if (!isGeneric) {
+        const normT = this.normalizeTitle(t.name || t.title || '');
+        if (normQ && normT && normQ === normT) return true;
+      }
     }
 
     // 2. Check active tasks
     for (const task of activeTasks) {
-      const normTask = this.normalizeTitle(task.name || task.title || '');
-      if (normQ && normTask && normQ === normTask) return true;
+      const taskHash = (task.torrent_hash || task.hash || '').toLowerCase();
+      if (qHash && taskHash && qHash === taskHash) return true;
+      if (!isGeneric) {
+        const normTask = this.normalizeTitle(task.name || task.title || '');
+        if (normQ && normTask && normQ === normTask) return true;
+      }
     }
 
-    // 3. Check completed folders and files
+    // 3. Check active magnet registry
     const allCloudItems = [...completedFolders, ...completedFiles];
-    for (const f of allCloudItems) {
-      const fName = f.name || f.path || f.title || '';
-      const normF = this.normalizeTitle(fName);
-
-      // Exact normalized title match
-      if (normQ && normF && normQ === normF) return true;
-
-      // Long substring match
-      if (normQ.length >= 15 && normF.length >= 15) {
-        if (normQ.includes(normF) || normF.includes(normQ)) return true;
-      }
-
-      // Content token overlap match
-      if (qTokens.length >= 2) {
-        const fTokens = this.cleanTitleTokens(fName);
-        if (fTokens.length >= 2) {
-          let matches = 0;
-          for (const tok of qTokens) {
-            if (fTokens.includes(tok)) matches++;
-          }
-          const overlap = matches / Math.min(qTokens.length, fTokens.length);
-          if (overlap >= 0.8 && matches >= 2) return true;
-        }
-      }
-    }
-
-    // 4. Check active magnet registry
     if (qHash && magnetStorage.findActiveMagnet) {
       const activeRec = magnetStorage.findActiveMagnet({ hash: qHash, name: qName });
       if (activeRec && activeRec.id) {
         const existsInCloud = allCloudItems.some(f => String(f.id) === String(activeRec.id)) ||
                               activeTorrents.some(t => String(t.id) === String(activeRec.id));
         if (existsInCloud) return true;
+      }
+    }
+
+    // 4. Check completed folders and files (only exact name match, never generic placeholders)
+    if (!isGeneric) {
+      for (const f of allCloudItems) {
+        const fHash = (f.hash || f.torrent_hash || '').toLowerCase();
+        if (qHash && fHash && qHash === fHash) return true;
+
+        const fName = f.name || f.path || f.title || '';
+        if (!this.isGenericName(fName)) {
+          const normF = this.normalizeTitle(fName);
+          if (normQ && normF && normQ === normF) return true;
+        }
       }
     }
 

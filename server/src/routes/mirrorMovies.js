@@ -6,11 +6,12 @@ const mirrorDiscovery = require('../services/mirrorDiscoveryService');
 // GET /api/mirror/search
 router.get('/search', async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, page } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     if (!q || !q.trim()) {
-      return res.json({ success: true, movies: [], count: 0, query: '' });
+      return res.json({ success: true, movies: [], count: 0, query: '', page: pageNum, totalPages: 1 });
     }
-    const data = await movieScraper.searchMovies(q.trim());
+    const data = await movieScraper.searchMovies(q.trim(), pageNum);
     res.json(data);
   } catch (error) {
     console.error('[MirrorRoute] Search failed:', error.message);
@@ -24,13 +25,14 @@ router.get('/search', async (req, res) => {
 // GET /api/mirror/movies
 router.get('/movies', async (req, res) => {
   try {
-    const { q, refresh } = req.query;
+    const { q, refresh, page } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     if (q && q.trim()) {
-      const data = await movieScraper.searchMovies(q.trim());
+      const data = await movieScraper.searchMovies(q.trim(), pageNum);
       return res.json(data);
     }
     const forceRefresh = refresh === 'true';
-    const data = await movieScraper.getMovies(forceRefresh);
+    const data = await movieScraper.getMovies(forceRefresh, pageNum);
     res.json(data);
   } catch (error) {
     console.error('[MirrorRoute] Failed to fetch movies:', error.message);

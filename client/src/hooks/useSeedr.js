@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/client';
 import useRecentMagnets from './useRecentMagnets';
-import { getMagnetDisplayName } from '../utils/magnet';
+import { getMagnetDisplayName, sanitizeAndExtractMagnet } from '../utils/magnet';
 
 export default function useSeedr() {
   const [activeTransfers, setActiveTransfers] = useState([]);
@@ -138,14 +138,15 @@ export default function useSeedr() {
 
   const addMagnet = async (magnet, name = '', size = null) => {
     try {
-      const parsedName = name || getMagnetDisplayName(magnet);
+      const cleanMagnet = sanitizeAndExtractMagnet(magnet);
+      const parsedName = name || getMagnetDisplayName(cleanMagnet);
       if (registerActiveMagnet) {
-        registerActiveMagnet({ magnet, name: parsedName, size });
+        registerActiveMagnet({ magnet: cleanMagnet, name: parsedName, size });
       }
-      const { data } = await api.post('/seedr/add', { magnet, name: parsedName, size });
+      const { data } = await api.post('/seedr/add', { magnet: cleanMagnet, name: parsedName, size });
       if (data && (data.user_torrent_id || data.id) && registerActiveMagnet) {
         registerActiveMagnet({
-          magnet,
+          magnet: cleanMagnet,
           name: data.title || parsedName,
           size,
           id: data.user_torrent_id || data.id,

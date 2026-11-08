@@ -2,14 +2,45 @@
  * Input validation and sanitization middleware for open public API
  */
 
-// Validate magnet link
+// Validate and sanitize magnet link
 function validateMagnet(req, res, next) {
-  const { magnet } = req.body;
+  let { magnet } = req.body;
   if (!magnet || typeof magnet !== 'string') {
     return res.status(400).json({ error: 'Magnet link is required', code: 'INVALID_INPUT' });
   }
 
-  const trimmed = magnet.trim();
+  let trimmed = magnet.trim();
+
+  // Strip zero-width and invisible unicode characters (frequently inserted on mobile keyboards/copy-paste)
+  trimmed = trimmed.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00A0]/g, ' ').trim();
+
+  // Strip wrapping quotes
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+
+  // Decode URL-encoded magnet (e.g. starts with magnet%3A or %6D%61%67%6E%65%74)
+  if (/^magnet%3A/i.test(trimmed) || /^%6D%61%67%6E%65%74/i.test(trimmed)) {
+    try {
+      trimmed = decodeURIComponent(trimmed);
+    } catch (e) {}
+  }
+
+  // Extract magnet:?xt= if surrounded by extra text (common when copying from Telegram or web forums on mobile)
+  const match = trimmed.match(/magnet:\?[^\s"'<>]+/i);
+  if (match) {
+    trimmed = match[0].trim();
+  } else if (/^magnet:xt=/i.test(trimmed)) {
+    trimmed = trimmed.replace(/^magnet:xt=/i, 'magnet:?xt=');
+  } else if (/^[a-fA-F0-9]{40}$/.test(trimmed) || /^[a-zA-Z2-7]{32}$/.test(trimmed)) {
+    trimmed = `magnet:?xt=urn:btih:${trimmed.toLowerCase()}`;
+  } else {
+    // Check if raw 40-character hex hash is inside the text
+    const hexMatch = trimmed.match(/\b([a-fA-F0-9]{40})\b/);
+    if (hexMatch) {
+      trimmed = `magnet:?xt=urn:btih:${hexMatch[1].toLowerCase()}`;
+    }
+  }
 
   // Max character length check to prevent buffer overflow/DoS
   if (trimmed.length > 4096) {
@@ -18,7 +49,7 @@ function validateMagnet(req, res, next) {
 
   // Must strictly be a BitTorrent magnet link starting with magnet:?
   if (!trimmed.toLowerCase().startsWith('magnet:?')) {
-    return res.status(400).json({ error: 'Invalid URL format. Only standard magnet:? URIs are accepted.', code: 'INVALID_MAGNET' });
+    return res.status(400).json({ error: 'Invalid URL format. Only standard magnet:? URIs or torrent info hashes are accepted.', code: 'INVALID_MAGNET' });
   }
 
   // Must contain xt=urn:btih: with valid hash

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/client';
-import { isItemInCloud } from '../utils/magnet';
+import { isItemInCloud, sanitizeAndExtractMagnet } from '../utils/magnet';
 
 const QUEUE_STORAGE_KEY = 'seedr_client_queue';
 
@@ -58,7 +58,8 @@ export default function useQueue() {
   const addToQueue = async (magnet, name = '', size = null) => {
     setLoading(true);
     try {
-      const { data } = await api.post('/queue/add', { magnet, name, size });
+      const cleanMagnet = sanitizeAndExtractMagnet(magnet);
+      const { data } = await api.post('/queue/add', { magnet: cleanMagnet, name, size });
       const updatedQueue = data.queue || (data.item ? [...queue, data.item] : queue);
       setQueue(updatedQueue);
       syncLocal(updatedQueue);

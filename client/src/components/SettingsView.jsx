@@ -16,10 +16,16 @@ import {
   Tv,
   Wifi,
   Radio,
-  Play
+  Play,
+  User,
+  LogIn,
+  LogOut,
+  ArrowRightLeft,
+  KeyRound
 } from 'lucide-react';
 import api from '../api/client';
 import StorageCard from './StorageCard';
+import { useAuth } from '../context/AuthContext';
 import { formatBytes } from '../utils/magnet';
 import { 
   getSavedAndroidTvIp, 
@@ -34,8 +40,10 @@ export default function SettingsView({
   storage = { spaceUsed: 0, spaceMax: 0 }, 
   onShowToast,
   isDarkMode,
-  onToggleTheme 
+  onToggleTheme,
+  onOpenAuth
 }) {
+  const { isGuest, hasUserSession, user, logout, switchToGuest, switchToUser } = useAuth();
   const [keyword, setKeyword] = useState('1tamilmv');
   const [searchEngine, setSearchEngine] = useState('bing');
   const [fallbackDomain, setFallbackDomain] = useState('');
@@ -171,33 +179,94 @@ export default function SettingsView({
         </div>
       </div>
 
-      {/* SECTION 1: Cloud Storage Details */}
+      {/* SECTION 1: Cloud Storage & Account Details */}
       <div className="space-y-3">
         <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
           <HardDrive className="w-4 h-4 text-[#00DF81]" />
-          <span>Cloud Storage Details</span>
+          <span>Cloud Storage & Account</span>
         </h2>
 
-        <StorageCard storage={storage} />
+        <StorageCard 
+          storage={storage} 
+          isGuest={isGuest}
+          user={user}
+        />
 
         <div className="bg-white dark:bg-[#111927] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-[#1E293B] shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-[#00DF81]/10 text-[#00DF81] rounded-xl border border-[#00DF81]/20">
-                <HardDrive className="w-5 h-5" />
+              <div className={`p-3 rounded-xl border ${
+                !isGuest 
+                  ? 'bg-[#00DF81]/10 text-[#00DF81] border-[#00DF81]/20' 
+                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+              }`}>
+                {!isGuest ? <KeyRound className="w-5 h-5" /> : <User className="w-5 h-5" />}
               </div>
               <div>
-                <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Free Tier Account</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Total capacity: {formatBytes(max)}</p>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                    {!isGuest ? (user?.email || 'Personal Seedr Account') : 'Guest Mode (Shared)'}
+                  </h4>
+                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                    !isGuest 
+                      ? 'bg-[#00DF81]/15 text-[#00DF81]' 
+                      : 'bg-amber-500/15 text-amber-500'
+                  }`}>
+                    {!isGuest ? (user?.packageName || 'Connected') : 'Shared Pool'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {!isGuest 
+                    ? `Capacity: ${formatBytes(storage.spaceMax || max)} (Private Cloud)` 
+                    : 'Browsing using shared guest storage. Files are visible to all guest users.'}
+                </p>
               </div>
             </div>
-            <span className="text-xs sm:text-sm font-bold text-[#00DF81] font-mono">
-              {formatBytes(used)} Used
-            </span>
+
+            {/* Account Action Buttons */}
+            <div className="flex items-center gap-2">
+              {isGuest ? (
+                <>
+                  {hasUserSession && (
+                    <button
+                      onClick={switchToUser}
+                      className="px-3 py-1.5 rounded-xl border border-[#00DF81]/30 bg-[#00DF81]/10 text-[#00DF81] hover:bg-[#00DF81]/20 text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Switch to My Account</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={onOpenAuth}
+                    className="px-3 py-1.5 rounded-xl bg-[#00DF81] hover:bg-[#00DF81]/90 text-slate-950 text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-[#00DF81]/15"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Connect Seedr Account</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={switchToGuest}
+                    className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>Switch to Guest View</span>
+                  </button>
+                  <button
+                    onClick={logout}
+                    className="px-3 py-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-200 dark:border-[#1E293B] flex items-center justify-between text-xs">
-            <span className="text-slate-500 dark:text-slate-400">Want more than 4.5 GB cloud storage?</span>
+            <span className="text-slate-500 dark:text-slate-400">Want more cloud storage capacity?</span>
             <a
               href="https://www.seedr.cc/premium"
               target="_blank"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Link as LinkIcon, 
   Loader2, 
@@ -7,13 +7,14 @@ import {
   X,
   CloudDownload,
   Zap,
+  Clipboard,
   CheckCircle2
 } from 'lucide-react';
-import { extractMagnetName, isValidMagnet } from '../utils/magnet';
+import { extractMagnetName, isValidMagnet, sanitizeAndExtractMagnet } from '../utils/magnet';
 
 export default function SearchBar({ 
   onAddMagnet, 
-  loading,
+  loading = false,
   prefilledMagnet = null,
   prefilledName = null,
   isQueueTab = false
@@ -21,12 +22,15 @@ export default function SearchBar({
   const [magnet, setMagnet] = useState('');
   const [customName, setCustomName] = useState('');
   const [detectedName, setDetectedName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef(null);
 
   // Handle prefilled magnet link
   useEffect(() => {
     if (prefilledMagnet) {
-      setMagnet(prefilledMagnet);
-      const name = prefilledName || extractMagnetName(prefilledMagnet);
+      const clean = sanitizeAndExtractMagnet(prefilledMagnet);
+      setMagnet(clean);
+      const name = prefilledName || extractMagnetName(clean);
       setDetectedName(name);
       setCustomName(name);
     }
@@ -46,14 +50,66 @@ export default function SearchBar({
     }
   }, [magnet]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (magnet.trim()) {
-      const finalName = customName.trim() || detectedName || 'Magnet Download';
-      onAddMagnet(magnet.trim(), finalName);
+  const handlePasteClipboard = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          const cleaned = sanitizeAndExtractMagnet(text);
+          setMagnet(cleaned);
+          const name = extractMagnetName(cleaned);
+          setDetectedName(name);
+          setCustomName(name);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Clipboard read not permitted or failed:', err);
+    }
+    textareaRef.current?.focus();
+  };
+
+  const handlePaste = (e) => {
+    try {
+      const pasted = e.clipboardData?.getData('text');
+      if (pasted) {
+        const cleaned = sanitizeAndExtractMagnet(pasted);
+        if (cleaned && cleaned !== pasted) {
+          e.preventDefault();
+          setMagnet(cleaned);
+          const name = extractMagnetName(cleaned);
+          setDetectedName(name);
+          if (!customName || customName === detectedName) {
+            setCustomName(name);
+          }
+        }
+      }
+    } catch (_) {}
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const cleanMagnet = sanitizeAndExtractMagnet(magnet);
+    if (!cleanMagnet) return;
+
+    const finalName = customName.trim() || detectedName || extractMagnetName(cleanMagnet) || 'Magnet Download';
+    setIsSubmitting(true);
+    try {
+      await onAddMagnet(cleanMagnet, finalName);
       setMagnet('');
       setCustomName('');
       setDetectedName('');
+    } catch (err) {
+      console.error('Failed to add magnet', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -61,7 +117,11 @@ export default function SearchBar({
     setMagnet('');
     setCustomName('');
     setDetectedName('');
+    textareaRef.current?.focus();
   };
+
+  const isBusy = loading || isSubmitting;
+  const isInputValid = isValidMagnet(magnet);
 
   return (
     <div className={`bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 ${isQueueTab ? 'mb-0' : 'mt-2 mb-6'}`}>
@@ -139,24 +199,46 @@ export default function SearchBar({
           <div className="flex items-start gap-2 sm:gap-2.5">
             <LinkIcon className="w-4 h-4 text-slate-400 dark:text-slate-500 mt-1 shrink-0" />
             <textarea
+              ref={textareaRef}
               rows={isQueueTab ? 2 : 3}
               value={magnet}
               onChange={(e) => setMagnet(e.target.value)}
+              onPaste={handlePaste}
+              onKeyDown={handleKeyDown}
               placeholder="Paste torrent or magnet link here (e.g. magnet:?xt=urn:btih:...)..."
               className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs sm:text-sm p-1 sm:p-2 focus:outline-none resize-none font-mono"
-              disabled={loading}
+              disabled={isBusy}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="done"
               autoFocus={!isQueueTab}
             />
-            {magnet && (
-              <button
-                type="button"
-                onClick={handleClear}
-                aria-label="Clear input"
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Quick Paste from Clipboard Button */}
+              {!magnet && (
+                <button
+                  type="button"
+                  onClick={handlePasteClipboard}
+                  disabled={isBusy}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-[#00DF81] rounded-lg border border-emerald-200 dark:border-emerald-500/30 transition-colors shadow-sm active:scale-95 cursor-pointer"
+                  title="Paste link from clipboard"
+                >
+                  <Clipboard className="w-3.5 h-3.5" />
+                  <span>Paste</span>
+                </button>
+              )}
+              {magnet && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  aria-label="Clear input"
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -168,8 +250,9 @@ export default function SearchBar({
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Detected File Name</span>
               </div>
-              {isValidMagnet(magnet) && (
-                <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              {isInputValid && (
+                <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
                   Valid Magnet
                 </span>
               )}
@@ -183,6 +266,7 @@ export default function SearchBar({
                 onChange={(e) => setCustomName(e.target.value)}
                 placeholder="Torrent or file name..."
                 className="w-full bg-transparent text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:outline-none"
+                disabled={isBusy}
               />
             </div>
           </div>
@@ -197,11 +281,14 @@ export default function SearchBar({
           <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-2.5 sm:ml-auto">
             <button
               type="submit"
-              disabled={loading || !magnet.trim()}
+              disabled={isBusy || !magnet.trim()}
               className="w-full sm:w-auto bg-[#00DF81] hover:bg-[#05D686] text-[#071911] font-bold px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 min-w-0 sm:min-w-[140px] disabled:opacity-40 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+              {isBusy ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Adding...</span>
+                </>
               ) : (
                 <>
                   <CloudDownload className="w-4 h-4 shrink-0" />

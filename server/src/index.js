@@ -9,7 +9,9 @@ const helmet = require('helmet');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
+const { extractAuth } = require('./middleware/auth');
 
+const authRoutes = require('./routes/auth');
 const searchRoutes = require('./routes/search');
 const seedrRoutes = require('./routes/seedr');
 const telegramRoutes = require('./routes/telegram');
@@ -37,7 +39,7 @@ app.use(helmet({
 app.use(cors({
   origin: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Range']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'x-guest-mode', 'x-seedr-token']
 }));
 app.use(express.json({ limit: '50kb' }));
 
@@ -45,8 +47,9 @@ app.use(express.json({ limit: '50kb' }));
 app.use('/api', apiLimiter);
 
 // 4. API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/seedr', seedrRoutes);
+app.use('/api/seedr', extractAuth, seedrRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/magnets', magnetsRoutes);
 app.use('/api/queue', queueRoutes);
@@ -55,6 +58,19 @@ app.use('/api/mirror', mirrorRoutes);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
+
+// Serve static frontend build from client/dist if present
+const fs = require('fs');
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // 5. Global Error Handler (Sanitizes all errors, prevents credential leaks)
 app.use(errorHandler);

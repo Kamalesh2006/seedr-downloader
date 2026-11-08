@@ -2,7 +2,12 @@ import React from 'react';
 import { HardDrive, ArrowUpRight } from 'lucide-react';
 import { formatBytes } from '../utils/magnet';
 
-export default function StorageCard({ storage = { spaceUsed: 0, spaceMax: 0 }, onClickDetails }) {
+export default function StorageCard({ 
+  storage = { spaceUsed: 0, spaceMax: 0 }, 
+  onClickDetails,
+  isGuest = true,
+  user = null
+}) {
   const used = storage.spaceUsed || 0;
   const max = storage.spaceMax || (4.5 * 1024 * 1024 * 1024);
   const usedPercentage = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
@@ -10,6 +15,10 @@ export default function StorageCard({ storage = { spaceUsed: 0, spaceMax: 0 }, o
   // Format used and max string e.g. "1.65 GB of 5 GB used"
   const formattedUsed = formatBytes(used, 2);
   const formattedMax = formatBytes(max, 0);
+
+  const title = !isGuest && (user?.username || user?.email)
+    ? `${user.username || user.email.split('@')[0]}'s Cloud`
+    : 'Guest Storage';
 
   return (
     <div 
@@ -20,7 +29,18 @@ export default function StorageCard({ storage = { spaceUsed: 0, spaceMax: 0 }, o
     >
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight">Storage</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight">
+              {title}
+            </h3>
+            <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
+              !isGuest 
+                ? 'bg-[#00DF81]/15 text-[#00DF81]' 
+                : 'bg-amber-500/15 text-amber-500'
+            }`}>
+              {!isGuest ? (user?.packageName || 'Personal') : 'Shared Pool'}
+            </span>
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {formattedUsed} of {formattedMax} used
           </p>

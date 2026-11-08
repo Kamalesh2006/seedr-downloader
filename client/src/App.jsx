@@ -21,6 +21,8 @@ import SettingsView from './components/SettingsView';
 import TelegramBotView from './components/TelegramBotView';
 import UserGuideCard from './components/UserGuideCard';
 import BottomNav from './components/BottomNav';
+import AuthModal from './components/AuthModal';
+import { useAuth } from './context/AuthContext';
 import useSearch from './hooks/useSearch';
 import useSeedr from './hooks/useSeedr';
 import useQueue from './hooks/useQueue';
@@ -80,6 +82,14 @@ function App() {
     }
   }, [completedFiles, cloudTorrents, queue, reconcileQueue]);
   
+  const { mode, isGuest, user } = useAuth();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Automatically refresh file listing and storage metrics when switching modes
+  useEffect(() => {
+    refreshFiles();
+  }, [mode, refreshFiles]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [isMagnetsOpen, setIsMagnetsOpen] = useState(false);
@@ -168,6 +178,8 @@ function App() {
       if (res && res.autoQueued) {
         showToast(`Cloud storage is currently full. "${name || 'Torrent'}" scheduled in Upcoming Queue!`, 'info');
         fetchQueue();
+      } else if (res && res.alreadyInCloud) {
+        showToast(res.message || `"${name || 'Torrent'}" is already in your Cloud Storage!`, 'info');
       } else {
         showToast('Added to Cloud! Converting to high-speed download...', 'success');
         if (!name) {
@@ -210,21 +222,15 @@ function App() {
       return;
     }
 
-    // Check if already present in Cloud Storage
-    if (isItemInCloud({ magnet, name, size }, completedFiles, cloudTorrents)) {
-      await removeFromQueue(queueId);
-      showToast(`"${name}" is already in your Cloud Storage!`, 'info');
-      return;
-    }
-
     try {
       const res = await addMagnet(magnet, name, size);
-      await removeFromQueue(queueId);
       if (res && res.alreadyInCloud) {
-        showToast(`"${name}" is already in your Cloud Storage!`, 'info');
+        await removeFromQueue(queueId);
+        showToast(res.message || `"${name}" is already in your Cloud Storage!`, 'info');
       } else if (res && res.autoQueued) {
-        showToast(`Cloud storage is full. Kept in Upcoming Queue.`, 'info');
+        showToast(`Cloud storage is currently occupied. Kept in Upcoming Queue.`, 'info');
       } else {
+        await removeFromQueue(queueId);
         showToast(`Sent "${name}" to Cloud immediately!`, 'success');
       }
     } catch (err) {
@@ -346,6 +352,7 @@ function App() {
           <Navbar 
             isDarkMode={isDarkMode}
             onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+            onOpenAuth={() => setIsAuthOpen(true)}
           />
 
           {/* Page Body with React Router Views */}
@@ -359,6 +366,8 @@ function App() {
                     <StorageCard 
                       storage={storage} 
                       onClickDetails={() => navigate('/settings')}
+                      isGuest={isGuest}
+                      user={user}
                     />
 
                     {searchError && (
@@ -479,6 +488,7 @@ function App() {
                     onShowToast={(msg, type) => showToast(msg, type)}
                     isDarkMode={isDarkMode}
                     onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+                    onOpenAuth={() => setIsAuthOpen(true)}
                   />
                 } 
               />
@@ -509,6 +519,13 @@ function App() {
         onClearAll={clearRecentMagnets}
         onRetry={(magnet, name, size) => handleAddMagnet(magnet, name, size)}
         onAddMagnet={handleAddMagnet}
+      />
+
+      {/* Seedr Auth & Connect Modal */}
+      <AuthModal 
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onShowToast={(msg, type) => showToast(msg, type)}
       />
 
       {/* Toast Notification */}

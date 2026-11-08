@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Film, 
   RefreshCw, 
@@ -10,6 +10,8 @@ import {
   Flame, 
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   Loader2,
   Clock,
@@ -27,6 +29,7 @@ import {
 import api from '../api/client';
 import { isOversizedForSeedr, ensureMagnetUri } from '../utils/magnet';
 import { copyToClipboard } from '../utils/clipboard';
+import PaginationBar from './PaginationBar';
 
 function extractMagnetHash(magnet) {
   if (!magnet) return '';
@@ -74,7 +77,19 @@ export default function MirrorMoviesView({
   const [error, setError] = useState(null);
   const [mirrorStatus, setMirrorStatus] = useState(null);
 
-  // Global Search State
+  // Pagination Constants & Ref
+  const GLOBAL_PAGE_SIZE = 18;
+  const ALL_RELEASES_PAGE_SIZE = 18;
+  const TOP_RELEASES_PAGE_SIZE = 18;
+
+  const resultsContainerRef = useRef(null);
+  const scrollToResults = () => {
+    if (resultsContainerRef.current) {
+      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Global Search State & Pagination
   const [globalQuery, setGlobalQuery] = useState(searchQuery || '');
   const [searchInput, setSearchInput] = useState(searchQuery || '');
   const [globalResults, setGlobalResults] = useState([]);
@@ -82,32 +97,55 @@ export default function MirrorMoviesView({
   const [globalError, setGlobalError] = useState(null);
   const [globalHasSearched, setGlobalHasSearched] = useState(false);
   const [globalProviderFilter, setGlobalProviderFilter] = useState('ALL');
+  const [globalPage, setGlobalPage] = useState(1);
+  const [globalServerPage, setGlobalServerPage] = useState(1);
+  const [globalServerTotalPages, setGlobalServerTotalPages] = useState(1);
 
-  // 1TamilMV Search State (dedicated search for 1TamilMV mirror catalog)
+  // 1TamilMV Search State (dedicated search for 1TamilMV mirror catalog) & Pagination
   const [tamilmvSearchResults, setTamilmvSearchResults] = useState([]);
   const [tamilmvSearching, setTamilmvSearching] = useState(false);
   const [tamilmvError, setTamilmvError] = useState(null);
   const [tamilmvHasSearched, setTamilmvHasSearched] = useState(false);
   const [tamilmvSearchQuery, setTamilmvSearchQuery] = useState('');
+  const [tamilmvPage, setTamilmvPage] = useState(1);
+  const [tamilmvTotalPages, setTamilmvTotalPages] = useState(1);
+  const [tamilmvTotalFound, setTamilmvTotalFound] = useState(0);
 
-  const executeTamilMVSearch = async (queryText) => {
+  // 1TamilMV Browse (All Releases) Pagination State
+  const [allReleasesPage, setAllReleasesPage] = useState(1);
+
+  // Top Releases Pagination State
+  const [topReleasesPage, setTopReleasesPage] = useState(1);
+
+  const executeTamilMVSearch = async (queryText, page = 1) => {
     const q = (queryText !== undefined ? queryText : searchInput || '').trim();
     if (!q) return;
     setTamilmvSearching(true);
     setTamilmvError(null);
     setTamilmvHasSearched(true);
     setTamilmvSearchQuery(q);
+    setTamilmvPage(page);
     try {
-      const res = await api.get(`/mirror/search?q=${encodeURIComponent(q)}`);
+      const res = await api.get(`/mirror/search?q=${encodeURIComponent(q)}&page=${page}`);
       const results = res.data?.movies || [];
       setTamilmvSearchResults(results);
+      setTamilmvTotalPages(res.data?.totalPages || 1);
+      setTamilmvTotalFound(res.data?.totalFound || results.length);
       if (results.length > 0) {
-        onShowToast?.(`Found ${results.length} 1TamilMV releases for "${q}"!`, 'success');
+        if (page === 1) {
+          onShowToast?.(`Found ${results.length} 1TamilMV releases for "${q}"!`, 'success');
+        }
+      } else {
+        onShowToast?.(`No 1TamilMV releases found for "${q}". Try Global Search!`, 'info');
+      }
+      if (page > 1) {
+        scrollToResults();
       }
     } catch (err) {
       const msg = err.response?.data?.error || err.message || '1TamilMV search failed';
       setTamilmvError(msg);
       setTamilmvSearchResults([]);
+      setTamilmvTotalPages(1);
     } finally {
       setTamilmvSearching(false);
     }
@@ -118,8 +156,12 @@ export default function MirrorMoviesView({
     if (searchQuery !== undefined && searchQuery !== searchInput) {
       setSearchInput(searchQuery);
       setGlobalQuery(searchQuery);
-      if (searchQuery && searchQuery.trim() && viewMode === 'global') {
-        setViewMode('global');
+      if (searchQuery && searchQuery.trim()) {
+        if (viewMode === 'global') {
+          setViewMode('global');
+        } else if (viewMode === 'all' && (!tamilmvHasSearched || tamilmvSearchQuery !== searchQuery.trim())) {
+          executeTamilMVSearch(searchQuery.trim());
+        }
       }
     }
   }, [searchQuery]);
@@ -132,15 +174,15 @@ export default function MirrorMoviesView({
     if (viewMode === 'global') {
       setGlobalQuery(q);
       onSearchChange?.(q);
-      executeGlobalSearch(q);
+      executeGlobalSearch(q, 1);
     } else if (viewMode === 'all') {
       onSearchChange?.(q);
-      executeTamilMVSearch(q);
+      executeTamilMVSearch(q, 1);
     } else {
       // viewMode === 'top' -> Switch to 'all' and search 1TamilMV's catalog
       setViewMode('all');
       onSearchChange?.(q);
-      executeTamilMVSearch(q);
+      executeTamilMVSearch(q, 1);
     }
   };
 
@@ -149,10 +191,17 @@ export default function MirrorMoviesView({
     setGlobalQuery('');
     setGlobalResults([]);
     setGlobalHasSearched(false);
+    setGlobalPage(1);
+    setGlobalServerPage(1);
+    setGlobalServerTotalPages(1);
     setTamilmvSearchResults([]);
     setTamilmvHasSearched(false);
     setTamilmvSearchQuery('');
     setTamilmvError(null);
+    setTamilmvPage(1);
+    setTamilmvTotalPages(1);
+    setAllReleasesPage(1);
+    setTopReleasesPage(1);
     onSearchChange?.('');
   };
 
@@ -161,10 +210,10 @@ export default function MirrorMoviesView({
     onSearchChange?.(term);
     if (viewMode === 'global') {
       setGlobalQuery(term);
-      executeGlobalSearch(term);
+      executeGlobalSearch(term, 1);
     } else {
       setViewMode('all');
-      executeTamilMVSearch(term);
+      executeTamilMVSearch(term, 1);
     }
   };
 
@@ -300,23 +349,32 @@ export default function MirrorMoviesView({
   }, []);
 
   // Global Search function
-  const executeGlobalSearch = async (queryText) => {
+  const executeGlobalSearch = async (queryText, page = 1) => {
     const q = (queryText || globalQuery || '').trim();
     if (!q) return;
     setGlobalLoading(true);
     setGlobalError(null);
     setGlobalHasSearched(true);
+    setGlobalServerPage(page);
+    setGlobalPage(1);
     try {
-      const res = await api.get(`/search?q=${encodeURIComponent(q)}&source=global`);
+      const res = await api.get(`/search?q=${encodeURIComponent(q)}&source=global&page=${page}`);
       const results = res.data?.results || [];
       setGlobalResults(results);
+      setGlobalServerTotalPages(res.data?.totalPages || 1);
       if (results.length > 0) {
-        onShowToast?.(`Found ${results.length} global torrents for "${q}"!`, 'success');
+        if (page === 1) {
+          onShowToast?.(`Found ${results.length} global torrents for "${q}"!`, 'success');
+        }
+      }
+      if (page > 1) {
+        scrollToResults();
       }
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Global search failed';
       setGlobalError(msg);
       setGlobalResults([]);
+      setGlobalServerTotalPages(1);
     } finally {
       setGlobalLoading(false);
     }
@@ -415,9 +473,10 @@ export default function MirrorMoviesView({
   // Group movies by title so each movie appears cleanly with all its available sizes/languages
   const displayedMovies = useMemo(() => {
     if (viewMode === 'global') return [];
+    const isSearchingTamilmv = viewMode === 'all' && tamilmvHasSearched && Boolean(tamilmvSearchQuery.trim());
     const list = viewMode === 'top' 
       ? topReleases 
-      : (tamilmvHasSearched && tamilmvSearchQuery.trim() ? tamilmvSearchResults : allMovies);
+      : (isSearchingTamilmv ? tamilmvSearchResults : allMovies);
     if (!Array.isArray(list)) return [];
 
     const map = new Map();
@@ -498,21 +557,40 @@ export default function MirrorMoviesView({
     let result = Array.from(map.values());
     const activeSearch = (searchInput || searchQuery || globalQuery || '').toLowerCase().trim();
     if (activeSearch) {
-      result = result.filter(m => 
-        (m.title && m.title.toLowerCase().includes(activeSearch)) ||
-        (m.rawTitle && m.rawTitle.toLowerCase().includes(activeSearch)) ||
-        (m.year && m.year.includes(activeSearch)) ||
-        (m.languages && m.languages.some(l => l.toLowerCase().includes(activeSearch))) ||
-        (m.quality && m.quality.toLowerCase().includes(activeSearch)) ||
-        (m.magnets && m.magnets.some(link => 
-          (link.title && link.title.toLowerCase().includes(activeSearch)) ||
-          (link.quality && link.quality.toLowerCase().includes(activeSearch)) ||
-          (link.language && link.language.toLowerCase().includes(activeSearch))
-        ))
-      );
+      // If we are currently displaying dedicated 1TamilMV search results for this active query,
+      // the server scraper already found these exact results from 1TamilMV topics.
+      // Do not discard them with strict client substring matching.
+      if (isSearchingTamilmv && activeSearch === tamilmvSearchQuery.toLowerCase().trim()) {
+        return result;
+      }
+
+      // Tokenized search: all search words must be present in the movie's title/metadata
+      const searchWords = activeSearch.split(/\s+/).filter(Boolean);
+      result = result.filter(m => {
+        const textParts = [
+          m.title,
+          m.rawTitle,
+          m.year,
+          ...(m.languages || []),
+          m.quality,
+          ...(m.magnets || []).map(link => `${link.title || ''} ${link.quality || ''} ${link.language || ''}`)
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        return searchWords.every(word => textParts.includes(word));
+      });
     }
     return result;
-  }, [topReleases, allMovies, viewMode, searchQuery, searchInput, globalQuery]);
+  }, [
+    topReleases, 
+    allMovies, 
+    viewMode, 
+    searchQuery, 
+    searchInput, 
+    globalQuery, 
+    tamilmvSearchResults, 
+    tamilmvHasSearched, 
+    tamilmvSearchQuery
+  ]);
 
   // Filtered Global Results
   const filteredGlobalResults = useMemo(() => {
@@ -525,6 +603,71 @@ export default function MirrorMoviesView({
     return Array.from(set);
   }, [globalResults]);
 
+  // Paginated Global Results
+  const paginatedGlobalResults = useMemo(() => {
+    const start = (globalPage - 1) * GLOBAL_PAGE_SIZE;
+    return filteredGlobalResults.slice(start, start + GLOBAL_PAGE_SIZE);
+  }, [filteredGlobalResults, globalPage]);
+
+  const globalTotalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredGlobalResults.length / GLOBAL_PAGE_SIZE));
+  }, [filteredGlobalResults]);
+
+  const handleGlobalProviderFilterChange = (provider) => {
+    setGlobalProviderFilter(provider);
+    setGlobalPage(1);
+  };
+
+  const handleGlobalPageChange = (newPage) => {
+    setGlobalPage(newPage);
+    scrollToResults();
+  };
+
+  // Paginated 1TamilMV Movies (Top Releases / All Releases)
+  const isSearchingTamilmv = viewMode === 'all' && tamilmvHasSearched && !!tamilmvSearchQuery.trim();
+
+  const paginatedMovies = useMemo(() => {
+    if (viewMode === 'top') {
+      const start = (topReleasesPage - 1) * TOP_RELEASES_PAGE_SIZE;
+      return displayedMovies.slice(start, start + TOP_RELEASES_PAGE_SIZE);
+    }
+    if (isSearchingTamilmv) {
+      // 1TamilMV Search results are server-paginated; all results in displayedMovies belong to current page
+      return displayedMovies;
+    }
+    // 1TamilMV All Releases browse (client paginated)
+    const start = (allReleasesPage - 1) * ALL_RELEASES_PAGE_SIZE;
+    return displayedMovies.slice(start, start + ALL_RELEASES_PAGE_SIZE);
+  }, [displayedMovies, viewMode, topReleasesPage, allReleasesPage, isSearchingTamilmv]);
+
+  const currentMovieTotalPages = useMemo(() => {
+    if (viewMode === 'top') {
+      return Math.max(1, Math.ceil(displayedMovies.length / TOP_RELEASES_PAGE_SIZE));
+    }
+    if (isSearchingTamilmv) {
+      return tamilmvTotalPages;
+    }
+    return Math.max(1, Math.ceil(displayedMovies.length / ALL_RELEASES_PAGE_SIZE));
+  }, [displayedMovies, viewMode, isSearchingTamilmv, tamilmvTotalPages]);
+
+  const currentMoviePage = useMemo(() => {
+    if (viewMode === 'top') return topReleasesPage;
+    if (isSearchingTamilmv) return tamilmvPage;
+    return allReleasesPage;
+  }, [viewMode, topReleasesPage, isSearchingTamilmv, tamilmvPage, allReleasesPage]);
+
+  const handleMoviePageChange = (newPage) => {
+    if (viewMode === 'top') {
+      setTopReleasesPage(newPage);
+      scrollToResults();
+    } else if (isSearchingTamilmv) {
+      executeTamilMVSearch(tamilmvSearchQuery, newPage);
+    } else {
+      setAllReleasesPage(newPage);
+      scrollToResults();
+    }
+  };
+
   return (
     <div className="space-y-5 pb-12 max-w-7xl mx-auto">
       {/* Search Bar + Sub-navigation tabs */}
@@ -536,7 +679,19 @@ export default function MirrorMoviesView({
             <input 
               type="text"
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchInput(val);
+                if (!val.trim()) {
+                  setTamilmvSearchResults([]);
+                  setTamilmvHasSearched(false);
+                  setTamilmvSearchQuery('');
+                  setTamilmvError(null);
+                  setGlobalResults([]);
+                  setGlobalHasSearched(false);
+                  onSearchChange?.('');
+                }
+              }}
               placeholder={
                 viewMode === 'all'
                   ? "Search 1TamilMV releases (e.g. Leo, GOAT, Vikram, quality, audio)..."
@@ -591,11 +746,11 @@ export default function MirrorMoviesView({
             >
               <Flame className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
               <span>Top Releases</span>
-              {displayedMovies.length > 0 && (
+              {topReleases.length > 0 && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   viewMode === 'top' ? 'bg-[#071911]/20 text-[#071911]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}>
-                  {displayedMovies.length}
+                  {viewMode === 'top' ? displayedMovies.length : topReleases.length}
                 </span>
               )}
             </button>
@@ -621,7 +776,9 @@ export default function MirrorMoviesView({
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   viewMode === 'all' ? 'bg-[#071911]/20 text-[#071911]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}>
-                  {(tamilmvHasSearched && tamilmvSearchQuery.trim()) ? tamilmvSearchResults.length : allMovies.length}
+                  {viewMode === 'all'
+                    ? displayedMovies.length
+                    : ((tamilmvHasSearched && tamilmvSearchQuery.trim()) ? tamilmvSearchResults.length : allMovies.length)}
                 </span>
               )}
             </button>
@@ -695,6 +852,9 @@ export default function MirrorMoviesView({
         </div>
       </div>
 
+      {/* Anchor for smooth scrolling when paginating */}
+      <div ref={resultsContainerRef} className="scroll-mt-6" />
+
       {/* GLOBAL SEARCH VIEW */}
       {viewMode === 'global' && (
         <div className="space-y-4 animate-in fade-in duration-200">
@@ -744,7 +904,7 @@ export default function MirrorMoviesView({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-slate-500 dark:text-slate-400">Filter Provider:</span>
                 <button
-                  onClick={() => setGlobalProviderFilter('ALL')}
+                  onClick={() => handleGlobalProviderFilterChange('ALL')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                     globalProviderFilter === 'ALL'
                       ? 'bg-[#00DF81] text-[#071911]'
@@ -758,7 +918,7 @@ export default function MirrorMoviesView({
                   return (
                     <button
                       key={p}
-                      onClick={() => setGlobalProviderFilter(p)}
+                      onClick={() => handleGlobalProviderFilterChange(p)}
                       className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                         globalProviderFilter.toLowerCase() === p.toLowerCase()
                           ? 'bg-[#00DF81] text-[#071911]'
@@ -772,7 +932,7 @@ export default function MirrorMoviesView({
               </div>
 
               <span className="text-slate-500 font-mono text-[11px]">
-                Showing {filteredGlobalResults.length} of {globalResults.length}
+                Showing {filteredGlobalResults.length > 0 ? (globalPage - 1) * GLOBAL_PAGE_SIZE + 1 : 0}–{Math.min(globalPage * GLOBAL_PAGE_SIZE, filteredGlobalResults.length)} of {filteredGlobalResults.length}
               </span>
             </div>
           )}
@@ -859,7 +1019,7 @@ export default function MirrorMoviesView({
           {/* Global Search Results - GRID VIEW */}
           {!globalLoading && layoutMode === 'grid' && filteredGlobalResults.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredGlobalResults.map((torrent, idx) => {
+              {paginatedGlobalResults.map((torrent, idx) => {
                 const isOversized = torrent.size && isOversizedForSeedr(torrent.size);
                 const torrentHash = extractMagnetHash(torrent.magnet);
                 const isAddingThis = addingMagnet === torrent.magnet;
@@ -980,7 +1140,7 @@ export default function MirrorMoviesView({
           {/* Global Search Results - LIST VIEW */}
           {!globalLoading && layoutMode === 'list' && filteredGlobalResults.length > 0 && (
             <div className="bg-white dark:bg-[#111927] border border-slate-200 dark:border-[#1E293B] rounded-2xl divide-y divide-slate-100 dark:divide-[#1E293B] shadow-sm overflow-hidden">
-              {filteredGlobalResults.map((torrent, idx) => {
+              {paginatedGlobalResults.map((torrent, idx) => {
                 const isOversized = torrent.size && isOversizedForSeedr(torrent.size);
                 const torrentHash = extractMagnetHash(torrent.magnet);
                 const isAddingThis = addingMagnet === torrent.magnet;
@@ -1088,6 +1248,34 @@ export default function MirrorMoviesView({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Global Search Pagination Bar */}
+          {!globalLoading && filteredGlobalResults.length > 0 && (
+            <PaginationBar 
+              currentPage={globalPage} 
+              totalPages={globalTotalPages} 
+              totalItems={filteredGlobalResults.length} 
+              pageSize={GLOBAL_PAGE_SIZE} 
+              onPageChange={handleGlobalPageChange} 
+              itemLabel="torrents" 
+              loading={globalLoading} 
+            />
+          )}
+
+          {/* Fetch Next Page from Public Trackers (TPB, YTS, 1337x) */}
+          {!globalLoading && globalServerTotalPages > 1 && (
+            <div className="flex items-center justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => executeGlobalSearch(globalQuery, globalServerPage + 1)}
+                disabled={globalLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Fetch more releases from Public Indexers (Page {globalServerPage + 1})</span>
+              </button>
             </div>
           )}
         </div>
@@ -1326,7 +1514,7 @@ export default function MirrorMoviesView({
           {/* 1TAMILMV - GRID VIEW (NO PHOTOS - CLEAN COMPACT DESIGN) */}
           {!loading && !tamilmvSearching && layoutMode === 'grid' && displayedMovies.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {displayedMovies.map((movie) => {
+              {paginatedMovies.map((movie) => {
                 const activeLang = selectedLangMap[movie.id] || 'ALL';
                 const hasMultipleLangs = movie.languages && movie.languages.length > 1;
 
@@ -1595,7 +1783,7 @@ export default function MirrorMoviesView({
           {/* 1TAMILMV - LIST VIEW (STRUCTURED HIGH-DENSITY EXPANDABLE CARDS) */}
           {!loading && !tamilmvSearching && layoutMode === 'list' && displayedMovies.length > 0 && (
             <div className="space-y-3.5">
-              {displayedMovies.map((movie) => {
+              {paginatedMovies.map((movie) => {
                 const activeLang = selectedLangMap[movie.id] || 'ALL';
                 const hasMultipleLangs = movie.languages && movie.languages.length > 1;
 
@@ -1866,6 +2054,20 @@ export default function MirrorMoviesView({
                 );
               })}
             </div>
+          )}
+
+          {/* 1TamilMV Pagination Bar */}
+          {!loading && !tamilmvSearching && displayedMovies.length > 0 && (
+            <PaginationBar 
+              currentPage={currentMoviePage} 
+              totalPages={currentMovieTotalPages} 
+              totalItems={displayedMovies.length} 
+              pageSize={viewMode === 'top' ? TOP_RELEASES_PAGE_SIZE : ALL_RELEASES_PAGE_SIZE} 
+              onPageChange={handleMoviePageChange} 
+              isServerPaged={isSearchingTamilmv} 
+              loading={tamilmvSearching} 
+              itemLabel="releases" 
+            />
           )}
 
           {/* Show All Latest Movies Button when in Top Releases */}

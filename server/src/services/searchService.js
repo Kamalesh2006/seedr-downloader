@@ -41,17 +41,18 @@ class SearchService {
     this.maxFileSizeBytes = this.maxFileSizeGB * 1024 * 1024 * 1024;
   }
 
-  async searchYts(query) {
+  async searchYts(query, page = 1) {
     const ytsCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'yts') || {};
     const mirrors = (ytsCfg.urls && ytsCfg.urls.length > 0)
       ? ytsCfg.urls
       : ['https://yts.am', 'https://yts.gg', 'https://yts.mx', 'https://yts.lt'];
 
     const networkCfg = getAxiosNetworkConfig();
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
 
     const mirrorPromises = mirrors.map(async (mirror) => {
       const cleanMirror = mirror.replace(/\/+$/, '');
-      const url = `${cleanMirror}/api/v2/list_movies.json?query_term=${encodeURIComponent(query.trim())}&sort=seeds&order=desc`;
+      const url = `${cleanMirror}/api/v2/list_movies.json?query_term=${encodeURIComponent(query.trim())}&sort=seeds&order=desc&page=${pageNum}&limit=20`;
       const res = await axios.get(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -95,8 +96,9 @@ class SearchService {
     }
   }
 
-  async searchThePirateBay(query, debugLog = null) {
+  async searchThePirateBay(query, debugLog = null, page = 1) {
     const tpbCfg = (config.searchProviders || []).find(p => p.name.toLowerCase() === 'thepiratebay') || {};
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     
     // Support custom environment overrides for API / Worker / Reverse Proxy
     const envCustomMirrors = [
@@ -191,7 +193,8 @@ class SearchService {
 
       // Candidate request targets for this mirror:
       // 1. JSON API endpoint (/q.php?q=...)
-      // 2. HTML search page (/search/.../1/99/0) for mirrors serving HTML
+      // 2. HTML search page (/search/.../page/99/0) for mirrors serving HTML
+      const tpbHtmlPage = Math.max(0, pageNum - 1);
       const targets = [];
       if (cleanMirror.includes('api.php')) {
         targets.push({ url: `${cleanMirror}${encodeURIComponent('/q.php?q=' + q)}`, isJson: true });
@@ -199,7 +202,7 @@ class SearchService {
         targets.push({ url: `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`, isJson: true });
       } else {
         targets.push({ url: `${cleanMirror}/q.php?q=${encodeURIComponent(q)}`, isJson: true });
-        targets.push({ url: `${cleanMirror}/search/${encodeURIComponent(q)}/1/99/0`, isJson: false });
+        targets.push({ url: `${cleanMirror}/search/${encodeURIComponent(q)}/${tpbHtmlPage}/99/0`, isJson: false });
       }
 
       for (const target of targets) {
@@ -244,8 +247,12 @@ class SearchService {
               });
             }
             if (results.length > 0) {
-              if (debugLog) debugLog.push({ mirror, status: res.status, format: 'json', count: results.length });
-              return results;
+              const pageSize = 25;
+              const startIdx = (pageNum - 1) * pageSize;
+              const paged = (startIdx < results.length) ? results.slice(startIdx, startIdx + pageSize) : (pageNum === 1 ? results : []);
+              const returned = paged.length > 0 ? paged : (pageNum === 1 ? results.slice(0, pageSize) : []);
+              if (debugLog) debugLog.push({ mirror, status: res.status, format: 'json', count: returned.length, total: results.length, page: pageNum });
+              return returned;
             }
           }
 
@@ -364,8 +371,9 @@ class SearchService {
     }
   }
 
-  async search1337x(query) {
+  async search1337x(query, page = 1) {
     const x1337Cfg = (config.searchProviders || []).find(p => p.name === '1337x') || {};
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const mirrors = (x1337Cfg.urls && x1337Cfg.urls.length > 0)
       ? x1337Cfg.urls
       : [
@@ -383,7 +391,7 @@ class SearchService {
 
     const fetchMirror = async (mirror) => {
       const cleanMirror = mirror.replace(/\/+$/, '');
-      const searchUrl = `${cleanMirror}/search/${encodeURIComponent(cleanQuery)}/1/`;
+      const searchUrl = `${cleanMirror}/search/${encodeURIComponent(cleanQuery)}/${pageNum}/`;
       const res = await axios.get(searchUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -500,9 +508,10 @@ class SearchService {
     }
   }
 
-  async search1TamilMV(query) {
+  async search1TamilMV(query, page = 1) {
     try {
-      const searchPromise = movieScraperService.searchTorrents(query);
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const searchPromise = movieScraperService.searchTorrents(query, pageNum);
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('1TamilMV timeout')), 7000));
       const res = await Promise.race([searchPromise, timeoutPromise]);
       return Array.isArray(res) ? res : [];
@@ -511,12 +520,13 @@ class SearchService {
     }
   }
 
-  async searchTorrentApi(query) {
+  async searchTorrentApi(query, page = 1) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const [tpbResults, ytsResults, csvResults, x1337Results] = await Promise.allSettled([
-      this.searchThePirateBay(query),
-      this.searchYts(query),
-      this.searchTorrentsCsv(query),
-      this.search1337x(query)
+      this.searchThePirateBay(query, null, pageNum),
+      this.searchYts(query, pageNum),
+      pageNum === 1 ? this.searchTorrentsCsv(query) : Promise.resolve([]),
+      this.search1337x(query, pageNum)
     ]);
 
     const list = [
@@ -529,8 +539,11 @@ class SearchService {
     return list;
   }
 
-  async search(query, source = 'all') {
+  async search(query, source = 'all', page = 1, limit = 60) {
     try {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, parseInt(limit, 10) || 60);
+
       let tpbResults = [];
       let ytsResults = [];
       let csvResults = [];
@@ -539,26 +552,26 @@ class SearchService {
 
       if (source === 'global') {
         const [tpbSettled, ytsSettled, csvSettled, x1337Settled] = await Promise.allSettled([
-          this.searchThePirateBay(query),
-          this.searchYts(query),
-          this.searchTorrentsCsv(query),
-          this.search1337x(query)
+          this.searchThePirateBay(query, null, pageNum),
+          this.searchYts(query, pageNum),
+          pageNum === 1 ? this.searchTorrentsCsv(query) : Promise.resolve([]),
+          this.search1337x(query, pageNum)
         ]);
         tpbResults = tpbSettled.status === 'fulfilled' ? (tpbSettled.value || []) : [];
         ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
         csvResults = csvSettled.status === 'fulfilled' ? (csvSettled.value || []) : [];
         x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
-        console.log(`[SearchService:Global] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}`);
+        console.log(`[SearchService:Global] Query "${query}" (page ${pageNum}) -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}`);
       } else if (source === '1tamilmv') {
-        mirrorResults = await this.search1TamilMV(query);
-        console.log(`[SearchService:1TamilMV] Query "${query}" -> Found: ${mirrorResults.length}`);
+        mirrorResults = await this.search1TamilMV(query, pageNum);
+        console.log(`[SearchService:1TamilMV] Query "${query}" (page ${pageNum}) -> Found: ${mirrorResults.length}`);
       } else {
         const [mirrorSettled, tpbSettled, ytsSettled, csvSettled, x1337Settled] = await Promise.allSettled([
-          this.search1TamilMV(query),
-          this.searchThePirateBay(query),
-          this.searchYts(query),
-          this.searchTorrentsCsv(query),
-          this.search1337x(query)
+          this.search1TamilMV(query, pageNum),
+          this.searchThePirateBay(query, null, pageNum),
+          this.searchYts(query, pageNum),
+          pageNum === 1 ? this.searchTorrentsCsv(query) : Promise.resolve([]),
+          this.search1337x(query, pageNum)
         ]);
 
         mirrorResults = mirrorSettled.status === 'fulfilled' ? (mirrorSettled.value || []) : [];
@@ -566,7 +579,7 @@ class SearchService {
         ytsResults = ytsSettled.status === 'fulfilled' ? (ytsSettled.value || []) : [];
         csvResults = csvSettled.status === 'fulfilled' ? (csvSettled.value || []) : [];
         x1337Results = x1337Settled.status === 'fulfilled' ? (x1337Settled.value || []) : [];
-        console.log(`[SearchService:All] Query "${query}" -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
+        console.log(`[SearchService:All] Query "${query}" (page ${pageNum}) -> TPB: ${tpbResults.length}, YTS: ${ytsResults.length}, CSV: ${csvResults.length}, 1337x: ${x1337Results.length}, 1TamilMV: ${mirrorResults.length}`);
       }
 
       const seenMagnets = new Set();
@@ -593,18 +606,19 @@ class SearchService {
       }
 
       // Sort by seeds but ensure healthy representation of each provider
-      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, Math.max(config.maxResults || 25, 60));
+      return combined.sort((a, b) => (b.seeds || 0) - (a.seeds || 0)).slice(0, limitNum);
     } catch (error) {
       console.error('Search error:', error);
       throw error;
     }
   }
 
-  async searchWithDebug(query, source = 'all') {
+  async searchWithDebug(query, source = 'all', page = 1) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const debugInfo = { tpb: [] };
-    const tpbResults = await this.searchThePirateBay(query, debugInfo.tpb);
-    const results = await this.search(query, source);
-    return { results, debugInfo, tpbCount: tpbResults.length };
+    const tpbResults = await this.searchThePirateBay(query, debugInfo.tpb, pageNum);
+    const results = await this.search(query, source, pageNum);
+    return { results, debugInfo, tpbCount: tpbResults.length, page: pageNum };
   }
 }
 

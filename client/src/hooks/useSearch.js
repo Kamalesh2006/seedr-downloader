@@ -8,7 +8,7 @@ export default function useSearch() {
   const [hasSearched, setHasSearched] = useState(false);
   const [lastQuery, setLastQuery] = useState('');
 
-  const search = async (query, source = 'global') => {
+  const search = async (query, source = 'global', page = 1) => {
     if (!query || !query.trim()) return;
     setLoading(true);
     setError(null);
@@ -16,8 +16,10 @@ export default function useSearch() {
     setLastQuery(query.trim());
     try {
       const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
-      const response = await api.get(`/search?q=${encodeURIComponent(query.trim())}${sourceParam}`);
+      const pageParam = page ? `&page=${page}` : '';
+      const response = await api.get(`/search?q=${encodeURIComponent(query.trim())}${sourceParam}${pageParam}`);
       setResults(response.data.results || []);
+      return response.data;
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Search failed');
       setResults([]);

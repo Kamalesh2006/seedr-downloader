@@ -2,47 +2,133 @@ const axios = require('axios');
 const config = require('../../config.json');
 
 class SeedrService {
-  constructor() {
-    this.email = process.env.SEEDR_EMAIL;
-    this.password = process.env.SEEDR_PASSWORD;
+  constructor(options = {}) {
+    // If accessToken is provided, this is a user-scoped instance
+    this.accessToken = options.accessToken || null;
+    this.refreshToken = options.refreshToken || null;
+    this.tokenExpiresAt = options.tokenExpiresAt || 0;
+
+    // Fallback credentials for default/guest service
+    this.email = options.email !== undefined ? options.email : process.env.SEEDR_EMAIL;
+    this.password = options.password !== undefined ? options.password : process.env.SEEDR_PASSWORD;
+
     this.baseUrl = config.seedrBaseUrl || 'https://www.seedr.cc/rest';
     this.tokenUrl = 'https://www.seedr.cc/oauth_test/token.php';
-    this.accessToken = null;
-    this.tokenExpiresAt = 0;
+    this.deviceCodeUrl = 'https://www.seedr.cc/oauth_test/device_code.php';
+    this.devicePollUrl = 'https://www.seedr.cc/oauth_test/device.php';
     this.fileMetadataCache = new Map();
+  }
+
+  static async loginWithCredentials(email, password) {
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
+    const params = new URLSearchParams();
+    params.append('grant_type', 'password');
+    params.append('client_id', 'seedr_chrome');
+    params.append('username', email);
+    params.append('password', password);
+
+    const response = await axios.post('https://www.seedr.cc/oauth_test/token.php', params.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
+    return response.data;
+  }
+
+  static async getDeviceCode() {
+    const params = new URLSearchParams();
+    params.append('client_id', 'seedr_chrome');
+
+    const response = await axios.post('https://www.seedr.cc/oauth_test/device_code.php', params.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
+    return response.data;
+  }
+
+  static async pollDeviceCode(deviceCode) {
+    if (!deviceCode) {
+      throw new Error('device_code is required');
+    }
+
+    const response = await axios.get(`https://www.seedr.cc/oauth_test/device.php?client_id=seedr_chrome&device_code=${encodeURIComponent(deviceCode)}`);
+    return response.data;
   }
 
   async getAccessToken(forceRefresh = false) {
     const now = Date.now();
-    if (!forceRefresh && this.accessToken && this.tokenExpiresAt > now + 60000) {
+    if (!forceRefresh && this.accessToken && (this.tokenExpiresAt === 0 || this.tokenExpiresAt > now + 60000)) {
       return this.accessToken;
     }
 
-    try {
-      const params = new URLSearchParams();
-      params.append('grant_type', 'password');
-      params.append('client_id', 'seedr_chrome');
-      params.append('username', this.email);
-      params.append('password', this.password);
+    // Try refreshing if refresh_token is available
+    if (this.refreshToken) {
+      try {
+        const params = new URLSearchParams();
+        params.append('grant_type', 'refresh_token');
+        params.append('client_id', 'seedr_chrome');
+        params.append('refresh_token', this.refreshToken);
 
-      const response = await axios.post(this.tokenUrl, params.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+        const response = await axios.post(this.tokenUrl, params.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+
+        if (response.data && response.data.access_token) {
+          this.accessToken = response.data.access_token;
+          if (response.data.refresh_token) {
+            this.refreshToken = response.data.refresh_token;
+          }
+          const expiresIn = response.data.expires_in || 2592000;
+          this.tokenExpiresAt = now + expiresIn * 1000;
+          return this.accessToken;
         }
-      });
-
-      if (response.data && response.data.access_token) {
-        this.accessToken = response.data.access_token;
-        const expiresIn = response.data.expires_in || 2592000; // default 30 days
-        this.tokenExpiresAt = now + expiresIn * 1000;
-        return this.accessToken;
-      } else {
-        throw new Error('No access_token returned from Seedr authentication');
+      } catch (err) {
+        console.warn('Seedr refresh token exchange failed:', err.response?.data || err.message);
       }
-    } catch (error) {
-      console.error('Seedr OAuth token error:', error.response ? error.response.data : error.message);
-      throw error.response ? error.response.data : error;
     }
+
+    // Fall back to password credentials if available (e.g. for default/guest account)
+    if (this.email && this.password) {
+      try {
+        const params = new URLSearchParams();
+        params.append('grant_type', 'password');
+        params.append('client_id', 'seedr_chrome');
+        params.append('username', this.email);
+        params.append('password', this.password);
+
+        const response = await axios.post(this.tokenUrl, params.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+
+        if (response.data && response.data.access_token) {
+          this.accessToken = response.data.access_token;
+          const expiresIn = response.data.expires_in || 2592000; // default 30 days
+          this.tokenExpiresAt = now + expiresIn * 1000;
+          return this.accessToken;
+        } else {
+          throw new Error('No access_token returned from Seedr authentication');
+        }
+      } catch (error) {
+        console.error('Seedr OAuth token error:', error.response ? error.response.data : error.message);
+        throw error.response ? error.response.data : error;
+      }
+    }
+
+    if (this.accessToken) {
+      return this.accessToken;
+    }
+
+    throw new Error('No valid Seedr credentials or access token available');
   }
 
   async makeRequest(method, url, data = null, headers = {}, isRetry = false) {
@@ -65,11 +151,20 @@ class SeedrService {
       return response;
     } catch (error) {
       if (!isRetry && error.response && (error.response.status === 401 || error.response.data?.error === 'access_denied')) {
-        // Token might have expired, refresh and retry once
+        // Token might have expired, refresh and retry once if possible
         this.accessToken = null;
         return this.makeRequest(method, url, data, headers, true);
       }
       throw error;
+    }
+  }
+
+  async getSettings() {
+    try {
+      const response = await this.makeRequest('get', `${this.baseUrl}/settings`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
     }
   }
 
@@ -284,4 +379,13 @@ class SeedrService {
   }
 }
 
-module.exports = new SeedrService();
+const defaultSeedrService = new SeedrService();
+
+module.exports = defaultSeedrService;
+module.exports.SeedrService = SeedrService;
+module.exports.createUserSeedrService = (options) => {
+  if (typeof options === 'string') {
+    return new SeedrService({ accessToken: options });
+  }
+  return new SeedrService(options || {});
+};

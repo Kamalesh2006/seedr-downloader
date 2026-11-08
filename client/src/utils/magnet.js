@@ -3,6 +3,60 @@
  */
 
 /**
+ * Sanitizes and extracts a clean magnet URI from various inputs, including:
+ * - URL-encoded magnet links (e.g. magnet%3A%3F...)
+ * - Quotes or whitespace around the URI
+ * - Zero-width or invisible Unicode characters often copied on mobile
+ * - Raw 40-character hex or 32-character base32 info hashes
+ * - Magnet links embedded within surrounding message text
+ * @param {string} input - Raw input string
+ * @returns {string} Sanitized magnet URI or cleaned string
+ */
+export function sanitizeAndExtractMagnet(input) {
+  if (!input || typeof input !== 'string') return '';
+  let str = input.trim();
+  // Strip zero-width and invisible unicode characters (frequently inserted on mobile keyboards/copy-paste)
+  str = str.replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00A0]/g, ' ').trim();
+
+  // Strip wrapping quotes
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+
+  // Decode URL-encoded magnet (e.g. starts with magnet%3A or %6D%61%67%6E%65%74)
+  if (/^magnet%3A/i.test(str) || /^%6D%61%67%6E%65%74/i.test(str)) {
+    try {
+      str = decodeURIComponent(str);
+    } catch (e) {}
+  }
+
+  // Extract magnet:?xt= if surrounded by extra text or newlines (common when copying from Telegram or web forums)
+  const magnetRegex = /magnet:\?[^\s"'<>]+/i;
+  const match = str.match(magnetRegex);
+  if (match) {
+    return match[0].trim();
+  }
+
+  // Fix magnet:xt= missing question mark
+  if (/^magnet:xt=/i.test(str)) {
+    return str.replace(/^magnet:xt=/i, 'magnet:?xt=');
+  }
+
+  // Check if raw infohash (40 hex or 32 base32)
+  if (/^[a-fA-F0-9]{40}$/.test(str) || /^[a-zA-Z2-7]{32}$/.test(str)) {
+    return `magnet:?xt=urn:btih:${str.toLowerCase()}`;
+  }
+
+  // Check if raw 40-character hex hash is inside the text
+  const hexMatch = str.match(/\b([a-fA-F0-9]{40})\b/);
+  if (hexMatch) {
+    return `magnet:?xt=urn:btih:${hexMatch[1].toLowerCase()}`;
+  }
+
+  return str;
+}
+
+/**
  * Extracts the display name (dn, name, or title) from a magnet URI, or generates a fallback name
  * @param {string} magnetUri - The magnet URI string
  * @returns {string} The extracted name or fallback
@@ -11,7 +65,8 @@ export function extractMagnetName(magnetUri) {
   if (!magnetUri || typeof magnetUri !== 'string') return '';
   
   try {
-    const trimmed = magnetUri.trim();
+    const sanitized = sanitizeAndExtractMagnet(magnetUri);
+    const trimmed = (sanitized || magnetUri).trim();
     // Check for dn, name, or title parameters
     const dnMatch = trimmed.match(/[?&](?:dn|name|title)=([^&]+)/i);
     if (dnMatch && dnMatch[1]) {
@@ -60,13 +115,14 @@ export function extractMagnetHash(magnetUri) {
 }
 
 /**
- * Checks if a string is a valid magnet URI
+ * Checks if a string is a valid magnet URI or raw infohash that can be converted
  * @param {string} str - String to test
  * @returns {boolean}
  */
 export function isValidMagnet(str) {
   if (!str || typeof str !== 'string') return false;
-  return str.trim().toLowerCase().startsWith('magnet:?');
+  const sanitized = sanitizeAndExtractMagnet(str);
+  return sanitized.trim().toLowerCase().startsWith('magnet:?');
 }
 
 /**
@@ -156,26 +212,47 @@ export function formatRelativeTime(timestamp) {
 }
 
 /**
- * Ensures a magnet link is formatted as a full magnet URI
+ * Ensures a magnet link is formatted as a full valid magnet URI
  * @param {string} magnet - Magnet URI or info hash
  * @param {string} [name] - Optional display name for dn parameter
  * @returns {string}
  */
 export function ensureMagnetUri(magnet, name = '') {
   if (!magnet || typeof magnet !== 'string') return '';
-  const trimmed = magnet.trim();
-  if (trimmed.toLowerCase().startsWith('magnet:?')) {
-    return trimmed;
+  const sanitized = sanitizeAndExtractMagnet(magnet);
+  if (!sanitized) return '';
+  if (sanitized.toLowerCase().startsWith('magnet:?')) {
+    if (name && !/[?&](?:dn|name|title)=/i.test(sanitized)) {
+      return `${sanitized}&dn=${encodeURIComponent(name.trim())}`;
+    }
+    return sanitized;
   }
-  if (trimmed.toLowerCase().startsWith('magnet:')) {
-    return trimmed.replace(/^magnet:\??/i, 'magnet:?');
+  return sanitized;
+}
+
+/**
+ * Checks if a torrent or file name is a generic placeholder fallback
+ */
+export function isGenericName(name) {
+  if (!name || typeof name !== 'string') return true;
+  const n = normalizeTitle(name);
+  if (!n) return true;
+  if (
+    n === 'magnet download' ||
+    n === 'torrent download' ||
+    n === 'scheduled torrent' ||
+    n === 'cloud torrent' ||
+    n === 'cloud task' ||
+    n === 'file' ||
+    n === 'download' ||
+    n === 'torrent'
+  ) {
+    return true;
   }
-  // Check if raw infohash (40 hex or 32 base32)
-  if (/^[a-fA-F0-9]{40}$/.test(trimmed) || /^[a-zA-Z2-7]{32}$/.test(trimmed)) {
-    const dnParam = name ? `&dn=${encodeURIComponent(name.trim())}` : '';
-    return `magnet:?xt=urn:btih:${trimmed.toLowerCase()}${dnParam}`;
+  if (/^torrent\s*[a-f0-9]+(\.\.\.)?$/i.test(n)) {
+    return true;
   }
-  return trimmed;
+  return false;
 }
 
 /**
@@ -211,50 +288,44 @@ export function isItemInCloud(queueItem, completedFiles = [], cloudTorrents = []
   const qHash = extractMagnetHash(queueItem.magnet);
   const qName = queueItem.name || extractMagnetName(queueItem.magnet) || '';
   const normQ = normalizeTitle(qName);
-  const qTokens = cleanTitleTokens(qName);
+  const isGeneric = isGenericName(qName);
 
   // 1. Check active downloading cloud torrents
   if (Array.isArray(cloudTorrents)) {
     for (const t of cloudTorrents) {
       const tHash = (t.torrent_hash || t.hash || '').toLowerCase();
       if (qHash && tHash && qHash === tHash) return true;
-      const normT = normalizeTitle(t.name || t.title || '');
-      if (normQ && normT && normQ === normT) return true;
+      if (!isGeneric) {
+        const normT = normalizeTitle(t.name || t.title || '');
+        if (normQ && normT && normQ === normT) return true;
+      }
     }
   }
 
   // 2. Check active cloud tasks
   if (Array.isArray(cloudTasks)) {
     for (const task of cloudTasks) {
-      const normTask = normalizeTitle(task.name || task.title || '');
-      if (normQ && normTask && normQ === normTask) return true;
+      const taskHash = (task.torrent_hash || task.hash || '').toLowerCase();
+      if (qHash && taskHash && qHash === taskHash) return true;
+      if (!isGeneric) {
+        const normTask = normalizeTitle(task.name || task.title || '');
+        if (normQ && normTask && normQ === normTask) return true;
+      }
     }
   }
 
   // 3. Check completed files and folders
   if (Array.isArray(completedFiles)) {
     for (const f of completedFiles) {
-      const fName = f.name || f.path || f.title || '';
-      const normF = normalizeTitle(fName);
+      const fHash = (f.hash || f.torrent_hash || '').toLowerCase();
+      if (qHash && fHash && qHash === fHash) return true;
 
-      // Exact normalized name match
-      if (normQ && normF && normQ === normF) return true;
-
-      // Substring match if sufficiently descriptive
-      if (normQ.length >= 15 && normF.length >= 15) {
-        if (normQ.includes(normF) || normF.includes(normQ)) return true;
-      }
-
-      // Token overlap match
-      if (qTokens.length >= 2) {
-        const fTokens = cleanTitleTokens(fName);
-        if (fTokens.length >= 2) {
-          let matches = 0;
-          for (const tok of qTokens) {
-            if (fTokens.includes(tok)) matches++;
-          }
-          const overlap = matches / Math.min(qTokens.length, fTokens.length);
-          if (overlap >= 0.8 && matches >= 2) return true;
+      // Exact normalized title match for non-generic names only
+      if (!isGeneric) {
+        const fName = f.name || f.path || f.title || '';
+        if (!isGenericName(fName)) {
+          const normF = normalizeTitle(fName);
+          if (normQ && normF && normQ === normF) return true;
         }
       }
     }

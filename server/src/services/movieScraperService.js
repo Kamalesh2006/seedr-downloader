@@ -520,17 +520,18 @@ class MovieScraperService {
   /**
    * Search movies/torrents from the active mirror by query
    */
-  async searchTorrents(query, allowDetailFallback = true) {
+  async searchTorrents(query, page = 1, allowDetailFallback = true) {
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return [];
     }
 
     try {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const discoveryResult = await mirrorDiscovery.discover();
       const domain = discoveryResult.domain;
       if (!domain) return [];
 
-      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(query.trim())}&type=forums_topic`;
+      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(query.trim())}&type=forums_topic&page=${pageNum}`;
       const res = await axios.get(searchUrl, {
         headers: this.getBrowserHeaders(domain),
         ...getAxiosNetworkConfig(),
@@ -615,9 +616,10 @@ class MovieScraperService {
   /**
    * Search movies from 1TamilMV forum and return grouped releases for the UI
    */
-  async searchMovies(query) {
+  async searchMovies(query, page = 1) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
-      return { success: true, movies: [], count: 0, query: query || '' };
+      return { success: true, movies: [], count: 0, query: query || '', page: pageNum, totalPages: 1 };
     }
 
     try {
@@ -625,11 +627,11 @@ class MovieScraperService {
       const discoveryResult = await mirrorDiscovery.discover();
       const domain = discoveryResult.domain;
       if (!domain) {
-        return { success: false, error: 'No active mirror domain', movies: [], count: 0, query: cleanQ };
+        return { success: false, error: 'No active mirror domain', movies: [], count: 0, query: cleanQ, page: pageNum, totalPages: 1 };
       }
 
-      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(cleanQ)}&type=forums_topic`;
-      console.log(`[MovieScraper] Searching 1TamilMV releases: ${searchUrl}`);
+      const searchUrl = `${domain}/index.php?/search/&q=${encodeURIComponent(cleanQ)}&type=forums_topic&page=${pageNum}`;
+      console.log(`[MovieScraper] Searching 1TamilMV releases (page ${pageNum}): ${searchUrl}`);
       let res;
       try {
         res = await axios.get(searchUrl, {
@@ -654,13 +656,28 @@ class MovieScraperService {
       }
 
       if (!res.data || typeof res.data !== 'string') {
-        return { success: true, movies: [], count: 0, query: cleanQ, domain };
+        return { success: true, movies: [], count: 0, query: cleanQ, domain, page: pageNum, totalPages: 1 };
       }
 
       const $ = cheerio.load(res.data);
       const rawMovies = [];
       const seenUrls = new Set();
       const seenTitles = new Set();
+
+      // Extract pagination details from Invision Power Services forum markup
+      const paginationEl = $('.ipsPagination').first();
+      let totalPages = 1;
+      if (paginationEl.length > 0) {
+        const dataPages = parseInt(paginationEl.attr('data-pages'), 10);
+        if (dataPages && !isNaN(dataPages)) {
+          totalPages = dataPages;
+        } else {
+          paginationEl.find('li.ipsPagination_page a, [data-page]').each((_, el) => {
+            const pNum = parseInt($(el).attr('data-page') || $(el).text().trim(), 10);
+            if (pNum && pNum > totalPages) totalPages = pNum;
+          });
+        }
+      }
 
       $('li.ipsStreamItem').each((idx, el) => {
         const titleEl = $(el).find('.ipsStreamItem_title a').first();
@@ -724,7 +741,11 @@ class MovieScraperService {
         query: cleanQ,
         movies: grouped,
         count: grouped.length,
-        totalFound: rawMovies.length
+        totalFound: rawMovies.length,
+        page: pageNum,
+        totalPages: Math.max(1, totalPages),
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
       };
     } catch (err) {
       console.warn('[MovieScraper] searchMovies failed:', err.message);
@@ -733,7 +754,9 @@ class MovieScraperService {
         error: err.message,
         movies: [],
         count: 0,
-        query
+        query,
+        page: pageNum,
+        totalPages: 1
       };
     }
   }
